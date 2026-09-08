@@ -9,6 +9,8 @@ const BIENS_URL = '/api/biens';
 
 const API_INJOIGNABLE = "L'API est injoignable. Le Bien n'a pas été enregistré.";
 
+const LISTE_INJOIGNABLE: ListeBiens = { chargee: false };
+
 /**
  * L'issue d'une création. Un refus porte ses messages, une réussite porte
  * le Bien créé : le type interdit d'avoir les deux, ou aucun des deux.
@@ -17,13 +19,30 @@ export type CreationBienResultat =
   | { cree: true; bien: Bien }
   | { cree: false; erreurs: string[] };
 
+/**
+ * L'issue d'un chargement de la liste. Une API qui n'a pas répondu n'a par
+ * définition aucun Bien à rapporter : le type refuse de confondre ce cas
+ * avec une liste réellement vide, que l'écran affiche tout autrement.
+ */
+export type ListeBiens = { chargee: true; biens: Bien[] } | { chargee: false };
+
 @Injectable({ providedIn: 'root' })
 export class BienService {
   private readonly http = inject(HttpClient);
 
-  /** Tous les Biens enregistrés, dans l'ordre où l'API les renvoie. */
-  lister(): Observable<Bien[]> {
-    return this.http.get<BienApi[]>(BIENS_URL).pipe(map((biens) => biens.map(versBien)));
+  /**
+   * Tous les Biens enregistrés, dans l'ordre où l'API les renvoie.
+   *
+   * Une API injoignable est un état à afficher, pas une erreur à propager :
+   * la rabattre sur une liste vide ferait dire à l'écran que le carnet est
+   * vide, ce qui se lit comme une perte de données sur des Biens saisis à
+   * la main (ADR-0001).
+   */
+  lister(): Observable<ListeBiens> {
+    return this.http.get<BienApi[]>(BIENS_URL).pipe(
+      map((biens): ListeBiens => ({ chargee: true, biens: biens.map(versBien) })),
+      catchError(() => of(LISTE_INJOIGNABLE)),
+    );
   }
 
   /**

@@ -51,19 +51,33 @@ describe('BienService', () => {
         },
       });
 
-      const biens = await firstValueFrom(service.lister());
+      const liste = await firstValueFrom(service.lister());
 
       expect(urls).toEqual(['/api/biens']);
-      expect(biens).toEqual([
-        { id: 1, libelle: 'le T3 avec la terrasse', urlAnnonce: null },
-        { id: 2, libelle: 'celui avec la cuisine refaite', urlAnnonce: null },
-      ]);
+      expect(liste).toEqual({
+        chargee: true,
+        biens: [
+          { id: 1, libelle: 'le T3 avec la terrasse', urlAnnonce: null },
+          { id: 2, libelle: 'celui avec la cuisine refaite', urlAnnonce: null },
+        ],
+      });
     });
 
     it('rend une liste vide quand aucun Bien n’est enregistré', async () => {
       const service = creerService({ get: () => of([]) });
 
-      expect(await firstValueFrom(service.lister())).toEqual([]);
+      expect(await firstValueFrom(service.lister())).toEqual({ chargee: true, biens: [] });
+    });
+
+    it('distingue une API injoignable d’un carnet vide', async () => {
+      // Rabattre l'échec sur une liste vide ferait dire à l'écran que le
+      // carnet est vide : sur des Biens saisis à la main, cela se lit comme
+      // une perte de données.
+      const service = creerService({
+        get: () => throwError(() => new HttpErrorResponse({ status: 0 })),
+      });
+
+      expect(await firstValueFrom(service.lister())).toEqual({ chargee: false });
     });
   });
 

@@ -4,18 +4,23 @@ import { of, Subject, type Observable } from 'rxjs';
 import { BiensPage } from './biens-page';
 import { BienService } from './bien.service';
 import type { Bien, CreationBien } from './bien';
-import type { CreationBienResultat } from './bien.service';
+import type { CreationBienResultat, ListeBiens } from './bien.service';
 
 /**
  * Le composant est construit sans TestBed : seul son service est injecté,
  * et les assertions portent sur ses signaux plutôt que sur le DOM rendu.
  */
 function creerPage(service: {
-  lister?: () => Observable<Bien[]>;
+  lister?: () => Observable<ListeBiens>;
   creer?: (saisie: CreationBien) => Observable<CreationBienResultat>;
 }) {
   const injector = Injector.create({
-    providers: [{ provide: BienService, useValue: { lister: () => of([]), ...service } }],
+    providers: [
+      {
+        provide: BienService,
+        useValue: { lister: () => of(chargee([])), ...service },
+      },
+    ],
   });
 
   return runInInjectionContext(injector, () => new BiensPage());
@@ -23,25 +28,43 @@ function creerPage(service: {
 
 const bien: Bien = { id: 1, libelle: 'le T3 avec la terrasse', urlAnnonce: null };
 
+function chargee(biens: Bien[]): ListeBiens {
+  return { chargee: true, biens };
+}
+
+/** Les Biens affichés, ou `null` si la liste n'a pas pu être chargée. */
+function biensAffiches(liste: ListeBiens | null) {
+  return liste?.chargee ? liste.biens : null;
+}
+
 describe('BiensPage', () => {
   it('affiche les Biens déjà enregistrés dès son ouverture', () => {
-    const page = creerPage({ lister: () => of([bien]) });
+    const page = creerPage({ lister: () => of(chargee([bien])) });
 
-    expect(page.biens()).toEqual([bien]);
+    expect(biensAffiches(page.liste())).toEqual([bien]);
+  });
+
+  it('signale une API injoignable au lieu de la faire passer pour un carnet vide', () => {
+    // Sans cette distinction, l'écran annonce « Aucun Bien pour l'instant »
+    // alors que les Biens sont bien en base : cela se lit comme une perte.
+    const page = creerPage({ lister: () => of({ chargee: false } as ListeBiens) });
+
+    expect(page.liste()).toEqual({ chargee: false });
+    expect(biensAffiches(page.liste())).toBeNull();
   });
 
   it('ajoute le Bien créé en tête de liste sans recharger', () => {
     // Le Bien doit apparaître immédiatement : c'est tout l'objet de l'écran.
     const dejaLa: Bien = { id: 2, libelle: 'celui avec la cuisine refaite', urlAnnonce: null };
     const page = creerPage({
-      lister: () => of([dejaLa]),
+      lister: () => of(chargee([dejaLa])),
       creer: () => of({ cree: true, bien }),
     });
 
     page.libelle.set('le T3 avec la terrasse');
     page.creer();
 
-    expect(page.biens()).toEqual([bien, dejaLa]);
+    expect(biensAffiches(page.liste())).toEqual([bien, dejaLa]);
   });
 
   it('vide le formulaire après une création réussie', () => {
@@ -82,7 +105,7 @@ describe('BiensPage', () => {
     page.creer();
 
     expect(page.erreurs()).toEqual(['Le Libellé est obligatoire']);
-    expect(page.biens()).toEqual([]);
+    expect(biensAffiches(page.liste())).toEqual([]);
     // La saisie est conservée : l'acheteur doit pouvoir la corriger.
     expect(page.libelle()).toBe('  ');
   });

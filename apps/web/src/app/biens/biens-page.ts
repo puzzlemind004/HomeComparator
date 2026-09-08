@@ -1,7 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { BienService } from './bien.service';
-import type { Bien } from './bien';
+import { BienService, type ListeBiens } from './bien.service';
 
 /**
  * L'écran de repérage : saisir un Libellé, et retrouver le Bien dans la
@@ -25,7 +24,12 @@ export class BiensPage {
   readonly libelle = signal('');
   readonly urlAnnonce = signal('');
 
-  readonly biens = signal<Bien[]>([]);
+  /**
+   * La liste, ou l'aveu qu'on n'a pas pu la charger. `null` tant que l'API
+   * n'a pas répondu : les trois états sont distincts à l'écran, une liste
+   * vide ne devant jamais être confondue avec un chargement raté.
+   */
+  readonly liste = signal<ListeBiens | null>(null);
   readonly erreurs = signal<string[]>([]);
   readonly enregistrement = signal(false);
 
@@ -53,13 +57,15 @@ export class BiensPage {
 
         // Le Bien créé rejoint la liste sans nouvel aller-retour : il
         // apparaît immédiatement, ce qui est tout l'objet de l'écran.
-        this.biens.update((biens) => [resultat.bien, ...biens]);
+        this.liste.update((liste) =>
+          liste?.chargee ? { chargee: true, biens: [resultat.bien, ...liste.biens] } : liste,
+        );
         this.libelle.set('');
         this.urlAnnonce.set('');
       });
   }
 
   private rafraichir(): void {
-    this.bienService.lister().subscribe((biens) => this.biens.set(biens));
+    this.bienService.lister().subscribe((liste) => this.liste.set(liste));
   }
 }

@@ -38,20 +38,30 @@
 
   <h2>Mes Biens</h2>
 
-  @if (biens().length) {
-    <ul class="liste">
-      @for (bien of biens(); track bien.id) {
-        <li class="bien">
-          <span class="bien__libelle">{{ bien.libelle }}</span>
-          @if (bien.urlAnnonce; as url) {
-            <a class="bien__annonce" [href]="url" target="_blank" rel="noopener noreferrer">
-              Voir l'Annonce
-            </a>
+  @if (liste(); as liste) {
+    @if (liste.chargee) {
+      @if (liste.biens.length) {
+        <ul class="liste">
+          @for (bien of liste.biens; track bien.id) {
+            <li class="bien">
+              <span class="bien__libelle">{{ bien.libelle }}</span>
+              @if (bien.urlAnnonce; as url) {
+                <a class="bien__annonce" [href]="url" target="_blank" rel="noopener noreferrer">
+                  Voir l'Annonce
+                </a>
+              }
+            </li>
           }
-        </li>
+        </ul>
+      } @else {
+        <p class="liste--vide">Aucun Bien pour l'instant.</p>
       }
-    </ul>
+    } @else {
+      <p class="liste--erreur" role="alert">
+        L'API est injoignable : la liste des Biens n'a pas pu être chargée.
+      </p>
+    }
   } @else {
-    <p class="liste--vide">Aucun Bien pour l'instant.</p>
+    <p class="liste--vide">Chargement des Biens…</p>
   }
 </section>

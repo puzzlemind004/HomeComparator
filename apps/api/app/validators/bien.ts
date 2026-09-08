@@ -12,10 +12,14 @@ export const creerBienValidator = vine.compile(
     libelle: vine.string().trim().minLength(1).maxLength(255),
 
     /**
-     * Un champ laissé vide dans le formulaire arrive en chaîne vide. Elle
-     * vaut « pas d'Annonce » — donc `null` en base, et non une erreur de
-     * saisie. `parse` s'exécute avant les règles, ce qui évite de faire
-     * porter à `url` une chaîne vide qu'elle rejetterait.
+     * Un champ laissé vide vaut « pas d'Annonce » — donc `null` en base, et
+     * non une erreur de saisie.
+     *
+     * Le corps de requête est déjà passé par `convertEmptyStringsToNull`
+     * (`config/bodyparser.ts`), qui traite la chaîne vide. `parse` couvre ce
+     * qui lui échappe : une saisie d'espaces, que le formulaire produit tout
+     * aussi facilement. Il s'exécute avant les règles, donc `url` ne voit
+     * jamais la chaîne vide qu'elle rejetterait.
      */
     urlAnnonce: vine
       .string()
@@ -24,7 +28,14 @@ export const creerBienValidator = vine.compile(
       // `maxLength` avant `url` : au-delà de la borne, c'est la longueur
       // qu'il faut annoncer, et non une adresse invalide.
       .maxLength(2048)
-      .url()
+      /**
+       * `require_protocol` est faux par défaut chez Vine, ce qui laisserait
+       * passer `www.portail.test/annonce` — la forme exacte d'un copier-coller
+       * depuis la barre d'adresse. Sans schéma, le `href` du lien devient un
+       * chemin relatif, et « Voir l'Annonce » renvoie vers l'application.
+       * Seuls http et https ont un sens pour une Annonce en ligne.
+       */
+      .url({ protocols: ['http', 'https'], require_protocol: true })
       .nullable()
       .optional(),
   })

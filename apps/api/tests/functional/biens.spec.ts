@@ -35,6 +35,16 @@ test.group('Biens', (group) => {
     assert.lengthOf(await Bien.all(), 0)
   })
 
+  test('refuse un Libellé vide', async ({ client, assert }) => {
+    // Le geste le plus fréquent : valider le formulaire sans rien saisir.
+    // La chaîne vide est ramenée à `null` par `convertEmptyStringsToNull`
+    // avant le validateur, donc c'est `required` qui la refuse.
+    const response = await client.post('/biens').json({ libelle: '' })
+
+    response.assertStatus(422)
+    assert.equal(response.body().errors[0].message, 'Le Libellé est obligatoire')
+  })
+
   test('refuse un Libellé vide de tout caractère visible', async ({ client, assert }) => {
     // Une saisie d'espaces n'est pas un Libellé : elle ne sert pas la
     // reconnaissance, qui est toute la raison d'être du champ.
@@ -105,6 +115,27 @@ test.group('Biens', (group) => {
     })
   })
 
+  test("refuse une URL d'Annonce sans schéma", async ({ client, assert }) => {
+    // C'est la forme d'un copier-coller depuis la barre d'adresse. Stockée
+    // telle quelle, elle produirait un lien relatif pointant vers
+    // l'application elle-même plutôt que vers l'Annonce.
+    const response = await client
+      .post('/biens')
+      .json({ libelle: 'le T3 avec la terrasse', urlAnnonce: 'www.portail.test/annonce/123' })
+
+    response.assertStatus(422)
+    assert.equal(response.body().errors[0].field, 'urlAnnonce')
+  })
+
+  test("refuse une URL d'Annonce dont le schéma n'est pas http", async ({ client, assert }) => {
+    const response = await client
+      .post('/biens')
+      .json({ libelle: 'le T3 avec la terrasse', urlAnnonce: 'ftp://portail.test/annonce' })
+
+    response.assertStatus(422)
+    assert.equal(response.body().errors[0].field, 'urlAnnonce')
+  })
+
   test("refuse une URL d'Annonce qui n'en est pas une", async ({ client, assert }) => {
     const response = await client
       .post('/biens')
@@ -122,7 +153,9 @@ test.group('Biens', (group) => {
 
     response.assertStatus(200)
     const libelles = response.body().map((bien: { libelle: string }) => bien.libelle)
-    assert.sameMembers(libelles, ['le T3 avec la terrasse', 'celui avec la cuisine refaite'])
+    // L'ordre est antéchronologique, et le front s'y aligne en insérant le
+    // Bien créé en tête de liste : c'est un contrat, pas un hasard.
+    assert.deepEqual(libelles, ['celui avec la cuisine refaite', 'le T3 avec la terrasse'])
   })
 
   test('rend une liste vide quand aucun Bien n’est enregistré', async ({ client, assert }) => {
