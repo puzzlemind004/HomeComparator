@@ -44,6 +44,18 @@ test.group('Biens', (group) => {
     assert.equal(response.body().errors[0].field, 'libelle')
   })
 
+  test('refuse un Libellé qui n’est pas du texte, dans la même langue', async ({
+    client,
+    assert,
+  }) => {
+    // Le message part vers une interface quelle que soit l'origine de la
+    // saisie : il ne doit pas retomber sur le message anglais par défaut.
+    const response = await client.post('/biens').json({ libelle: 42 })
+
+    response.assertStatus(422)
+    assert.equal(response.body().errors[0].message, 'Le Libellé est obligatoire')
+  })
+
   test("crée un Bien avec l'URL de son Annonce", async ({ client }) => {
     const response = await client.post('/biens').json({
       libelle: 'le T3 avec la terrasse',
@@ -63,6 +75,34 @@ test.group('Biens', (group) => {
 
     response.assertStatus(201)
     response.assertBodyContains({ urlAnnonce: null })
+  })
+
+  test("accepte une URL d'Annonce plus longue que 255 caractères", async ({ client }) => {
+    // Les portails immobiliers produisent de longues URL de suivi. La colonne
+    // doit accepter tout ce que le validateur accepte, sans quoi la création
+    // échoue en erreur serveur après avoir passé la validation.
+    const urlAnnonce = `https://exemple.test/annonce/${'a'.repeat(300)}`
+
+    const response = await client
+      .post('/biens')
+      .json({ libelle: 'le T3 avec la terrasse', urlAnnonce })
+
+    response.assertStatus(201)
+    response.assertBodyContains({ urlAnnonce })
+  })
+
+  test("refuse une URL d'Annonce plus longue que la colonne", async ({ client, assert }) => {
+    const response = await client.post('/biens').json({
+      libelle: 'le T3 avec la terrasse',
+      urlAnnonce: `https://exemple.test/${'a'.repeat(2100)}`,
+    })
+
+    response.assertStatus(422)
+    // Le message doit désigner la longueur, et non une adresse invalide.
+    assert.deepInclude(response.body().errors[0], {
+      field: 'urlAnnonce',
+      message: "L'URL de l'Annonce ne doit pas dépasser 2048 caractères",
+    })
   })
 
   test("refuse une URL d'Annonce qui n'en est pas une", async ({ client, assert }) => {

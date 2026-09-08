@@ -12,8 +12,14 @@ export default class extends BaseSchema {
        *
        * Un Bien peut faire l'objet de plusieurs Annonces (CONTEXT.md) ; cette
        * colonne n'en garde qu'une, celle par laquelle le Bien a été repéré.
+       *
+       * 2048 caractères, et non les 255 par défaut de `string()` : les URL
+       * des portails immobiliers portent de longues chaînes de suivi. La
+       * borne est la même que celle du validateur (`app/validators/bien.ts`),
+       * sans quoi une URL trop longue passerait la validation puis ferait
+       * échouer l'insertion — une erreur serveur au lieu d'un refus lisible.
        */
-      table.string('url_annonce').nullable()
+      table.string('url_annonce', 2048).nullable()
     })
   }
 

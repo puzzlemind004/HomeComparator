@@ -21,8 +21,10 @@ export const creerBienValidator = vine.compile(
       .string()
       .parse((valeur) => (typeof valeur === 'string' && valeur.trim() === '' ? null : valeur))
       .trim()
-      .url()
+      // `maxLength` avant `url` : au-delà de la borne, c'est la longueur
+      // qu'il faut annoncer, et non une adresse invalide.
       .maxLength(2048)
+      .url()
       .nullable()
       .optional(),
   })
@@ -35,7 +37,11 @@ export const creerBienValidator = vine.compile(
 creerBienValidator.messagesProvider = new SimpleMessagesProvider({
   'libelle.required': 'Le Libellé est obligatoire',
   'libelle.minLength': 'Le Libellé est obligatoire',
+  // Une saisie qui n'est pas du texte ne vient pas du formulaire, mais le
+  // message part quand même vers une interface : il se lit comme les autres.
+  'libelle.string': 'Le Libellé est obligatoire',
   'libelle.maxLength': 'Le Libellé ne doit pas dépasser 255 caractères',
+  'urlAnnonce.string': "L'URL de l'Annonce n'est pas une adresse valide",
   'urlAnnonce.url': "L'URL de l'Annonce n'est pas une adresse valide",
   'urlAnnonce.maxLength': "L'URL de l'Annonce ne doit pas dépasser 2048 caractères",
 })
