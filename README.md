@@ -17,19 +17,19 @@ docker/      Scripts d'initialisation des conteneurs
 Prérequis : Docker et Node 24.
 
 ```bash
-cp .env.example .env          # puis renseigner APP_KEY et POSTGRES_PASSWORD
+cp .env.example .env
+openssl rand -base64 24       # reporter dans APP_KEY= du .env
+                              # puis renseigner POSTGRES_PASSWORD
 docker compose up --build
 ```
+
+L'`APP_KEY` se génère avant le premier démarrage : l'API refuse de booter
+sans elle, donc aucune commande passant par `node ace` ne peut la produire
+tant qu'elle manque.
 
 Le front est sur http://localhost:4200, l'API sur http://localhost:3333.
 Les migrations sont jouées automatiquement au démarrage de l'API, et la
 base de test est créée à l'initialisation du volume PostgreSQL.
-
-Générer une `APP_KEY` :
-
-```bash
-docker compose run --rm api node ace generate:key
-```
 
 ### Port de PostgreSQL
 

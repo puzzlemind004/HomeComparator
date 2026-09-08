@@ -12,7 +12,9 @@ const loggerConfig = defineConfig({
   loggers: {
     app: {
       enabled: true,
-      name: env.get('APP_NAME'),
+      // Nom fixe du projet : rien ne justifie de le rendre configurable,
+      // et APP_NAME n'était déclaré ni dans start/env.ts ni dans les .env.
+      name: 'homecomparator',
       level: env.get('LOG_LEVEL'),
       transport: {
         targets: targets()
