@@ -49,6 +49,9 @@ export default defineConfig({
     },
     () => import('@adonisjs/cors/cors_provider'),
     () => import('@adonisjs/lucid/database_provider'),
+    // Porte la session qui atteste du mot de passe unique (#4) : sans lui,
+    // `ctx.session` n'existe pas et l'API repartirait ouverte à tous.
+    () => import('@adonisjs/session/session_provider'),
   ],
 
   /*

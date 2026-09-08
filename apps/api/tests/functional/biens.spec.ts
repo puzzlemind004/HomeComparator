@@ -1,16 +1,25 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import Bien from '#models/bien'
+import { avecSession, ouvrirSession, type Session } from '#tests/session'
+import { PROPRIETAIRE_UNIQUE } from '#services/proprietaire'
 
 test.group('Biens', (group) => {
-  // Chaque test part d'une base vide : la liste est assertée dans son
+  // Toutes les routes de Biens exigent la session (#4) : chaque test en
+  // ouvre une, comme l'acheteur qui se connecte puis saisit.
+  let session: Session
+
+  // Chaque test part aussi d'une base vide : la liste est assertée dans son
   // entier, ce qu'un reliquat du test précédent rendrait faux.
-  group.each.setup(async () => {
+  group.each.setup(async ({ context }) => {
     await db.from('biens').delete()
+    session = await ouvrirSession(context.client)
   })
 
   test('crée un Bien avec le seul Libellé', async ({ client, assert }) => {
-    const response = await client.post('/biens').json({ libelle: 'le T3 avec la terrasse' })
+    const response = await avecSession(client.post('/biens'), session).json({
+      libelle: 'le T3 avec la terrasse',
+    })
 
     response.assertStatus(201)
     response.assertBodyContains({ libelle: 'le T3 avec la terrasse', urlAnnonce: null })
@@ -25,7 +34,7 @@ test.group('Biens', (group) => {
   }) => {
     // Aucun en-tête `Accept` : le front n'en envoie pas non plus, et l'API
     // doit répondre en JSON quand même.
-    const response = await client.post('/biens').json({})
+    const response = await avecSession(client.post('/biens'), session).json({})
     response.assertStatus(422)
     const [erreur] = response.body().errors
     assert.equal(erreur.field, 'libelle')
@@ -39,7 +48,7 @@ test.group('Biens', (group) => {
     // Le geste le plus fréquent : valider le formulaire sans rien saisir.
     // La chaîne vide est ramenée à `null` par `convertEmptyStringsToNull`
     // avant le validateur, donc c'est `required` qui la refuse.
-    const response = await client.post('/biens').json({ libelle: '' })
+    const response = await avecSession(client.post('/biens'), session).json({ libelle: '' })
 
     response.assertStatus(422)
     assert.equal(response.body().errors[0].message, 'Le Libellé est obligatoire')
@@ -48,7 +57,7 @@ test.group('Biens', (group) => {
   test('refuse un Libellé vide de tout caractère visible', async ({ client, assert }) => {
     // Une saisie d'espaces n'est pas un Libellé : elle ne sert pas la
     // reconnaissance, qui est toute la raison d'être du champ.
-    const response = await client.post('/biens').json({ libelle: '   ' })
+    const response = await avecSession(client.post('/biens'), session).json({ libelle: '   ' })
 
     response.assertStatus(422)
     assert.equal(response.body().errors[0].field, 'libelle')
@@ -60,14 +69,14 @@ test.group('Biens', (group) => {
   }) => {
     // Le message part vers une interface quelle que soit l'origine de la
     // saisie : il ne doit pas retomber sur le message anglais par défaut.
-    const response = await client.post('/biens').json({ libelle: 42 })
+    const response = await avecSession(client.post('/biens'), session).json({ libelle: 42 })
 
     response.assertStatus(422)
     assert.equal(response.body().errors[0].message, 'Le Libellé est obligatoire')
   })
 
   test("crée un Bien avec l'URL de son Annonce", async ({ client }) => {
-    const response = await client.post('/biens').json({
+    const response = await avecSession(client.post('/biens'), session).json({
       libelle: 'le T3 avec la terrasse',
       urlAnnonce: 'https://exemple.test/annonce/1',
     })
@@ -79,9 +88,10 @@ test.group('Biens', (group) => {
   test("accepte une URL d'Annonce laissée vide", async ({ client }) => {
     // Le formulaire envoie une chaîne vide pour un champ non rempli : elle
     // doit valoir « pas d'Annonce », pas une erreur de validation.
-    const response = await client
-      .post('/biens')
-      .json({ libelle: 'le T3 avec la terrasse', urlAnnonce: '' })
+    const response = await avecSession(client.post('/biens'), session).json({
+      libelle: 'le T3 avec la terrasse',
+      urlAnnonce: '',
+    })
 
     response.assertStatus(201)
     response.assertBodyContains({ urlAnnonce: null })
@@ -93,16 +103,17 @@ test.group('Biens', (group) => {
     // échoue en erreur serveur après avoir passé la validation.
     const urlAnnonce = `https://exemple.test/annonce/${'a'.repeat(300)}`
 
-    const response = await client
-      .post('/biens')
-      .json({ libelle: 'le T3 avec la terrasse', urlAnnonce })
+    const response = await avecSession(client.post('/biens'), session).json({
+      libelle: 'le T3 avec la terrasse',
+      urlAnnonce,
+    })
 
     response.assertStatus(201)
     response.assertBodyContains({ urlAnnonce })
   })
 
   test("refuse une URL d'Annonce plus longue que la colonne", async ({ client, assert }) => {
-    const response = await client.post('/biens').json({
+    const response = await avecSession(client.post('/biens'), session).json({
       libelle: 'le T3 avec la terrasse',
       urlAnnonce: `https://exemple.test/${'a'.repeat(2100)}`,
     })
@@ -119,37 +130,53 @@ test.group('Biens', (group) => {
     // C'est la forme d'un copier-coller depuis la barre d'adresse. Stockée
     // telle quelle, elle produirait un lien relatif pointant vers
     // l'application elle-même plutôt que vers l'Annonce.
-    const response = await client
-      .post('/biens')
-      .json({ libelle: 'le T3 avec la terrasse', urlAnnonce: 'www.portail.test/annonce/123' })
+    const response = await avecSession(client.post('/biens'), session).json({
+      libelle: 'le T3 avec la terrasse',
+      urlAnnonce: 'www.portail.test/annonce/123',
+    })
 
     response.assertStatus(422)
     assert.equal(response.body().errors[0].field, 'urlAnnonce')
   })
 
   test("refuse une URL d'Annonce dont le schéma n'est pas http", async ({ client, assert }) => {
-    const response = await client
-      .post('/biens')
-      .json({ libelle: 'le T3 avec la terrasse', urlAnnonce: 'ftp://portail.test/annonce' })
+    const response = await avecSession(client.post('/biens'), session).json({
+      libelle: 'le T3 avec la terrasse',
+      urlAnnonce: 'ftp://portail.test/annonce',
+    })
 
     response.assertStatus(422)
     assert.equal(response.body().errors[0].field, 'urlAnnonce')
   })
 
   test("refuse une URL d'Annonce qui n'en est pas une", async ({ client, assert }) => {
-    const response = await client
-      .post('/biens')
-      .json({ libelle: 'le T3 avec la terrasse', urlAnnonce: 'pas une url' })
+    const response = await avecSession(client.post('/biens'), session).json({
+      libelle: 'le T3 avec la terrasse',
+      urlAnnonce: 'pas une url',
+    })
 
     response.assertStatus(422)
     assert.equal(response.body().errors[0].field, 'urlAnnonce')
   })
 
-  test('récupère la liste de tous les Biens enregistrés', async ({ client, assert }) => {
-    await client.post('/biens').json({ libelle: 'le T3 avec la terrasse' })
-    await client.post('/biens').json({ libelle: 'celui avec la cuisine refaite' })
+  test('rattache le Bien créé au propriétaire unique', async ({ client, assert }) => {
+    // L'outil n'a qu'un utilisateur et aucun écran de comptes : la colonne
+    // n'est là que pour qu'un passage au multi-utilisateurs n'ait pas à
+    // rattacher après coup des Biens existants (#4). Encore faut-il qu'elle
+    // soit remplie dès la création, sinon elle ne sert à rien.
+    await avecSession(client.post('/biens'), session).json({ libelle: 'le T3 avec la terrasse' })
 
-    const response = await client.get('/biens')
+    const bien = await Bien.findByOrFail('libelle', 'le T3 avec la terrasse')
+    assert.equal(bien.proprietaireId, PROPRIETAIRE_UNIQUE)
+  })
+
+  test('récupère la liste de tous les Biens enregistrés', async ({ client, assert }) => {
+    await avecSession(client.post('/biens'), session).json({ libelle: 'le T3 avec la terrasse' })
+    await avecSession(client.post('/biens'), session).json({
+      libelle: 'celui avec la cuisine refaite',
+    })
+
+    const response = await avecSession(client.get('/biens'), session)
 
     response.assertStatus(200)
     const libelles = response.body().map((bien: { libelle: string }) => bien.libelle)
@@ -159,7 +186,7 @@ test.group('Biens', (group) => {
   })
 
   test('rend une liste vide quand aucun Bien n’est enregistré', async ({ client, assert }) => {
-    const response = await client.get('/biens')
+    const response = await avecSession(client.get('/biens'), session)
 
     response.assertStatus(200)
     assert.deepEqual(response.body(), [])

@@ -35,4 +35,16 @@ export default await Env.create(new URL('../', import.meta.url), {
   |----------------------------------------------------------
   */
   CORS_ORIGIN: Env.schema.string(),
+
+  /*
+  |----------------------------------------------------------
+  | Mot de passe unique protégeant l'accès à l'outil
+  |----------------------------------------------------------
+  |
+  | Un seul utilisateur ne justifie pas un système de comptes (#4) : le
+  | mot de passe vit ici, et nulle part en base. Obligatoire et non vide,
+  | sans quoi l'API démarrerait ouverte à tous sans le dire.
+  |
+  */
+  APP_PASSWORD: Env.schema.string(),
 })

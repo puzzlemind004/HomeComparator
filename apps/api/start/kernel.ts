@@ -31,10 +31,18 @@ server.use([
  * The router middleware stack runs middleware on all the HTTP
  * requests with a registered route.
  */
-router.use([() => import('@adonisjs/core/bodyparser_middleware')])
+router.use([
+  () => import('@adonisjs/core/bodyparser_middleware'),
+  // La session est lue et réécrite pour toute requête routée : le
+  // middleware d'authentification, comme le contrôleur de connexion,
+  // trouvent `ctx.session` déjà initialisée.
+  () => import('@adonisjs/session/session_middleware'),
+])
 
 /**
  * Named middleware collection must be explicitly assigned to
  * the routes or the routes group.
  */
-export const middleware = router.named({})
+export const middleware = router.named({
+  authentification: () => import('#middleware/authentification_middleware'),
+})

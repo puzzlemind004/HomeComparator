@@ -1,0 +1,24 @@
+<section class="connexion">
+  <h2>Connexion</h2>
+
+  <p class="connexion__intro">Le carnet est protégé par un mot de passe.</p>
+
+  <form class="saisie" (ngSubmit)="connecter()">
+    <label class="champ">
+      <span>Mot de passe</span>
+      <input
+        name="motDePasse"
+        type="password"
+        [ngModel]="motDePasse()"
+        (ngModelChange)="motDePasse.set($event)"
+        autocomplete="current-password"
+      />
+    </label>
+
+    <button type="submit" [disabled]="connexionEnCours()">Entrer</button>
+  </form>
+
+  @if (erreur(); as erreur) {
+    <p class="erreur" role="alert">{{ erreur }}</p>
+  }
+</section>

@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import Bien from '#models/bien'
 import { creerBienValidator } from '#validators/bien'
+import { PROPRIETAIRE_UNIQUE } from '#services/proprietaire'
 
 /**
  * Les Biens : les créer avec leur seul Libellé, et les retrouver dans une
@@ -21,7 +22,13 @@ export default class BiensController {
     // `urlAnnonce` absent du corps et `urlAnnonce` vide décrivent le même
     // Bien : un Bien sans Annonce. On les ramène à `null` ici pour que la
     // colonne soit toujours écrite, et donc toujours rendue au front.
-    const bien = await Bien.create({ libelle, urlAnnonce: urlAnnonce ?? null })
+    const bien = await Bien.create({
+      libelle,
+      urlAnnonce: urlAnnonce ?? null,
+      // Le propriétaire n'est pas saisi : il n'y a qu'un utilisateur, et
+      // aucun écran ne le demandera (#4).
+      proprietaireId: PROPRIETAIRE_UNIQUE,
+    })
 
     return response.created(bien)
   }
