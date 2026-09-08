@@ -1,7 +1,6 @@
 ---
 name: review-pr
 description: Fait relire une pull request par un agent indépendant qui commente et ouvre des issues.
-disable-model-invocation: true
 ---
 
 # Relire une PR
@@ -12,6 +11,14 @@ en contexte vierge** sur une PR, avec pour mandat de trouver ce que les revues
 précédentes ont manqué, puis de publier lui-même son verdict et ses issues.
 
 Elle ne corrige rien. Elle relit.
+
+## 0. Annoncer avant de lancer
+
+Cette skill publie vers l'extérieur : elle commente une PR et ouvre des issues
+sur le dépôt. L'agent peut la déclencher lui-même, mais **jamais en silence** —
+il annonce qu'il s'apprête à lancer la relecture et attend le feu vert. Ce qui
+part sur GitHub reste une décision du développeur, même quand le geste est
+délégué.
 
 ## 1. Identifier la PR
 
