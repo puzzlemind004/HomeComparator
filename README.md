@@ -72,4 +72,27 @@ cp apps/api/.env.test.example apps/api/.env.test
 ```
 
 Les tests du front n'utilisent pas TestBed : la logique vit dans des
-services que l'on peut instancier avec un simple `Injector`.
+services et des composants que l'on peut instancier avec un simple
+`Injector`.
+
+## Contrats entre le front et l'API
+
+Le front et l'API ne partagent pas de source TypeScript commune. Chacun
+décrit les formes qu'il manipule, et le front traduit à la frontière :
+
+```
+apps/api/app/models/       modèles Lucid, calqués sur la base
+apps/web/src/app/biens/
+  bien.api.ts              les formes échangées avec l'API
+  bien.ts                  les modèles que l'écran affiche
+  bien.adapter.ts          la traduction entre les deux
+```
+
+Le modèle d'affichage ne porte que ce qu'un écran montre : les dates de
+création et de modification, renvoyées par l'API, n'y figurent pas tant
+qu'aucun écran ne les affiche. L'adapter est le seul endroit du front qui
+connaisse les deux formes ; partout ailleurs on ne manipule que le modèle
+d'affichage.
+
+Conséquence assumée : une divergence entre les deux côtés se rattrape par
+les tests fonctionnels Japa, pas par le compilateur.

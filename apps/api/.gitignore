@@ -12,6 +12,13 @@ tmp
 # Frontend assets compiled code
 public/assets
 
+# Schéma généré par Lucid à chaque `migration:run` en développement. Il n'est
+# régénéré ni par les tests (`--no-schema-generate`) ni au démarrage du
+# conteneur (court-circuité hors développement) : le versionner reviendrait à
+# garder une seconde description de `biens`, non garantie, à côté des modèles
+# de `app/models/` qui font foi (ADR-0004).
+database/schema.ts
+
 # Build tools specific
 npm-debug.log
 yarn-error.log
