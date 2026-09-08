@@ -1,0 +1,13 @@
+node_modules
+build
+tmp
+
+# Le harnais de test n'a pas sa place dans l'image de production.
+# bin/test.ts importe tests/bootstrap.ts : les deux sortent ensemble,
+# sans quoi la compilation échoue.
+tests
+bin/test.ts
+
+.env
+.env.*
+!.env.example

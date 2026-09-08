@@ -1,0 +1,21 @@
+# Dépendances
+node_modules
+
+# Secrets : tous les fichiers d'environnement sauf l'exemple documenté
+.env
+.env.*
+!.env.example
+
+# Sorties de build
+build
+dist
+tmp
+
+# Éditeurs
+.idea
+.vscode
+.fleet
+
+# Systèmes
+.DS_Store
+Thumbs.db

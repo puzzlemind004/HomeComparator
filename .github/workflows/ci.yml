@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Un push qui suit de près un autre annule la CI devenue obsolète.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API (lint, types, tests)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: homecomparator
+          POSTGRES_PASSWORD: homecomparator
+          POSTGRES_DB: homecomparator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U homecomparator -d homecomparator_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      TZ: UTC
+      HOST: localhost
+      PORT: 3333
+      LOG_LEVEL: silent
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: homecomparator
+      DB_PASSWORD: homecomparator
+      DB_DATABASE: homecomparator_test
+      CORS_ORIGIN: http://localhost:4200
+
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+
+      - run: npm ci
+
+      # Clé générée par exécution : rien de sensible n'est versionné, et
+      # les tests n'ont besoin d'aucune clé stable.
+      - name: Générer APP_KEY
+        run: echo "APP_KEY=$(openssl rand -base64 24)" >> "$GITHUB_ENV"
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Compilation TypeScript
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+  web:
+    name: Front (lint, types, tests, build)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Compilation TypeScript
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test -- --watch=false
+
+      - name: Build
+        run: npm run build

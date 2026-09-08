@@ -1,0 +1,24 @@
+<main class="page">
+  <h1>{{ title() }}</h1>
+
+  @if (health(); as health) {
+    @if (health.reachable) {
+      <section class="health" [class.health--ko]="health.status !== 'ok'">
+        <h2>État du service</h2>
+        <dl>
+          <dt>API</dt>
+          <dd>{{ health.status }}</dd>
+          <dt>Base de données</dt>
+          <dd>{{ health.database }}</dd>
+        </dl>
+      </section>
+    } @else {
+      <section class="health health--ko">
+        <h2>État du service</h2>
+        <p>API injoignable.</p>
+      </section>
+    }
+  } @else {
+    <p class="health health--pending">Interrogation de l'API…</p>
+  }
+</main>
