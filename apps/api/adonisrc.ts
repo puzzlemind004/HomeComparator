@@ -39,6 +39,10 @@ export default defineConfig({
   providers: [
     () => import('@adonisjs/core/providers/app_provider'),
     () => import('@adonisjs/core/providers/hash_provider'),
+    // Branche VineJS sur `request.validateUsing` et traduit ses erreurs en
+    // réponses 422 : sans lui, les validateurs de `app/validators/` ne sont
+    // que des fonctions que rien n'appelle.
+    () => import('@adonisjs/core/providers/vinejs_provider'),
     {
       file: () => import('@adonisjs/core/providers/repl_provider'),
       environment: ['repl', 'test'],

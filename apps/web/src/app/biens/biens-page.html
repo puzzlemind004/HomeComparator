@@ -1,0 +1,67 @@
+<section class="biens">
+  <h2>Repérer un Bien</h2>
+
+  <form class="saisie" (ngSubmit)="creer()">
+    <label class="champ">
+      <span>Libellé</span>
+      <input
+        name="libelle"
+        [ngModel]="libelle()"
+        (ngModelChange)="libelle.set($event)"
+        placeholder="le T3 avec la terrasse"
+        autocomplete="off"
+      />
+    </label>
+
+    <label class="champ">
+      <span>URL de l'Annonce <em>(facultative)</em></span>
+      <input
+        name="urlAnnonce"
+        type="url"
+        [ngModel]="urlAnnonce()"
+        (ngModelChange)="urlAnnonce.set($event)"
+        placeholder="https://…"
+        autocomplete="off"
+      />
+    </label>
+
+    <button type="submit" [disabled]="enregistrement()">Ajouter</button>
+  </form>
+
+  @if (erreurs().length) {
+    <ul class="erreurs" role="alert">
+      @for (erreur of erreurs(); track erreur) {
+        <li>{{ erreur }}</li>
+      }
+    </ul>
+  }
+
+  <h2>Mes Biens</h2>
+
+  @if (liste(); as liste) {
+    @if (liste.chargee) {
+      @if (liste.biens.length) {
+        <ul class="liste">
+          @for (bien of liste.biens; track bien.id) {
+            <li class="bien">
+              <span class="bien__libelle">{{ bien.libelle }}</span>
+              @if (bien.urlAnnonce; as url) {
+                <a class="bien__annonce" [href]="url" target="_blank" rel="noopener noreferrer">
+                  Voir l'Annonce
+                </a>
+              }
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="liste--vide">Aucun Bien pour l'instant.</p>
+      }
+    } @else {
+      <p class="liste--erreur" role="alert">
+        L'API est injoignable : la liste des Biens n'a pas pu être chargée.
+      </p>
+    }
+  } @else {
+    <p class="liste--vide">Chargement des Biens…</p>
+  }
+</section>

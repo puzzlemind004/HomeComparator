@@ -1,9 +1,11 @@
 import { Component, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { HealthService } from './health/health.service';
+import { BiensPage } from './biens/biens-page';
 
 @Component({
   selector: 'app-root',
+  imports: [BiensPage],
   styleUrl: './app.scss',
   templateUrl: './app.html',
 })
