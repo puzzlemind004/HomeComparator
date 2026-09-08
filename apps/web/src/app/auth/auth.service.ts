@@ -2,8 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { catchError, map, type Observable, of, tap } from 'rxjs';
 import type { ConnexionApi, RefusApi, SessionApi } from './auth.api';
-
-const SESSION_URL = '/api/auth/session';
+import { SESSION_URL } from './auth.routes';
 
 const API_INJOIGNABLE = "L'API est injoignable. La connexion n'a pas pu aboutir.";
 

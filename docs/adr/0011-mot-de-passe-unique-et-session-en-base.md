@@ -4,7 +4,16 @@ L'accès à l'outil est protégé par un seul mot de passe, lu dans la variable 
 
 La protection tient dans l'API, qui refuse tout appel dont la session n'atteste pas du mot de passe. Le garde de route du front ne protège rien — il évite seulement d'ouvrir un écran que l'API remplirait de 401. Mettre la décision d'accès dans le navigateur reviendrait à ne pas la prendre.
 
-Le middleware s'applique par défaut, les routes qui s'en dispensent le déclarant explicitement (`start/routes.ts`). L'oubli produit alors une route protégée de trop, jamais une route ouverte par mégarde. Deux routes s'en dispensent : la connexion, qui ne peut évidemment pas l'exiger, et la santé du service, qu'interrogent la supervision et le healthcheck Docker sans pouvoir se connecter — et qui ne rend rien d'autre que « le service et sa base répondent ».
+Le middleware s'applique par défaut, les routes qui s'en dispensent le déclarant explicitement (`start/routes.ts`). L'oubli produit alors une route protégée de trop, jamais une route ouverte par mégarde.
+
+Quatre routes s'en dispensent, et chacune doit se justifier :
+
+- `POST /auth/session`, la connexion : elle ne peut évidemment pas exiger d'être déjà connecté.
+- `GET /auth/session`, l'état de session : elle ne révèle que ce que l'appelant sait déjà, s'il est connecté ou non. Elle évite au front de provoquer un 401 pour l'apprendre.
+- `DELETE /auth/session`, la déconnexion : refermer une session qu'on n'a pas est sans effet, et l'exiger authentifiée n'ajouterait rien.
+- `GET /health`, la santé du service : la supervision et le healthcheck Docker l'interrogent sans pouvoir se connecter.
+
+`GET /health` est la plus discutable des quatre : elle divulgue à un appelant anonyme que la base répond ou non. C'est un arbitrage assumé et non une nécessité — le healthcheck Docker tourne dans le réseau du conteneur et se passerait d'une exposition publique. Elle reste ouverte parce que c'est précisément la route qu'on interroge quand plus rien ne répond, y compris la connexion ; la refermer la rendrait inutile au moment où elle sert. Si le carnet sortait un jour d'un usage strictement personnel, c'est la première à reconsidérer.
 
 Tous les refus de connexion rendent la même réponse, même statut et même message, que le mot de passe soit erroné, le champ absent, ou le corps de requête d'un autre type. Un écart de statut entre ces cas renseignerait déjà celui qui cherche à entrer. La comparaison du mot de passe est à temps constant, une comparaison ordinaire s'arrêtant au premier caractère différent et trahissant par sa durée le préfixe correct.
 

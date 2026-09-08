@@ -3,10 +3,7 @@ import { HttpErrorResponse, type HttpInterceptorFn } from '@angular/common/http'
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { AuthService } from './auth.service';
-import { ROUTE_CONNEXION } from './auth.guard';
-
-/** Les appels d'authentification eux-mêmes, que l'intercepteur laisse passer. */
-const SESSION_URL = '/api/auth/session';
+import { ROUTE_CONNEXION, SESSION_URL } from './auth.routes';
 
 /**
  * Renvoie vers la connexion dès qu'un appel revient en 401 (#4).

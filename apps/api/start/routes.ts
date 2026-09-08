@@ -15,17 +15,21 @@ const BiensController = () => import('#controllers/biens_controller')
 const AuthController = () => import('#controllers/auth_controller')
 
 /**
- * Les routes qui se passent d'authentification, et la raison de chacune.
+ * Les quatre routes qui se passent d'authentification, et la raison de
+ * chacune (ADR-0011). Toute addition à cette liste est à justifier.
  *
- * La connexion ne peut évidemment pas l'exiger. La santé du service doit
- * rester joignable sans session : c'est ce que la supervision et le
- * healthcheck Docker interrogent, et elle ne rend rien d'autre que
- * « le service et sa base répondent ».
+ * La santé du service reste joignable sans session : c'est ce qu'on
+ * interroge quand plus rien ne répond, connexion comprise, et c'est ce que
+ * lit le healthcheck Docker. C'est la plus discutable des quatre, la seule
+ * qui apprenne quelque chose à un appelant anonyme.
  */
 router.get('/health', [HealthController])
 
+// La connexion ne peut évidemment pas exiger d'être déjà connecté.
 router.post('/auth/session', [AuthController, 'store'])
+// L'état de session ne révèle que ce que l'appelant sait déjà.
 router.get('/auth/session', [AuthController, 'show'])
+// Refermer une session qu'on n'a pas est sans effet.
 router.delete('/auth/session', [AuthController, 'destroy'])
 
 /**

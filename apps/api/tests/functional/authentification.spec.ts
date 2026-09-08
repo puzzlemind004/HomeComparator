@@ -1,4 +1,5 @@
 import { test } from '@japa/runner'
+import db from '@adonisjs/lucid/services/db'
 import env from '#start/env'
 import { COOKIE_SESSION, avecSession, connecter, ouvrirSession, sessionDe } from '#tests/session'
 
@@ -153,6 +154,30 @@ test.group('Routes protégées', () => {
 
       assert.equal(response.status(), 200, `La visite n°${visite} aurait dû passer`)
     }
+  })
+
+  test('la session est enregistrée en base, et non portée par le seul cookie', async ({
+    client,
+    assert,
+  }) => {
+    // Ce qui rend la déconnexion réelle (ADR-0011) : une ligne à supprimer.
+    // Sans cette assertion, revenir à un magasin cookie laisserait presque
+    // toute la suite au vert alors que le cookie redeviendrait irrévocable.
+    const session = await ouvrirSession(client)
+
+    const ligne = await db.from('sessions').where('id', session.identifiant).first()
+
+    assert.exists(ligne)
+  })
+
+  test('la déconnexion supprime la session de la base', async ({ client, assert }) => {
+    const session = await ouvrirSession(client)
+
+    await avecSession(client.delete('/auth/session'), session)
+
+    const ligne = await db.from('sessions').where('id', session.identifiant).first()
+
+    assert.notExists(ligne)
   })
 
   test('la session survit à une création de Bien', async ({ client }) => {

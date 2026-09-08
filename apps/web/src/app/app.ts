@@ -3,7 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterOutlet } from '@angular/router';
 import { HealthService } from './health/health.service';
 import { AuthService } from './auth/auth.service';
-import { ROUTE_CONNEXION } from './auth/auth.guard';
+import { ROUTE_CONNEXION } from './auth/auth.routes';
 
 @Component({
   selector: 'app-root',

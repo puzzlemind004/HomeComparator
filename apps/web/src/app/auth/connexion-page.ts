@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from './auth.service';
+import { ROUTE_CARNET } from './auth.routes';
 
 /**
  * L'écran de connexion : un mot de passe, et rien d'autre.
@@ -48,7 +49,7 @@ export class ConnexionPage {
         return;
       }
 
-      void this.router.navigateByUrl('/');
+      void this.router.navigateByUrl(ROUTE_CARNET);
     });
   }
 }

@@ -42,9 +42,20 @@ export default await Env.create(new URL('../', import.meta.url), {
   |----------------------------------------------------------
   |
   | Un seul utilisateur ne justifie pas un système de comptes (#4) : le
-  | mot de passe vit ici, et nulle part en base. Obligatoire et non vide,
-  | sans quoi l'API démarrerait ouverte à tous sans le dire.
+  | mot de passe vit ici, et nulle part en base.
+  |
+  | La règle refuse la variable absente ou vide ; le `validate` y ajoute la
+  | saisie d'espaces, qu'`Env.schema.string()` accepterait et qui ferait un
+  | mot de passe indevinable par accident plus que par conception. Mieux
+  | vaut une API qui refuse de démarrer qu'une API démarrée sans protection
+  | réelle et sans le dire.
   |
   */
-  APP_PASSWORD: Env.schema.string(),
+  APP_PASSWORD: (cle: string, valeur?: string) => {
+    if (!valeur || valeur.trim() === '') {
+      throw new Error(`La variable ${cle} est obligatoire et ne peut pas être vide`)
+    }
+
+    return valeur
+  },
 })

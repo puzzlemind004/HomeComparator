@@ -2,9 +2,7 @@ import { inject } from '@angular/core';
 import { Router, type CanActivateFn } from '@angular/router';
 import { map } from 'rxjs';
 import { AuthService } from './auth.service';
-
-/** La route de l'écran de connexion, nommée ici plutôt que recopiée. */
-export const ROUTE_CONNEXION = '/connexion';
+import { ROUTE_CARNET, ROUTE_CONNEXION } from './auth.routes';
 
 /**
  * Renvoie vers la connexion tout accès dont la session ne vaut pas (#4).
@@ -33,5 +31,5 @@ export const dejaConnecteGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
-  return auth.verifier().pipe(map((authentifie) => !authentifie || router.parseUrl('/')));
+  return auth.verifier().pipe(map((authentifie) => !authentifie || router.parseUrl(ROUTE_CARNET)));
 };
