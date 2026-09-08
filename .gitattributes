@@ -1,0 +1,9 @@
+# Normalisation des fins de ligne. Le dépôt stocke en LF ; Git rend des CRLF
+# sur Windows pour les fichiers texte ordinaires.
+* text=auto
+
+# Les scripts joués dans un conteneur Linux doivent conserver des LF :
+# un CRLF sur la ligne shebang rend le script inexécutable.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf

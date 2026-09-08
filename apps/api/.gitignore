@@ -1,0 +1,25 @@
+# Dependencies and AdonisJS build
+node_modules
+build
+tmp
+
+# Secrets : tous les fichiers d'environnement sauf l'exemple documenté
+.env
+.env.*
+!.env.example
+!.env.test.example
+
+# Frontend assets compiled code
+public/assets
+
+# Build tools specific
+npm-debug.log
+yarn-error.log
+
+# Editors specific
+.fleet
+.idea
+.vscode
+
+# Platform specific
+.DS_Store
