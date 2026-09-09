@@ -25,14 +25,18 @@ const MONTANT = new Intl.NumberFormat(LOCALE, {
   maximumFractionDigits: 0,
 });
 
-const SURFACE = new Intl.NumberFormat(LOCALE, {
-  // Le dixième de mètre carré, quand il existe : « 72,5 m² » est ce
-  // qu'affiche l'annonce, et « 88,0 m² » se lit moins bien que « 88 m² ».
+/**
+ * Le dixième, quand il existe : « 72,5 m² » est ce qu'affiche l'annonce, et
+ * « 88,0 m² » se lit moins bien que « 88 m² ». C'est le format des Critères
+ * déclarés `decimal`, dont la surface habitable est aujourd'hui le seul.
+ */
+const NOMBRE_DECIMAL = new Intl.NumberFormat(LOCALE, {
   minimumFractionDigits: 0,
   maximumFractionDigits: 1,
 });
 
-const NOMBRE = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 });
+/** Le format des Critères déclarés `entier` : un prix, un nombre de pièces. */
+const NOMBRE_ENTIER = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 });
 
 const DATE = new Intl.DateTimeFormat(LOCALE, {
   day: '2-digit',
@@ -47,7 +51,7 @@ export function formaterMontant(montant: number | null): string {
 
 /** Une surface en mètres carrés. Chaîne vide si elle est absente. */
 export function formaterSurface(surface: number | null): string {
-  return surface === null ? '' : `${SURFACE.format(surface)} m²`;
+  return surface === null ? '' : `${NOMBRE_DECIMAL.format(surface)} m²`;
 }
 
 /**
@@ -77,24 +81,27 @@ export function formaterValeur(critere: Critere, valeur: ValeurCritere): string 
     return admise ? admise.libelle : String(valeur);
   }
 
+  // « true » n'est pas une réponse lisible : un oui/non s'écrit en français.
+  if (typeof valeur === 'boolean') {
+    return valeur ? 'Oui' : 'Non';
+  }
+
   if (typeof valeur !== 'number') {
     return String(valeur);
   }
 
-  if (critere.unite === '€' || critere.unite === '€/an' || critere.unite === '€/mois') {
-    // L'unité d'un montant porte sa périodicité — « €/an » pour la taxe
-    // foncière — que le format monétaire ne connaît pas : on écrit le
-    // montant sans symbole, puis l'unité déclarée.
-    return critere.unite === '€'
-      ? formaterMontant(valeur)
-      : `${NOMBRE.format(valeur)} ${critere.unite}`;
-  }
-
-  if (critere.unite === 'm²') {
-    return formaterSurface(valeur);
-  }
+  /**
+   * La précision vient du `type` déclaré, et l'unité s'accole telle quelle.
+   *
+   * Dispatcher sur l'unité — reconnaître « € » puis « m² » — reviendrait à
+   * décider du format ailleurs que dans la définition : un Critère en
+   * « €/trimestre » s'écrirait sans que rien ne le signale, et ajouter un
+   * Critère demanderait de repasser ici. C'est précisément le geste de trop
+   * qu'ADR-0004 cherche à éviter.
+   */
+  const nombre = critere.type === 'decimal' ? NOMBRE_DECIMAL : NOMBRE_ENTIER;
 
   return critere.unite === null
-    ? NOMBRE.format(valeur)
-    : `${NOMBRE.format(valeur)} ${critere.unite}`;
+    ? nombre.format(valeur)
+    : `${nombre.format(valeur)} ${critere.unite}`;
 }

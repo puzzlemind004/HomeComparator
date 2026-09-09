@@ -1,18 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { meilleureValeur, prixAuMetreCarre } from './comparaison';
-import { critereParId } from './definition';
+import { critere } from './critere.test-helper';
 import type { Critere } from './critere';
-
-/** Le Critère de la définition, dont l'absence est une erreur de test. */
-function critere(id: string): Critere {
-  const trouve = critereParId(id);
-
-  if (!trouve) {
-    throw new Error(`Critère inconnu dans la définition : ${id}`);
-  }
-
-  return trouve;
-}
 
 const prix = critere('prixDemande');
 const surface = critere('surfaceHabitable');
@@ -81,6 +70,26 @@ describe('meilleureValeur', () => {
 
   it('ne désigne rien quand aucune valeur ne figure dans la définition', () => {
     expect(meilleureValeur(dpe, ['inconnue', 'autre-inconnue'])).toBeNull();
+  });
+
+  it('classe un oui/non selon le sens déclaré', () => {
+    // Aucun des quinze Critères n'est un booléen aujourd'hui ; la
+    // comparaison sait en traiter un pour que le premier ajouté — ascenseur,
+    // cave, garage — n'oblige pas à revenir ici.
+    const ascenseur: Critere = {
+      id: 'ascenseur',
+      libelle: 'Ascenseur',
+      type: 'booleen',
+      unite: null,
+      groupe: 'confort',
+      ordre: 999,
+      sensComparaison: 'plusGrandEstMeilleur',
+      valeurs: null,
+    };
+
+    expect(meilleureValeur(ascenseur, [false, true, false])).toBe(true);
+    expect(meilleureValeur(ascenseur, [false, false])).toBe(false);
+    expect(meilleureValeur(ascenseur, [null, false])).toBe(false);
   });
 });
 

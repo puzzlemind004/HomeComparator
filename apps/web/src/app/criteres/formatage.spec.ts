@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formaterDate, formaterMontant, formaterSurface, formaterValeur } from './formatage';
-import { critereParId } from './definition';
+import { critere } from './critere.test-helper';
 import type { Critere } from './critere';
 
 /**
@@ -10,16 +10,6 @@ import type { Critere } from './critere';
  */
 function normaliser(texte: string): string {
   return texte.replace(/[\u00a0\u202f]/g, ' ');
-}
-
-function critere(id: string): Critere {
-  const trouve = critereParId(id);
-
-  if (!trouve) {
-    throw new Error(`Critère inconnu dans la définition : ${id}`);
-  }
-
-  return trouve;
 }
 
 describe('formaterMontant', () => {
@@ -85,6 +75,26 @@ describe('formaterValeur', () => {
     expect(normaliser(formaterValeur(critere('tempsTrajetTravail'), 25))).toBe('25 min');
   });
 
+  it("écrit l'unité périodique d'un montant annuel", () => {
+    // « €/an » n'est pas un symbole monétaire : c'est l'unité déclarée, qui
+    // s'accole comme les autres. Le format monétaire l'ignorerait.
+    expect(normaliser(formaterValeur(critere('taxeFonciere'), 1200))).toBe('1 200 €/an');
+  });
+
+  it("écrit l'unité périodique d'un montant mensuel", () => {
+    expect(normaliser(formaterValeur(critere('chargesCopropriete'), 150))).toBe('150 €/mois');
+  });
+
+  it('arrondit un Critère entier plutôt que de montrer une décimale', () => {
+    // Le prix au m² (#10) se calcule et retombe sur un Critère entier : la
+    // précision vient du type déclaré, pas de la valeur reçue.
+    expect(normaliser(formaterValeur(critere('prixDemande'), 3448.2758))).toBe('3 448 €');
+  });
+
+  it("garde le dixième d'un Critère décimal", () => {
+    expect(normaliser(formaterValeur(critere('surfaceHabitable'), 88))).toBe('88 m²');
+  });
+
   it("écrit le libellé d'une valeur d'énumération, pas sa valeur stockée", () => {
     // C'est le libellé qui se lit à l'écran, pas la valeur stockée
     // `pompeAChaleur` : le libellé n'existe que pour cela.
@@ -99,6 +109,25 @@ describe('formaterValeur', () => {
 
   it('écrit un texte tel quel', () => {
     expect(formaterValeur(critere('villeQuartier'), 'Nantes')).toBe('Nantes');
+  });
+
+  it('écrit un oui/non en français', () => {
+    // Aucun des quinze Critères n'est un booléen aujourd'hui, mais la
+    // définition sait en accueillir un : le format doit exister avant, sans
+    // quoi le premier Critère par oui/non afficherait « true ».
+    const ascenseur: Critere = {
+      id: 'ascenseur',
+      libelle: 'Ascenseur',
+      type: 'booleen',
+      unite: null,
+      groupe: 'confort',
+      ordre: 999,
+      sensComparaison: 'plusGrandEstMeilleur',
+      valeurs: null,
+    };
+
+    expect(formaterValeur(ascenseur, true)).toBe('Oui');
+    expect(formaterValeur(ascenseur, false)).toBe('Non');
   });
 
   it('rend une chaîne vide pour un Critère non renseigné', () => {

@@ -23,6 +23,15 @@
 export type TypeCritere = 'entier' | 'decimal' | 'texte' | 'enumeration' | 'booleen';
 
 /**
+ * `booleen` ne sert aucun des quinze Critères d'aujourd'hui : « extérieur »
+ * et « travaux à prévoir » se sont révélés plus utiles en énumérations, un
+ * balcon et un jardin ne se ramenant pas à oui ou non. Le type est déclaré
+ * quand même parce qu'un Critère par oui/non est le premier qu'on voudra
+ * ajouter — ascenseur, cave, garage — et que la définition doit pouvoir
+ * l'accueillir sans retoucher les écrans qui la lisent.
+ */
+
+/**
  * Le sens dans lequel un Critère se compare, dont la vue de comparaison
  * (#12) tire la mise en évidence de la meilleure valeur.
  *

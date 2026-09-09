@@ -11,9 +11,15 @@ import type { Critere } from './critere';
  * liste. Sans cela, ajouter un Critère toucherait quatre écrans et ne se
  * ferait jamais.
  *
- * **Ajouter un Critère demande exactement deux gestes** : une entrée ici, et
- * une ligne de colonne nullable dans une migration côté API. L'`id` doit
+ * **Ajouter un Critère demande deux gestes** : une entrée ici, et une ligne
+ * de colonne nullable dans une migration côté API (ADR-0004). L'`id` doit
  * être le nom du champ tel que l'API l'échange.
+ *
+ * La migration s'accompagne de son champ `@column()` dans le modèle Lucid,
+ * sans lequel la colonne existerait sans être lue : c'est la même intention
+ * écrite deux fois, du côté du schéma et du côté de l'ORM, et non un
+ * troisième endroit où décider quoi que ce soit. Aucun écran n'est touché,
+ * ce qui est tout l'objet de ce fichier.
  *
  * Ce fichier ne stocke aucune donnée de Bien : rien que des métadonnées de
  * présentation et de comparaison.
@@ -92,9 +98,9 @@ export const CRITERES: readonly Critere[] = [
     type: 'entier',
     unite: null,
     groupe: 'logement',
+    ordre: 70,
     // Le récent demande moins de travaux et isole mieux ; à défaut d'un
     // critère plus fin, c'est le sens qui rend service au premier coup d'œil.
-    ordre: 70,
     sensComparaison: 'plusGrandEstMeilleur',
     valeurs: null,
   },

@@ -8,7 +8,7 @@ import type { Critere } from './critere';
  * Une valeur de Critère telle qu'un écran la détient : un nombre, un texte,
  * une valeur d'énumération, ou l'absence de saisie.
  */
-export type ValeurCritere = number | string | null;
+export type ValeurCritere = number | string | boolean | null;
 
 /**
  * La meilleure valeur portée par ces Biens sur ce Critère, ou `null` quand
@@ -77,6 +77,15 @@ function rang(critere: Critere, valeur: ValeurCritere): number | null {
     return position === -1 ? null : position;
   }
 
+  // Un oui/non se classe comme 1 et 0 : « avec ascenseur » vaut mieux que
+  // « sans », et le sens déclaré dit dans quel ordre.
+  if (typeof valeur === 'boolean') {
+    return valeur ? 1 : 0;
+  }
+
+  // `NaN` et les infinis se rangent avec les Critères non renseignés : une
+  // valeur qu'on ne sait pas placer ne doit pas gagner, et elle fausserait
+  // toute comparaison qui la rencontrerait.
   return typeof valeur === 'number' && Number.isFinite(valeur) ? valeur : null;
 }
 
@@ -86,6 +95,12 @@ function rang(critere: Critere, valeur: ValeurCritere): number | null {
  * C'est le Critère calculé qui permet de comparer des Biens de surfaces
  * différentes (#10). Il n'est pas stocké : le dériver évite qu'il puisse
  * contredire le prix et la surface dont il sort.
+ *
+ * Il ne figure donc pas dans `CRITERES`, dont chaque entrée a une colonne :
+ * l'y mettre obligerait la définition à porter deux sortes d'entrées, et
+ * ferait chercher une colonne qui n'existe pas. C'est le tableau et la
+ * comparaison qui l'ajoutent à leurs lignes, en appelant cette fonction sur
+ * `prixDemande` et `surfaceHabitable`.
  *
  * Une surface nulle ou négative rend `null` plutôt qu'un infini ou un prix
  * négatif : c'est une saisie erronée, et l'écran a déjà de quoi afficher une
