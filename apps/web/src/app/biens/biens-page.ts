@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { Subject, switchMap } from 'rxjs';
 import { BienService, type ListeBiens } from './bien.service';
 import { STATUTS, libelleStatut, type Statut } from '../criteres/statut';
 
@@ -48,12 +49,38 @@ export class BiensPage {
   readonly filtre = signal<Statut | null>(null);
 
   /**
+   * Ce que l'écran a à dire sur le dernier Bien créé, quand la liste ne
+   * suffit pas à le montrer.
+   *
+   * Un Bien créé est « À contacter » (#7). Si la liste est filtrée sur un
+   * autre Statut, il n'y a pas sa place — et sans un mot, l'enregistrement
+   * réussi serait indiscernable d'un échec : le formulaire se vide, la
+   * liste ne bouge pas. L'acheteur ressaisirait, et créerait un doublon.
+   */
+  readonly message = signal<string | null>(null);
+
+  /**
    * Le libellé sous lequel un Statut s'affiche, pour la pastille de chaque
    * Bien de la liste.
    */
   readonly libelleStatut = libelleStatut;
 
+  /**
+   * Les chargements demandés, un par changement de filtre.
+   *
+   * Ils passent par un sujet plutôt que par un `subscribe` direct pour que
+   * `switchMap` abandonne la requête précédente : deux clics rapprochés
+   * lancent deux appels, et rien ne garantit qu'ils reviennent dans
+   * l'ordre. Sans cela, la réponse la plus lente écrase la plus récente, et
+   * l'écran montre les Biens d'un Statut sous la pastille d'un autre.
+   */
+  private readonly chargements = new Subject<Statut | null>();
+
   constructor() {
+    this.chargements
+      .pipe(switchMap((statut) => this.bienService.lister(statut ?? undefined)))
+      .subscribe((liste) => this.liste.set(liste));
+
     this.rafraichir();
   }
 
@@ -67,6 +94,7 @@ export class BiensPage {
   filtrer(statut: Statut | null): void {
     this.filtre.set(statut);
     this.liste.set(null);
+    this.message.set(null);
     this.rafraichir();
   }
 
@@ -77,6 +105,7 @@ export class BiensPage {
 
     this.enregistrement.set(true);
     this.erreurs.set([]);
+    this.message.set(null);
 
     this.bienService
       .creer({ libelle: this.libelle(), urlAnnonce: this.urlAnnonce() })
@@ -94,24 +123,32 @@ export class BiensPage {
          *
          * Sauf si la liste est filtrée sur un autre Statut que le sien : un
          * Bien créé est « À contacter » (#7), et l'ajouter à une liste
-         * « Visité » y ferait figurer un Bien que le filtre exclut.
+         * « Visité » y ferait figurer un Bien que le filtre exclut. L'écran
+         * le dit alors, plutôt que de ne rien faire — un enregistrement
+         * réussi et un échec se ressembleraient sinon trait pour trait, et
+         * l'acheteur ressaisirait un Bien déjà en base.
          */
         const filtre = this.filtre();
         const aSaPlace = filtre === null || filtre === resultat.bien.statut;
 
-        this.liste.update((liste) =>
-          liste?.chargee && aSaPlace
-            ? { chargee: true, biens: [resultat.bien, ...liste.biens] }
-            : liste,
-        );
+        if (aSaPlace) {
+          this.liste.update((liste) =>
+            liste?.chargee ? { chargee: true, biens: [resultat.bien, ...liste.biens] } : liste,
+          );
+        } else {
+          this.message.set(
+            `« ${resultat.bien.libelle} » est enregistré, à l'étape « ${libelleStatut(
+              resultat.bien.statut,
+            )} ». Le filtre courant ne le montre pas.`,
+          );
+        }
+
         this.libelle.set('');
         this.urlAnnonce.set('');
       });
   }
 
   private rafraichir(): void {
-    this.bienService
-      .lister(this.filtre() ?? undefined)
-      .subscribe((liste) => this.liste.set(liste));
+    this.chargements.next(this.filtre());
   }
 }

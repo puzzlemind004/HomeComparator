@@ -59,6 +59,16 @@
   }
 }
 
+.message {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid #1d4ed8;
+  border-radius: 0.5rem;
+  color: #1e3a8a;
+  margin: 0 0 1.5rem;
+  padding: 0.75rem 1rem;
+}
+
 .filtres {
   display: flex;
   flex-wrap: wrap;
@@ -78,6 +88,13 @@
 
   &:hover {
     border-color: #94a3b8;
+  }
+
+  // Le parcours au clavier doit se voir : sans cela, le filtre est
+  // utilisable à la souris seulement (ADR-0005).
+  &:focus-visible {
+    outline: 2px solid #1d4ed8;
+    outline-offset: 2px;
   }
 }
 

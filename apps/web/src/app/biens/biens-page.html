@@ -36,6 +36,14 @@
     </ul>
   }
 
+  <!--
+    Le Bien créé n'a pas sa place dans la liste filtrée : sans ce message,
+    l'enregistrement réussi ressemblerait trait pour trait à un échec (#7).
+  -->
+  @if (message(); as message) {
+    <p class="message" role="status">{{ message }}</p>
+  }
+
   <h2>Mes Biens</h2>
 
   <!--
@@ -43,12 +51,19 @@
     ouvrir le carnet montre tout, sorties comprises, et un filtre par défaut
     cacherait des Biens sans le dire (#7).
   -->
-  <div class="filtres" role="group" aria-label="Filtrer par Statut">
+  <!--
+    Un groupe de radios plutôt que des bascules : le filtre est un choix
+    exclusif, et `aria-pressed` sur sept boutons annoncerait sept réglages
+    indépendants — dont plusieurs pourraient être actifs à la fois, ce que
+    l'écran ne permet pas (ADR-0005).
+  -->
+  <div class="filtres" role="radiogroup" aria-label="Filtrer par Statut">
     <button
       type="button"
       class="filtre"
+      role="radio"
       [class.filtre--actif]="filtre() === null"
-      [attr.aria-pressed]="filtre() === null"
+      [attr.aria-checked]="filtre() === null"
       (click)="filtrer(null)"
     >
       Tous
@@ -58,8 +73,9 @@
       <button
         type="button"
         class="filtre"
+        role="radio"
         [class.filtre--actif]="filtre() === option.valeur"
-        [attr.aria-pressed]="filtre() === option.valeur"
+        [attr.aria-checked]="filtre() === option.valeur"
         (click)="filtrer(option.valeur)"
       >
         {{ option.libelle }}
