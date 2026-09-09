@@ -116,4 +116,20 @@ test.group('Migrations', () => {
 
     await relu.delete()
   })
+
+  test('une surface absente reste absente et ne devient pas zéro', async ({ assert }) => {
+    // `Number('')` vaut `0` : une conversion naïve ferait passer un Critère
+    // jamais renseigné pour un Critère à zéro, donc pour le plus petit de
+    // tous sur un tri — exactement ce que les colonnes nullables évitent.
+    const cree = await Bien.create({
+      libelle: 'le T3 dont la surface est inconnue',
+      proprietaireId: PROPRIETAIRE_UNIQUE,
+    })
+    const relu = await Bien.findOrFail(cree.id)
+
+    assert.isNull(relu.surfaceHabitable)
+    assert.notStrictEqual(relu.surfaceHabitable, 0)
+
+    await relu.delete()
+  })
 })

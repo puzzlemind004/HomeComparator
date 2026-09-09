@@ -91,6 +91,17 @@ describe('meilleureValeur', () => {
     expect(meilleureValeur(ascenseur, [false, false])).toBe(false);
     expect(meilleureValeur(ascenseur, [null, false])).toBe(false);
   });
+
+  it("ignore un oui/non arrivé sur un Critère qui n'en attend pas", () => {
+    // C'est le `type` déclaré qui commande, pas la valeur reçue : sinon un
+    // booléen prendrait le rang 1 et gagnerait contre n'importe quel prix.
+    expect(meilleureValeur(prix, [true, 250000])).toBe(250000);
+  });
+
+  it('ignore un nombre qui ne se compare pas', () => {
+    expect(meilleureValeur(prix, [Number.NaN, 250000])).toBe(250000);
+    expect(meilleureValeur(prix, [Number.NaN])).toBeNull();
+  });
 });
 
 describe('prixAuMetreCarre', () => {
@@ -117,5 +128,27 @@ describe('prixAuMetreCarre', () => {
 
   it('rend une valeur absente sur une surface négative', () => {
     expect(prixAuMetreCarre(250000, -10)).toBeNull();
+  });
+
+  it('rend une valeur absente sur un prix négatif', () => {
+    // Un prix négatif n'est pas une bonne affaire, c'est une saisie erronée :
+    // sur un Critère où le plus petit est le meilleur, il serait désigné
+    // comme le meilleur prix au m² du carnet.
+    expect(prixAuMetreCarre(-250000, 72.5)).toBeNull();
+  });
+
+  it('rend une valeur absente sur un nombre qui ne se compare pas', () => {
+    // `NaN <= 0` vaut `false` : un garde qui ne testerait que le signe
+    // laisserait passer un `NaN`, qui s'écrirait ensuite « NaN » à l'écran.
+    expect(prixAuMetreCarre(250000, Number.NaN)).toBeNull();
+    expect(prixAuMetreCarre(Number.NaN, 72.5)).toBeNull();
+    expect(prixAuMetreCarre(Number.POSITIVE_INFINITY, 72.5)).toBeNull();
+    expect(prixAuMetreCarre(250000, Number.POSITIVE_INFINITY)).toBeNull();
+  });
+
+  it('accepte un prix à zéro, qui reste une valeur saisie', () => {
+    // Zéro n'est pas une erreur de saisie : c'est un prix, et il vaut un
+    // prix au m² de zéro plutôt qu'une valeur absente.
+    expect(prixAuMetreCarre(0, 72.5)).toBe(0);
   });
 });

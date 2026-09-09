@@ -79,8 +79,12 @@ function rang(critere: Critere, valeur: ValeurCritere): number | null {
 
   // Un oui/non se classe comme 1 et 0 : « avec ascenseur » vaut mieux que
   // « sans », et le sens déclaré dit dans quel ordre.
-  if (typeof valeur === 'boolean') {
-    return valeur ? 1 : 0;
+  //
+  // Le `type` déclaré commande, et non le `typeof` reçu : sans cette
+  // condition, un booléen arrivé par erreur sur un Critère numérique
+  // prendrait le rang 1 et gagnerait contre n'importe quel prix.
+  if (critere.type === 'booleen') {
+    return typeof valeur === 'boolean' ? (valeur ? 1 : 0) : null;
   }
 
   // `NaN` et les infinis se rangent avec les Critères non renseignés : une
@@ -107,7 +111,22 @@ function rang(critere: Critere, valeur: ValeurCritere): number | null {
  * valeur absente.
  */
 export function prixAuMetreCarre(prix: number | null, surface: number | null): number | null {
-  if (prix === null || surface === null || surface <= 0) {
+  if (prix === null || surface === null) {
+    return null;
+  }
+
+  // `Number.isFinite` avant toute comparaison : `NaN <= 0` vaut `false`, donc
+  // un garde qui ne testerait que le signe laisserait passer un `NaN` — et un
+  // prix au m² à `NaN` s'écrirait « NaN » dans le tableau (#10) tout en
+  // disparaissant silencieusement de la comparaison (#12).
+  if (!Number.isFinite(prix) || !Number.isFinite(surface)) {
+    return null;
+  }
+
+  // Un prix négatif est une saisie erronée, pas une bonne affaire : sur un
+  // Critère où le plus petit est le meilleur, il serait désigné comme le
+  // meilleur prix au m² du carnet.
+  if (prix < 0 || surface <= 0) {
     return null;
   }
 

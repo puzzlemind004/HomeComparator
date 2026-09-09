@@ -2,6 +2,26 @@ import { DateTime } from 'luxon'
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 
 /**
+ * Un décimal rendu par `pg`, ramené au nombre que le JSON doit porter — ou
+ * `null` quand il n'y a pas de nombre à en tirer.
+ *
+ * `Number()` seul ne suffirait pas : `Number('')` vaut `0`, et c'est
+ * précisément la confusion que tout le reste s'emploie à éviter — un Critère
+ * non renseigné qui passerait pour un Critère à zéro, donc pour le plus petit
+ * de tous sur un tri par prix. `Number('abc')` rend `NaN`, qui s'écrirait
+ * « NaN » à l'écran.
+ */
+function versNombreOuNull(valeur: string | number | null): number | null {
+  if (valeur === null || valeur === undefined || valeur === '') {
+    return null
+  }
+
+  const nombre = Number(valeur)
+
+  return Number.isFinite(nombre) ? nombre : null
+}
+
+/**
  * Un logement que l'acheteur envisage d'acheter : l'objet que l'on compare.
  *
  * Chaque Critère à venir ajoutera sa propre colonne (ADR-0004), donc son
@@ -59,8 +79,7 @@ export default class Bien extends BaseModel {
    * une valeur à comparer.
    */
   @column({
-    consume: (valeur: string | number | null) =>
-      valeur === null || valeur === undefined ? null : Number(valeur),
+    consume: (valeur: string | number | null) => versNombreOuNull(valeur),
   })
   declare surfaceHabitable: number | null
 
