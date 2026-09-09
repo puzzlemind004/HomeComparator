@@ -56,6 +56,23 @@ export default class Bien extends BaseModel {
   declare proprietaireId: string
 
   /**
+   * Les Notes : le texte libre attaché au Bien, pour tout ce qui compte mais
+   * ne se compare pas en colonne — impressions de visite, défauts constatés,
+   * travaux à prévoir, remarques sur le voisinage (#8).
+   *
+   * Un champ propre du Bien, ni Critère ni champ lié au Statut, et c'est
+   * pourquoi il est déclaré ici plutôt qu'avec les uns ou les autres
+   * (ADR-0012).
+   *
+   * `null` veut dire « rien d'écrit », et la chaîne vide n'est jamais
+   * stockée : c'est ce que le validateur en fait, comme pour l'URL de
+   * l'Annonce. Les sauts de ligne, eux, sont conservés tels quels — une liste
+   * de travaux se lit en lignes.
+   */
+  @column()
+  declare notes: string | null
+
+  /**
    * Les Critères, un champ par colonne (ADR-0004). Tous facultatifs : la
    * création ne demande qu'un Libellé (ADR-0008) et la complétion arrive
    * plus tard, au téléphone ou pendant la visite.

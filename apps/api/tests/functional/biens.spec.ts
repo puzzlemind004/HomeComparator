@@ -211,6 +211,9 @@ test.group('Biens', (group) => {
       'id',
       'libelle',
       'urlAnnonce',
+      // Les Notes : ni Critère ni champ lié au Statut, mais un champ propre
+      // du Bien, rendu sur tout Bien comme le Libellé (#8).
+      'notes',
       'proprietaireId',
       'createdAt',
       'updatedAt',
@@ -254,6 +257,37 @@ test.group('Biens', (group) => {
     assert.isNull(bien.surfaceHabitable)
     assert.isNull(bien.dpe)
     assert.isNull(bien.exterieur)
+  })
+
+  test('rend les Notes à la création, et non seulement à la relecture', async ({
+    client,
+    assert,
+  }) => {
+    /**
+     * La réponse de création n'est pas une relecture de la base : Lucid ne
+     * sérialise que ce qui a été assigné à l'instance, et un champ laissé
+     * absent du `create` manque à la réponse alors que la liste le porte.
+     *
+     * Le front insère le Bien créé en tête de liste sans le recharger : des
+     * Notes manquantes y arriveraient `undefined` là où l'adapter attend
+     * « rien d'écrit » (#8).
+     *
+     * Les quinze Critères manquent eux aussi à cette réponse, et l'adapter
+     * les ramène de la même façon. Les écrire un par un dans `store` irait
+     * contre ce qu'est la création — un Libellé, et rien d'autre (ADR-0008) :
+     * c'est l'adapter qui tient ce cas, et le contrat porté par la liste.
+     */
+    const response = await avecSession(client.post('/biens'), session).json({
+      libelle: 'le T3 avec la terrasse',
+    })
+
+    response.assertStatus(201)
+    // Les trois champs qui ne sont ni Critère ni Libellé, et que seule une
+    // assignation explicite fait figurer dans la réponse (#7, #8).
+    assert.property(response.body(), 'notes')
+    assert.isNull(response.body().notes)
+    assert.isNull(response.body().dateVisite)
+    assert.isNull(response.body().montantDerniereOffre)
   })
 
   test('rend une liste vide quand aucun Bien n’est enregistré', async ({ client, assert }) => {

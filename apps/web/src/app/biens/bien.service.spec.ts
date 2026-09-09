@@ -28,6 +28,7 @@ function bienApi(surcharges: Partial<BienApi> = {}): BienApi {
     id: 1,
     libelle: 'le T3 avec la terrasse',
     urlAnnonce: null,
+    notes: null,
     statut: 'aContacter',
     dateVisite: null,
     montantDerniereOffre: null,

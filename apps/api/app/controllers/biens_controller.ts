@@ -74,7 +74,8 @@ export default class BiensController {
       // Écrits à `null` plutôt que laissés absents, pour la même raison que
       // `urlAnnonce` : Lucid ne sérialise que ce qu'on lui a assigné, et un
       // champ absent de la réponse arriverait `undefined` au front, là où
-      // l'adapter et le contrat attendent « pas encore renseigné » (#7).
+      // l'adapter et le contrat attendent « pas encore renseigné » (#7, #8).
+      notes: null,
       dateVisite: null,
       montantDerniereOffre: null,
     })

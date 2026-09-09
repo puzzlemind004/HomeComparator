@@ -8,6 +8,7 @@ const bienApi: BienApi = {
   id: 1,
   libelle: 'le T3 avec la terrasse',
   urlAnnonce: 'https://exemple.test/annonce/1',
+  notes: null,
   // Le cycle de vie, tel que l'API le rend sur tout Bien (#7).
   statut: 'aContacter',
   dateVisite: null,
@@ -32,6 +33,28 @@ describe('versBien', () => {
 
     expect(bien).not.toHaveProperty('createdAt');
     expect(bien).not.toHaveProperty('updatedAt');
+  });
+
+  it('reprend les Notes avec leurs sauts de ligne', () => {
+    // Ce qui a été écrit doit se relire tel quel : une liste de travaux se
+    // lit en lignes (#8).
+    const notes = 'Cuisine refaite.\nChaudière à remplacer.';
+
+    expect(versBien({ ...bienApi, notes }).notes).toBe(notes);
+  });
+
+  it('conserve l’absence de Notes telle quelle', () => {
+    expect(versBien({ ...bienApi, notes: null }).notes).toBeNull();
+  });
+
+  it('ramène à null des Notes que l’API ne rend pas', () => {
+    // L'API les rend toujours, mais les deux côtés ne partagent aucune
+    // source (ADR-0010) : c'est ici que la divergence s'arrête.
+    // Le contrat déclare la clé obligatoire, et c'est bien ce qu'on veut :
+    // seul un transtypage permet de décrire la charge utile qui l'omettrait.
+    const sansNotes = { ...bienApi, notes: undefined } as unknown as BienApi;
+
+    expect(versBien(sansNotes).notes).toBeNull();
   });
 
   it("conserve l'absence d'Annonce telle quelle", () => {
@@ -204,6 +227,22 @@ describe('versModificationBienApi', () => {
     expect(versModificationBienApi({ adresse: '  12 rue des Lilas  ' })).toEqual({
       adresse: '12 rue des Lilas',
     });
+  });
+
+  it('préserve les sauts de ligne des Notes', () => {
+    // Le `trim` ne retire que les bordures : les sauts de ligne internes font
+    // toute la forme du champ, où l'on liste une chose par ligne (#8).
+    const notes = '  Cuisine refaite.\n\nChaudière à remplacer.  ';
+
+    expect(versModificationBienApi({ notes })).toEqual({
+      notes: 'Cuisine refaite.\n\nChaudière à remplacer.',
+    });
+  });
+
+  it('ramène des Notes effacées à une absence de valeur', () => {
+    // Un champ vidé de la fiche vaut « rien d'écrit », et non une chaîne vide
+    // en base.
+    expect(versModificationBienApi({ notes: '' })).toEqual({ notes: null });
   });
 
   it('laisse zéro tel quel', () => {

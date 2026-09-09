@@ -198,6 +198,35 @@
           </label>
         </section>
 
+        <!--
+          Les Notes : le texte libre du Bien, pour tout ce qui compte mais ne
+          se compare pas en colonne (#8).
+        -->
+        <section class="bloc notes">
+          <h3>
+            <label for="notes">Notes</label>
+          </h3>
+
+          <!--
+            Un `textarea` sur toute la largeur, hors de la grille en deux
+            colonnes des Critères : ce qui s'écrit ici fait des phrases, et un
+            champ étroit se remplirait deux mots par ligne sur mobile.
+
+            Enregistré au `blur` comme les Critères de texte, et non à chaque
+            frappe : une requête par caractère saisi n'a pas de sens sur un
+            texte long, et c'est en quittant le champ qu'on a fini d'écrire.
+          -->
+          <textarea
+            id="notes"
+            name="notes"
+            class="notes__saisie"
+            rows="6"
+            [ngModel]="notes() ?? ''"
+            (blur)="enregistrer('notes', $any($event.target).value)"
+            placeholder="Impressions de visite, défauts constatés, travaux à prévoir, voisinage…"
+          ></textarea>
+        </section>
+
         @for (bloc of groupes(); track bloc.groupe) {
           <section class="bloc">
             <h3>{{ bloc.libelle }}</h3>

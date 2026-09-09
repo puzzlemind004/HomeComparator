@@ -22,12 +22,19 @@ import type { BienApi, CreationBienApi, ModificationBienApi } from './bien.api';
  * « pas encore renseigné » est ce qu'elle doit y lire.
  */
 export function versBien(bienApi: BienApi): Bien {
-  const { id, libelle, urlAnnonce, statut } = bienApi;
+  const { id, libelle, urlAnnonce, notes, statut } = bienApi;
 
   return {
     id,
     libelle,
     urlAnnonce,
+    /**
+     * Les Notes traversent sans transformation, sauts de ligne compris : ce
+     * qui a été écrit doit se relire tel quel (#8). Le `?? null` n'est là que
+     * pour une charge utile qui omettrait la clé — l'API la rend toujours,
+     * mais les deux côtés ne partagent aucune source (ADR-0010).
+     */
+    notes: notes ?? null,
     /**
      * Un Statut que la définition ne connaît pas est ramené au Statut
      * initial. La fiche s'en sert pour décider quels champs afficher

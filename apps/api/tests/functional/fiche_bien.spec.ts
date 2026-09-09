@@ -150,6 +150,126 @@ test.group('Fiche d’un Bien', (group) => {
     assert.equal(bien.capaciteStationnement, 0)
   })
 
+  /**
+   * Les Notes : le texte libre du Bien (#8).
+   *
+   * Ni un Critère ni un champ lié au Statut — elles ne se comparent pas d'un
+   * Bien à l'autre et existent à toute étape du cycle —, mais elles
+   * s'enregistrent par la même route et se testent donc ici.
+   */
+  test('enregistre les Notes d’un Bien', async ({ client, assert }) => {
+    const bien = await unBien()
+
+    const response = await avecSession(client.patch(`/biens/${bien.id}`), session).json({
+      notes: 'Cuisine refaite, mais la chaudière est à remplacer.',
+    })
+
+    response.assertStatus(200)
+    await bien.refresh()
+    assert.equal(bien.notes, 'Cuisine refaite, mais la chaudière est à remplacer.')
+  })
+
+  test('conserve les sauts de ligne des Notes', async ({ client, assert }) => {
+    // C'est la forme même du champ : on y liste des travaux, une ligne par
+    // travail. Les replier en un paragraphe rendrait la relecture inutile.
+    const bien = await unBien()
+    const notes =
+      'Visite du 12 mars :\n- cuisine refaite\n- chaudière à remplacer\n\nVoisinage calme.'
+
+    const response = await avecSession(client.patch(`/biens/${bien.id}`), session).json({ notes })
+
+    response.assertStatus(200)
+    // Relu depuis la base, et non depuis la réponse : c'est la colonne qui
+    // doit porter les sauts de ligne.
+    await bien.refresh()
+    assert.equal(bien.notes, notes)
+    // La réponse les rend aussi : c'est elle que la fiche réaffiche.
+    assert.equal(response.body().notes, notes)
+  })
+
+  test('accepte des Notes vides', async ({ client, assert }) => {
+    // Rien n'oblige à écrire quoi que ce soit : un Bien repéré le soir n'a
+    // pas encore été visité (ADR-0008).
+    const bien = await unBien()
+
+    const response = await avecSession(client.patch(`/biens/${bien.id}`), session).json({
+      notes: null,
+    })
+
+    response.assertStatus(200)
+    await bien.refresh()
+    assert.isNull(bien.notes)
+  })
+
+  test('vide des Notes déjà écrites', async ({ client, assert }) => {
+    // C'est ce que le formulaire envoie d'un champ effacé : la chaîne vide
+    // vaut « rien d'écrit », et jamais une chaîne vide en base.
+    const bien = await unBien({ notes: 'À revoir.' })
+
+    await avecSession(client.patch(`/biens/${bien.id}`), session).json({ notes: '' })
+
+    await bien.refresh()
+    assert.isNull(bien.notes)
+  })
+
+  test('ramène des Notes d’espaces à rien d’écrit', async ({ client, assert }) => {
+    // Un champ rempli d'espaces ou de retours à la ligne n'a rien à dire :
+    // il ne doit pas passer pour des Notes prises.
+    const bien = await unBien({ notes: 'À revoir.' })
+
+    await avecSession(client.patch(`/biens/${bien.id}`), session).json({ notes: '  \n  ' })
+
+    await bien.refresh()
+    assert.isNull(bien.notes)
+  })
+
+  test('ne touche pas aux Notes quand la modification ne les transmet pas', async ({
+    client,
+    assert,
+  }) => {
+    // Les Notes sont du texte long, et le plus coûteux à perdre de la fiche :
+    // un Critère enregistré depuis l'assistant ne doit pas les emporter.
+    const bien = await unBien({ notes: 'Chaudière à remplacer.' })
+
+    await avecSession(client.patch(`/biens/${bien.id}`), session).json({ prixDemande: 245_000 })
+
+    await bien.refresh()
+    assert.equal(bien.notes, 'Chaudière à remplacer.')
+  })
+
+  test('accepte des Notes plus longues que les colonnes de texte', async ({ client, assert }) => {
+    // La colonne est un `text` et non un `varchar(255)` : les Notes
+    // accueillent plusieurs paragraphes, là où une adresse tient sur une
+    // ligne. Une borne à 255 ferait perdre en cours de frappe.
+    const bien = await unBien()
+    const longues = 'a'.repeat(5_000)
+
+    const response = await avecSession(client.patch(`/biens/${bien.id}`), session).json({
+      notes: longues,
+    })
+
+    response.assertStatus(200)
+    await bien.refresh()
+    assert.equal(bien.notes, longues)
+  })
+
+  test('refuse des Notes démesurées', async ({ client, assert }) => {
+    // La borne n'est pas celle d'une colonne : elle arrête ce qui ne vient
+    // plus d'une saisie au clavier, sans juger de la longueur d'une
+    // impression de visite.
+    const bien = await unBien()
+
+    const response = await avecSession(client.patch(`/biens/${bien.id}`), session).json({
+      notes: 'a'.repeat(10_001),
+    })
+
+    response.assertStatus(422)
+    assert.deepInclude(response.body().errors[0], {
+      field: 'notes',
+      message: 'Les Notes ne doivent pas dépasser 10 000 caractères',
+    })
+  })
+
   test('refuse un Critère inconnu', async ({ client, assert }) => {
     // Une faute de frappe sur un nom de champ doit se voir, et non se perdre
     // en silence : l'acheteur croirait avoir saisi une valeur.

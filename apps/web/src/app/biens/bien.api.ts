@@ -28,6 +28,13 @@ export interface BienApi {
   urlAnnonce: string | null;
 
   /**
+   * Les Notes : le texte libre du Bien, `null` tant que rien n'y a été écrit
+   * (#8). L'API ne rend jamais la chaîne vide — un champ effacé arrive à
+   * `null`, comme l'URL de l'Annonce.
+   */
+  notes: string | null;
+
+  /**
    * Le cycle de vie (#7). L'API le rend sur tout Bien : c'est la seule
    * colonne obligatoire du carnet avec le Libellé, un Bien étant toujours
    * quelque part dans la recherche.
