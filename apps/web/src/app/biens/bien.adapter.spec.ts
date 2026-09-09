@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { versBien, versCreationBienApi, versModificationBienApi } from './bien.adapter';
 import type { BienApi } from './bien.api';
 import { CRITERES } from '../criteres/definition';
+import { CHAMPS_STATUT } from '../criteres/statut';
 
 const bienApi: BienApi = {
   id: 1,
   libelle: 'le T3 avec la terrasse',
   urlAnnonce: 'https://exemple.test/annonce/1',
+  // Le cycle de vie, tel que l'API le rend sur tout Bien (#7).
+  statut: 'aContacter',
+  dateVisite: null,
+  montantDerniereOffre: null,
   createdAt: '2026-09-08T19:00:00.000+00:00',
   updatedAt: '2026-09-08T19:00:00.000+00:00',
 };
@@ -105,6 +110,77 @@ describe('versCreationBienApi', () => {
   });
 });
 
+describe('versBien, le cycle de vie', () => {
+  it('retient le Statut tel que l’API le rend', () => {
+    const bien = versBien({ ...bienApi, statut: 'offreFaite' });
+
+    expect(bien.statut).toBe('offreFaite');
+  });
+
+  it('porte une entrée par champ lié au Statut', () => {
+    // Comme pour les Critères : c'est la déclaration qui commande, et un
+    // champ que l'API ne rendrait pas arrive à `null` plutôt qu'absent.
+    const bien = versBien(bienApi);
+
+    for (const { id } of CHAMPS_STATUT) {
+      expect(bien.champsStatut).toHaveProperty(id, null);
+    }
+  });
+
+  it('retient la date de visite et le montant d’offre', () => {
+    const bien = versBien({
+      ...bienApi,
+      statut: 'offreFaite',
+      dateVisite: '2026-09-12',
+      montantDerniereOffre: 240000,
+    });
+
+    expect(bien.champsStatut['dateVisite']).toBe('2026-09-12');
+    expect(bien.champsStatut['montantDerniereOffre']).toBe(240000);
+  });
+
+  it('porte les valeurs même à une étape qui ne les montre pas', () => {
+    /**
+     * Reculer dans le cycle masque le champ à l'écran, jamais sa valeur
+     * (ADR-0002) : l'adapter ne filtre rien, c'est la fiche qui choisit
+     * d'afficher ou non. Filtrer ici perdrait la valeur à chaque
+     * rechargement, ce que la base s'emploie précisément à éviter.
+     */
+    const bien = versBien({
+      ...bienApi,
+      statut: 'aContacter',
+      dateVisite: '2026-09-12',
+      montantDerniereOffre: 240000,
+    });
+
+    expect(bien.champsStatut['dateVisite']).toBe('2026-09-12');
+    expect(bien.champsStatut['montantDerniereOffre']).toBe(240000);
+  });
+
+  it('ne mêle pas les champs liés au Statut aux Critères', () => {
+    // Ils ne sont pas comparables d'un Bien à l'autre : les mettre dans
+    // `criteres` les ferait apparaître en colonne du tableau (#10) et en
+    // question de l'assistant.
+    const bien = versBien({ ...bienApi, dateVisite: '2026-09-12' });
+
+    expect(bien.criteres).not.toHaveProperty('dateVisite');
+    expect(bien.criteres).not.toHaveProperty('montantDerniereOffre');
+    expect(bien.criteres).not.toHaveProperty('statut');
+  });
+
+  it('ramène un Statut inconnu au Statut initial', () => {
+    /**
+     * L'API n'a pas à en produire — son validateur refuse tout ce qui n'est
+     * pas une étape connue — mais les deux côtés ne partagent aucune source
+     * (ADR-0010), et c'est ici que la divergence s'arrête plutôt qu'à
+     * l'écran, où le sélecteur n'aurait aucune option sélectionnée.
+     */
+    const bien = versBien({ ...bienApi, statut: 'aVendre' });
+
+    expect(bien.statut).toBe('aContacter');
+  });
+});
+
 describe('versModificationBienApi', () => {
   it('n’envoie que les Critères modifiés', () => {
     // C'est ce qui fait la mise à jour partielle : les Critères absents ne
@@ -140,5 +216,17 @@ describe('versModificationBienApi', () => {
     // L'assistant dont toutes les questions ont été passées : il n'y a rien
     // à enregistrer, et ce n'est pas une erreur.
     expect(versModificationBienApi({})).toEqual({});
+  });
+
+  it('envoie le Statut comme n’importe quel autre champ', () => {
+    // La fiche ne fait pas de cas particulier : changer de Statut est une
+    // modification partielle de plus (#7).
+    expect(versModificationBienApi({ statut: 'visite' })).toEqual({ statut: 'visite' });
+  });
+
+  it('envoie une date de visite vidée comme une absence de valeur', () => {
+    // Un rendez-vous s'annule : la date doit pouvoir être retirée, et
+    // redevenir « non fixé » plutôt que de rester fausse.
+    expect(versModificationBienApi({ dateVisite: '' })).toEqual({ dateVisite: null });
   });
 });

@@ -109,6 +109,18 @@
   }
 }
 
+/**
+ * Le suivi ouvre la fiche : où en est le Bien est la première chose qu'on
+ * vient y voir ou y changer (#7).
+ */
+.suivi {
+  border-color: #cbd5e1;
+}
+
+.suivi__statut {
+  font-weight: 600;
+}
+
 .critere {
   align-items: baseline;
   display: grid;

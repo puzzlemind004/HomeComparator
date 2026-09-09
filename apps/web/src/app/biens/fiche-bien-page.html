@@ -96,6 +96,74 @@
         }
 
         <!--
+          Le suivi : où en est le Bien, et les champs que cette étape rend
+          pertinents (#7, ADR-0002). En haut de la fiche parce que c'est la
+          première chose qu'on vient y voir ou y changer.
+        -->
+        <section class="bloc suivi">
+          <h3>Suivi</h3>
+
+          <label class="critere">
+            <span class="critere__libelle">Statut</span>
+            <!--
+              Aucune transition n'est interdite : les six Statuts sont
+              toujours proposés, quel que soit l'état courant. Les sorties
+              sont dans leur propre groupe, parce qu'elles disent autre
+              chose qu'une étape — une décision de l'acheteur, un fait
+              extérieur.
+            -->
+            <select
+              name="statut"
+              class="suivi__statut"
+              [ngModel]="statut()"
+              (ngModelChange)="changerStatut($event)"
+            >
+              <optgroup label="Dans la recherche">
+                @for (option of statuts; track option.valeur) {
+                  @if (option.nature === 'etape') {
+                    <option [value]="option.valeur">{{ option.libelle }}</option>
+                  }
+                }
+              </optgroup>
+              <optgroup label="Sorties">
+                @for (option of statuts; track option.valeur) {
+                  @if (option.nature === 'sortie') {
+                    <option [value]="option.valeur">{{ option.libelle }}</option>
+                  }
+                }
+              </optgroup>
+            </select>
+          </label>
+
+          <!--
+            Les champs liés au Statut n'apparaissent qu'à partir de leur
+            étape. Reculer les retire de l'écran sans effacer leur valeur :
+            elle réapparaît telle quelle en avançant de nouveau.
+          -->
+          @for (ligne of champsStatut(); track ligne.champ.id) {
+            <div class="critere">
+              <label class="critere__libelle" [for]="ligne.champ.id">
+                {{ ligne.champ.libelle }}
+              </label>
+
+              <span class="critere__saisie">
+                <input
+                  [id]="ligne.champ.id"
+                  [name]="ligne.champ.id"
+                  [type]="ligne.champ.type === 'date' ? 'date' : 'number'"
+                  [ngModel]="ligne.valeur ?? ''"
+                  (blur)="enregistrer(ligne.champ.id, $any($event.target).value)"
+                  autocomplete="off"
+                />
+                @if (ligne.champ.unite; as unite) {
+                  <span class="critere__unite">{{ unite }}</span>
+                }
+              </span>
+            </div>
+          }
+        </section>
+
+        <!--
           Le Libellé et l'URL de l'Annonce se modifient comme les Critères,
           dans leur propre bloc parce qu'ils ne sont pas comparables (#6).
         -->

@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon'
 import { BaseModel, column } from '@adonisjs/lucid/orm'
+import type { Statut } from '#services/statut'
 
 /**
  * Un décimal rendu par `pg`, ramené au nombre que le JSON doit porter — ou
@@ -130,6 +131,53 @@ export default class Bien extends BaseModel {
   /** L'ampleur des travaux à prévoir, telle que l'acheteur l'estime. */
   @column()
   declare travauxAPrevoir: string | null
+
+  /**
+   * L'étape où se trouve le Bien dans la recherche (#7).
+   *
+   * Ce n'est pas un Critère : il ne se compare pas d'un Bien à l'autre, il
+   * décide de ce qui est pertinent. C'est lui qui commande les deux champs
+   * qui suivent (ADR-0002).
+   *
+   * Aucune transition n'est interdite, et l'API n'en connaît donc aucune :
+   * il n'y a rien à vérifier au-delà de ce que le validateur accepte comme
+   * Statut. Un outil personnel n'a pas à empêcher son unique utilisateur de
+   * corriger un état.
+   */
+  @column()
+  declare statut: Statut
+
+  /**
+   * Les champs liés au Statut, qui n'existent qu'à partir d'une étape du
+   * cycle (ADR-0002).
+   *
+   * Ils ne sont jamais effacés en reculant dans le cycle : perdre une date
+   * de visite sur un mauvais clic coûterait plus cher que d'afficher une
+   * donnée hors-contexte. C'est l'écran qui choisit de ne pas la montrer,
+   * pas la base de l'oublier.
+   */
+
+  /**
+   * La date de la visite, à partir de « À visiter ». Elle reste vide tant
+   * que le rendez-vous n'est pas fixé : c'est le cas ordinaire du Bien qu'on
+   * vient de contacter.
+   *
+   * `@column.date` et non `dateTime` : c'est un jour, sans heure, et le
+   * sérialiser en `YYYY-MM-DD` évite qu'un décalage de fuseau ne fasse
+   * afficher la veille au navigateur.
+   */
+  @column.date()
+  declare dateVisite: DateTime | null
+
+  /**
+   * Le montant de la dernière offre, en euros, à partir de « Offre faite ».
+   *
+   * « La dernière » et non « les offres » : une négociation se suit par son
+   * état courant, et l'historique des montants successifs se raconte dans
+   * les Notes plutôt qu'en table à part.
+   */
+  @column()
+  declare montantDerniereOffre: number | null
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime

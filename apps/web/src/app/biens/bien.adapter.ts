@@ -1,4 +1,5 @@
 import { CRITERES } from '../criteres/definition';
+import { CHAMPS_STATUT, STATUT_INITIAL, statutParValeur } from '../criteres/statut';
 import type { Bien, CreationBien, ModificationBien } from './bien';
 import type { BienApi, CreationBienApi, ModificationBienApi } from './bien.api';
 
@@ -21,12 +22,27 @@ import type { BienApi, CreationBienApi, ModificationBienApi } from './bien.api';
  * « pas encore renseigné » est ce qu'elle doit y lire.
  */
 export function versBien(bienApi: BienApi): Bien {
-  const { id, libelle, urlAnnonce } = bienApi;
+  const { id, libelle, urlAnnonce, statut } = bienApi;
 
   return {
     id,
     libelle,
     urlAnnonce,
+    /**
+     * Un Statut que la définition ne connaît pas est ramené au Statut
+     * initial. La fiche s'en sert pour décider quels champs afficher
+     * (ADR-0002) : sans valeur exploitable, elle s'en tiendrait à ce dont
+     * elle est sûre, et le sélecteur n'aurait aucune option sélectionnée.
+     *
+     * C'est un cas que l'API n'a pas à produire — son validateur refuse
+     * tout ce qui n'est pas une étape connue — mais les deux côtés ne
+     * partagent aucune source (ADR-0010), et c'est ici que la divergence
+     * s'arrête plutôt qu'à l'écran.
+     */
+    statut: statutParValeur(statut)?.valeur ?? STATUT_INITIAL,
+    champsStatut: Object.fromEntries(
+      CHAMPS_STATUT.map((champ) => [champ.id, bienApi[champ.id] ?? null]),
+    ),
     criteres: Object.fromEntries(
       CRITERES.map((critere) => [critere.id, bienApi[critere.id] ?? null]),
     ),

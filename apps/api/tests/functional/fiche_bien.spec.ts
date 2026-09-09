@@ -3,6 +3,7 @@ import db from '@adonisjs/lucid/services/db'
 import Bien from '#models/bien'
 import { avecSession, ouvrirSession, type Session } from '#tests/session'
 import { PROPRIETAIRE_UNIQUE } from '#services/proprietaire'
+import { STATUT_INITIAL } from '#services/statut'
 
 /**
  * La fiche d'un Bien : la consulter, et modifier n'importe lequel de ses
@@ -26,6 +27,10 @@ test.group('Fiche d’un Bien', (group) => {
       libelle: 'le T3 avec la terrasse',
       urlAnnonce: null,
       proprietaireId: PROPRIETAIRE_UNIQUE,
+      // Le Statut est obligatoire comme le Libellé (#7) : un Bien est
+      // toujours quelque part dans la recherche, et c'est ici qu'un Bien
+      // fraîchement créé se trouve.
+      statut: STATUT_INITIAL,
       ...criteres,
     })
   }

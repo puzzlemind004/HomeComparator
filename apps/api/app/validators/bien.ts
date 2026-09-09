@@ -1,4 +1,6 @@
 import vine, { SimpleMessagesProvider } from '@vinejs/vine'
+import { DateTime } from 'luxon'
+import { STATUTS } from '#services/statut'
 
 /**
  * Un Bien se crée avec son seul Libellé (ADR-0008). L'URL de l'Annonce est
@@ -112,6 +114,63 @@ const enumeration = (valeurs: readonly string[]) =>
   vine.enum(valeurs).parse(videVersNull).nullable()
 
 /**
+ * Le Statut, seul champ du carnet qui soit obligatoire sans être le Libellé
+ * (#7).
+ *
+ * Il n'est **pas** `nullable`, à la différence de tout ce qui précède : un
+ * Bien est toujours quelque part dans la recherche, et le vider ne
+ * signifierait rien. Il reste `optional` sur une modification, où un champ
+ * absent vaut « ne touche pas au Statut ».
+ *
+ * Aucune transition n'est vérifiée. Toutes sont permises depuis n'importe
+ * quel état, retours arrière compris (#7) : la seule règle est que la valeur
+ * soit un Statut connu.
+ */
+const statut = () =>
+  vine
+    .enum(STATUTS)
+    /**
+     * `parse` avant les règles, pour la même raison que sur le Libellé :
+     * chez Vine, `optional` admet aussi bien `undefined` que `null` et
+     * court-circuite les règles dans les deux cas. Un Statut à `null`
+     * ressortirait donc inchangé avec un 200, là où l'acheteur attend qu'on
+     * lui dise que le Statut ne se vide pas.
+     *
+     * La chaîne vide, elle, ne passe aucune des valeurs de l'énumération :
+     * c'est `enum` qui la refuse, avec le message attendu. Seul un champ
+     * réellement absent reste `undefined`, et lui seul vaut « ne touche pas
+     * au Statut ».
+     */
+    .parse((valeur) => (valeur === null ? '' : valeur))
+
+/**
+ * La date de visite, à partir de « À visiter » (ADR-0002).
+ *
+ * Vidable comme un Critère : le rendez-vous se décale, s'annule, et la date
+ * saisie doit pouvoir être retirée.
+ *
+ * Le format est `YYYY-MM-DD`, celui d'un champ `date` HTML et celui que
+ * l'API rend. `formats` explicite plutôt que d'accepter tout ce que Vine
+ * sait lire : une saisie ambiguë — « 03/04/2026 » — ne doit pas être
+ * interprétée dans un ordre plutôt qu'un autre.
+ */
+const dateVisite = () =>
+  vine
+    .date({ formats: ['YYYY-MM-DD'] })
+    .parse(videVersNull)
+    .nullable()
+    /**
+     * Vine rend un `Date` de JavaScript ; la colonne Lucid est déclarée
+     * `@column.date()` et n'accepte qu'un `DateTime` de Luxon, faute de quoi
+     * l'écriture lève — une 500 sur une saisie pourtant valide.
+     *
+     * La conversion se fait ici plutôt qu'au contrôleur : celui-ci passe
+     * l'objet validé à `merge` sans le parcourir, et un champ à convertir
+     * au cas par cas l'obligerait à connaître chacun d'eux.
+     */
+    .transform((valeur) => (valeur === null ? null : DateTime.fromJSDate(valeur)))
+
+/**
  * Les bornes hautes des Critères numériques.
  *
  * Elles ne prétendent pas juger de ce qui est un prix vraisemblable : elles
@@ -159,6 +218,15 @@ export const creerBienValidator = vine.compile(
 const schemaModification = vine.object({
   libelle: libelleModifie(),
   urlAnnonce: urlAnnonce().optional(),
+
+  /**
+   * Le cycle de vie (#7). Il n'est pas dans la définition des Critères et
+   * n'apparaît donc dans aucun des groupes qui suivent : le Statut ne se
+   * compare pas d'un Bien à l'autre, il décide de ce qui est pertinent.
+   */
+  statut: statut().optional(),
+  dateVisite: dateVisite().optional(),
+  montantDerniereOffre: entierPositif(ENTIER_MAX).optional(),
 
   // Budget
   prixDemande: entierPositif(ENTIER_MAX).optional(),
@@ -238,6 +306,13 @@ const MESSAGES = {
   'urlAnnonce.url': "L'URL de l'Annonce n'est pas une adresse valide",
   'urlAnnonce.maxLength': "L'URL de l'Annonce ne doit pas dépasser 2048 caractères",
 
+  // Le Statut est le seul champ qui refuse d'être vidé : un Bien est
+  // toujours quelque part dans la recherche (#7).
+  'statut.enum': 'Le Statut n’est pas une étape connue du cycle',
+  'statut.required': 'Le Statut est obligatoire',
+  'statut.string': 'Le Statut n’est pas une étape connue du cycle',
+  'dateVisite.date': 'La Date de visite doit être une date au format AAAA-MM-JJ',
+
   'adresse.maxLength': 'L’Adresse ne doit pas dépasser 255 caractères',
   'adresse.string': 'L’Adresse doit être du texte',
   'villeQuartier.maxLength': 'La Ville ou quartier ne doit pas dépasser 255 caractères',
@@ -255,6 +330,10 @@ creerBienValidator.messagesProvider = new SimpleMessagesProvider(MESSAGES)
  */
 const LIBELLES: Record<string, string> = {
   prixDemande: 'Le Prix demandé',
+  // Le montant d'offre n'est pas un Critère, mais ses refus se formulent
+  // comme les leurs : c'est un entier positif, refusé pour les mêmes
+  // raisons et lu par le même acheteur.
+  montantDerniereOffre: 'Le Montant de la dernière offre',
   taxeFonciere: 'La Taxe foncière',
   chargesCopropriete: 'Les Charges de copropriété',
   surfaceHabitable: 'La Surface habitable',

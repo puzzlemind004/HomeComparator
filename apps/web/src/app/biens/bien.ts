@@ -1,5 +1,6 @@
 import type { ValeurCritere } from '../criteres/comparaison';
 import type { ValeursCriteres } from '../criteres/valeurs';
+import type { Statut, ValeursChampsStatut } from '../criteres/statut';
 
 /**
  * Un logement que l'acheteur envisage d'acheter : l'objet que l'on compare.
@@ -20,6 +21,28 @@ export interface Bien {
    * qu'aucune n'a été renseignée.
    */
   urlAnnonce: string | null;
+
+  /**
+   * L'étape où se trouve le Bien dans la recherche (#7).
+   *
+   * Il ne figure pas dans `criteres` : un Critère se compare d'un Bien à
+   * l'autre, le Statut décide de ce qui est pertinent. C'est lui qui commande
+   * l'affichage des champs qui suivent (ADR-0002).
+   */
+  statut: Statut;
+
+  /**
+   * Les valeurs des champs liés au Statut, indexées par identifiant.
+   *
+   * Séparées des Critères pour la même raison que le Statut l'est : elles
+   * n'existent qu'à partir d'une étape du cycle, et n'ont donc pas de sens
+   * en colonne du tableau ni en question de l'assistant.
+   *
+   * Elles sont **toujours portées**, même à une étape où l'écran ne les
+   * montre pas : reculer dans le cycle masque le champ, jamais sa valeur
+   * (ADR-0002).
+   */
+  champsStatut: ValeursChampsStatut;
 
   /**
    * Les valeurs portées par les Critères, indexées par identifiant.

@@ -1,9 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { catchError, map, type Observable, of } from 'rxjs';
 import type { Bien, CreationBien, ModificationBien } from './bien';
 import type { BienApi, ReponseErreurValidationApi } from './bien.api';
 import { versBien, versCreationBienApi, versModificationBienApi } from './bien.adapter';
+import type { Statut } from '../criteres/statut';
 
 const BIENS_URL = '/api/biens';
 
@@ -52,15 +53,23 @@ export class BienService {
   private readonly http = inject(HttpClient);
 
   /**
-   * Tous les Biens enregistrés, dans l'ordre où l'API les renvoie.
+   * Les Biens enregistrés, dans l'ordre où l'API les renvoie — tous, ou
+   * ceux d'un seul Statut quand la liste est filtrée (#7).
    *
    * Une API injoignable est un état à afficher, pas une erreur à propager :
    * la rabattre sur une liste vide ferait dire à l'écran que le carnet est
    * vide, ce qui se lit comme une perte de données sur des Biens saisis à
    * la main (ADR-0001).
    */
-  lister(): Observable<ListeBiens> {
-    return this.http.get<BienApi[]>(BIENS_URL).pipe(
+  lister(statut?: Statut): Observable<ListeBiens> {
+    /**
+     * Le filtre part à l'API plutôt que de s'appliquer sur une liste déjà
+     * reçue : c'est ce que la colonne permet (ADR-0004), et la liste n'a pas
+     * à voyager en entier pour qu'on en regarde le quart.
+     */
+    const params = statut ? new HttpParams().set('statut', statut) : undefined;
+
+    return this.http.get<BienApi[]>(BIENS_URL, { params }).pipe(
       map((biens): ListeBiens => ({ chargee: true, biens: biens.map(versBien) })),
       catchError(() => of(LISTE_INJOIGNABLE)),
     );

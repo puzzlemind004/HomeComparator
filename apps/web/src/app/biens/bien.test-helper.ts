@@ -1,6 +1,8 @@
 import { CRITERES } from '../criteres/definition';
+import { CHAMPS_STATUT, STATUT_INITIAL } from '../criteres/statut';
 import type { Bien } from './bien';
 import type { ValeursCriteres } from '../criteres/valeurs';
+import type { ValeursChampsStatut } from '../criteres/statut';
 
 /**
  * Un Bien tel que l'adapter en produit : une entrée par Critère de la
@@ -15,12 +17,16 @@ import type { ValeursCriteres } from '../criteres/valeurs';
  * remplacer : un test qui fixe le prix décrit un Bien dont le reste est
  * simplement à renseigner, ce qui est le cas ordinaire.
  */
-export function unBien({ criteres, ...surcharges }: Partial<Bien> = {}): Bien {
+export function unBien({ criteres, champsStatut, ...surcharges }: Partial<Bien> = {}): Bien {
   return {
     id: 1,
     libelle: 'le T3 avec la terrasse',
     urlAnnonce: null,
+    // Un Bien qu'on vient de repérer : c'est là que la création le met, et
+    // le cas ordinaire des tests qui portent sur autre chose (#7).
+    statut: STATUT_INITIAL,
     ...surcharges,
+    champsStatut: { ...champsStatutVides(), ...champsStatut },
     criteres: { ...criteresVides(), ...criteres },
   };
 }
@@ -28,4 +34,9 @@ export function unBien({ criteres, ...surcharges }: Partial<Bien> = {}): Bien {
 /** Les quinze Critères de la définition, aucun renseigné. */
 export function criteresVides(): ValeursCriteres {
   return Object.fromEntries(CRITERES.map(({ id }) => [id, null]));
+}
+
+/** Les champs liés au Statut, aucun renseigné. */
+export function champsStatutVides(): ValeursChampsStatut {
+  return Object.fromEntries(CHAMPS_STATUT.map(({ id }) => [id, null]));
 }

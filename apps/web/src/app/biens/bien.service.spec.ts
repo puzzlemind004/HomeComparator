@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Injector, runInInjectionContext } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, type HttpParams } from '@angular/common/http';
 import { firstValueFrom, of, throwError, type Observable } from 'rxjs';
 import { BienService } from './bien.service';
 import type { BienApi } from './bien.api';
@@ -14,7 +14,7 @@ import { unBien } from './bien.test-helper';
  * réellement employées par le service.
  */
 function creerService(http: {
-  get?: (url: string) => Observable<unknown>;
+  get?: (url: string, options?: { params?: HttpParams }) => Observable<unknown>;
   post?: (url: string, corps: unknown) => Observable<unknown>;
   patch?: (url: string, corps: unknown) => Observable<unknown>;
 }) {
@@ -28,6 +28,9 @@ function bienApi(surcharges: Partial<BienApi> = {}): BienApi {
     id: 1,
     libelle: 'le T3 avec la terrasse',
     urlAnnonce: null,
+    statut: 'aContacter',
+    dateVisite: null,
+    montantDerniereOffre: null,
     createdAt: '2026-09-08T19:00:00.000+00:00',
     updatedAt: '2026-09-08T19:00:00.000+00:00',
     ...surcharges,
@@ -63,6 +66,40 @@ describe('BienService', () => {
           unBien({ id: 2, libelle: 'celui avec la cuisine refaite' }),
         ],
       });
+    });
+
+    it('n’envoie aucun paramètre quand la liste n’est pas filtrée', () => {
+      // Ouvrir le carnet montre tous les Biens, sorties comprises (#7).
+      let recus: HttpParams | undefined;
+      const service = creerService({
+        get: (_url, options) => {
+          recus = options?.params;
+          return of([]);
+        },
+      });
+
+      service.lister().subscribe();
+
+      expect(recus).toBeUndefined();
+    });
+
+    it('demande à l’API les Biens d’un seul Statut', () => {
+      /**
+       * Le filtre part à l'API plutôt que de s'appliquer sur une liste déjà
+       * reçue : c'est ce que la colonne permet (ADR-0004), et la liste n'a
+       * pas à voyager en entier pour qu'on en regarde le quart.
+       */
+      let recus: HttpParams | undefined;
+      const service = creerService({
+        get: (_url, options) => {
+          recus = options?.params;
+          return of([]);
+        },
+      });
+
+      service.lister('ecarte').subscribe();
+
+      expect(recus?.get('statut')).toBe('ecarte');
     });
 
     it('rend une liste vide quand aucun Bien n’est enregistré', async () => {

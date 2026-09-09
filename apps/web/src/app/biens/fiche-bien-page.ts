@@ -5,6 +5,13 @@ import { BienService, type FicheBien } from './bien.service';
 import type { ModificationBien } from './bien';
 import type { Critere, GroupeCritere } from '../criteres/critere';
 import { GROUPES, criteresDuGroupe } from '../criteres/definition';
+import {
+  STATUTS,
+  STATUT_INITIAL,
+  champsPertinents,
+  type ChampStatut,
+  type Statut,
+} from '../criteres/statut';
 import { estRenseigne } from '../criteres/valeurs';
 import type { ValeurCritere } from '../criteres/comparaison';
 import {
@@ -28,6 +35,20 @@ export interface LigneCritere {
    * ce qu'il reste à demander à l'agence (#6).
    */
   renseigne: boolean;
+}
+
+/**
+ * Un champ lié au Statut, prêt à s'afficher : sa déclaration et sa valeur.
+ *
+ * Il n'a pas de `renseigne` à la différence d'une `LigneCritere` : ce qui
+ * manque à un Bien, c'est ce qu'il reste à demander à l'agence, et une date
+ * de visite non fixée n'est pas de cet ordre — elle attend le rendez-vous,
+ * pas un coup de téléphone. Elle ne compte donc pas dans les Critères
+ * manquants et ne se signale pas comme eux (#7).
+ */
+export interface LigneChampStatut {
+  champ: ChampStatut;
+  valeur: ValeurCritere;
 }
 
 /** Les Critères d'un groupe, prêts à s'afficher en bloc. */
@@ -97,6 +118,35 @@ export class FicheBienPage {
 
   readonly urlAnnonce = computed(() => this.bien()?.urlAnnonce ?? null);
 
+  /** Les six Statuts, tels que le sélecteur les propose. */
+  readonly statuts = STATUTS;
+
+  /**
+   * Le Statut du Bien affiché. `STATUT_INITIAL` tant qu'il n'y a pas de
+   * Bien : le sélecteur a toujours une option sélectionnée, plutôt qu'un
+   * état vide qui ne correspond à aucun Statut.
+   */
+  readonly statut = computed<Statut>(() => this.bien()?.statut ?? STATUT_INITIAL);
+
+  /**
+   * Les champs que le Statut courant rend pertinents, avec leur valeur
+   * (ADR-0002).
+   *
+   * Reculer dans le cycle les fait disparaître de l'écran **sans que leur
+   * valeur soit effacée** : elle reste dans `champsStatut`, et réapparaît
+   * telle quelle en avançant de nouveau. C'est un choix d'affichage, pas
+   * une suppression — perdre une date de visite sur un mauvais clic
+   * coûterait plus cher que d'afficher une donnée hors-contexte.
+   */
+  readonly champsStatut = computed<LigneChampStatut[]>(() => {
+    const valeurs = this.bien()?.champsStatut ?? {};
+
+    return champsPertinents(this.statut()).map((champ) => ({
+      champ,
+      valeur: valeurs[champ.id] ?? null,
+    }));
+  });
+
   /**
    * Les Critères groupés et ordonnés selon la définition, prêts à s'afficher.
    *
@@ -140,6 +190,19 @@ export class FicheBienPage {
    */
   enregistrer(champ: string, valeur: ValeurCritere): void {
     this.envoyer({ [champ]: valeur });
+  }
+
+  /**
+   * Le changement de Statut, enregistré aussitôt comme n'importe quelle
+   * modification.
+   *
+   * Aucune transition n'est vérifiée, ni ici ni à l'API : toutes sont
+   * permises depuis n'importe quel état, retours arrière compris (#7). Un
+   * outil personnel n'a pas à empêcher son unique utilisateur de corriger
+   * un état.
+   */
+  changerStatut(statut: string): void {
+    this.envoyer({ statut });
   }
 
   /** L'assistant, lancé sur les Critères manquants du Bien affiché. */
