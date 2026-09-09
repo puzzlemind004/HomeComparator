@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { CRITERES, CRITERES_ORDONNES, critereParId, criteresDuGroupe } from './definition';
+import {
+  CRITERES,
+  CRITERES_ORDONNES,
+  GROUPES,
+  critereParId,
+  criteresDuGroupe,
+} from './definition';
 
 /**
  * La définition est lue par cinq écrans qui ne la valident pas : une entrée
@@ -135,5 +141,37 @@ describe('criteresDuGroupe', () => {
     const repartis = groupes.flatMap((groupe) => [...criteresDuGroupe(groupe)]);
 
     expect(repartis).toHaveLength(CRITERES.length);
+  });
+});
+
+describe('les groupes', () => {
+  it('couvre tous les groupes que des Critères déclarent', () => {
+    // Un groupe déclaré par un Critère mais absent de cette liste ferait
+    // disparaître ses Critères de la fiche sans un mot : ils ne seraient
+    // dans aucun bloc, et rien ne les signalerait comme non renseignés.
+    const declares = new Set(CRITERES.map(({ groupe }) => groupe));
+    const presentes = new Set(GROUPES.map(({ groupe }) => groupe));
+
+    expect([...declares].sort()).toEqual([...presentes].sort());
+  });
+
+  it('donne à chaque groupe un titre affichable', () => {
+    for (const { groupe, libelle } of GROUPES) {
+      expect(libelle.trim(), groupe).not.toBe('');
+    }
+  });
+
+  it('ne déclare chaque groupe qu’une fois', () => {
+    const groupes = GROUPES.map(({ groupe }) => groupe);
+
+    expect(new Set(groupes).size).toBe(groupes.length);
+  });
+
+  it('place chaque Critère dans exactement un bloc', () => {
+    // La somme des blocs doit rendre la définition entière : ni Critère
+    // perdu, ni Critère affiché deux fois.
+    const repartis = GROUPES.flatMap(({ groupe }) => criteresDuGroupe(groupe));
+
+    expect(repartis.map(({ id }) => id).sort()).toEqual(CRITERES.map(({ id }) => id).sort());
   });
 });

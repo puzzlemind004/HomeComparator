@@ -151,76 +151,65 @@ export const creerBienValidator = vine.compile(
  * Chaque Critère de la définition centralisée a son entrée ici, dans le même
  * ordre (ADR-0004). Ajouter un Critère demande donc un troisième geste côté
  * API — la colonne, le champ Lucid, la règle — mais aucun côté écrans.
+ *
+ * Le schéma est nommé plutôt qu'écrit dans l'appel à `compile` : la liste des
+ * champs acceptés s'en déduit juste en dessous, au lieu d'être recopiée dans
+ * un tableau qu'un Critère ajouté oublierait.
  */
-export const modifierBienValidator = vine.compile(
-  vine.object({
-    libelle: libelleModifie(),
-    urlAnnonce: urlAnnonce().optional(),
+const schemaModification = vine.object({
+  libelle: libelleModifie(),
+  urlAnnonce: urlAnnonce().optional(),
 
-    // Budget
-    prixDemande: entierPositif(ENTIER_MAX).optional(),
-    taxeFonciere: entierPositif(ENTIER_MAX).optional(),
-    chargesCopropriete: entierPositif(ENTIER_MAX).optional(),
+  // Budget
+  prixDemande: entierPositif(ENTIER_MAX).optional(),
+  taxeFonciere: entierPositif(ENTIER_MAX).optional(),
+  chargesCopropriete: entierPositif(ENTIER_MAX).optional(),
 
-    // Logement
-    surfaceHabitable: decimalPositif(SURFACE_MAX).optional(),
-    nombrePieces: entierPositif(ENTIER_MAX).optional(),
-    typeBien: enumeration(['appartement', 'maison', 'loft', 'autre']).optional(),
-    anneeConstruction: entierPositif(ENTIER_MAX).optional(),
-    travauxAPrevoir: enumeration(['aucun', 'rafraichissement', 'importants', 'lourds']).optional(),
+  // Logement
+  surfaceHabitable: decimalPositif(SURFACE_MAX).optional(),
+  nombrePieces: entierPositif(ENTIER_MAX).optional(),
+  typeBien: enumeration(['appartement', 'maison', 'loft', 'autre']).optional(),
+  anneeConstruction: entierPositif(ENTIER_MAX).optional(),
+  travauxAPrevoir: enumeration(['aucun', 'rafraichissement', 'importants', 'lourds']).optional(),
 
-    // Localisation
-    adresse: texte(TEXTE_MAX).optional(),
-    villeQuartier: texte(TEXTE_MAX).optional(),
-    tempsTrajetTravail: entierPositif(ENTIER_MAX).optional(),
+  // Localisation
+  adresse: texte(TEXTE_MAX).optional(),
+  villeQuartier: texte(TEXTE_MAX).optional(),
+  tempsTrajetTravail: entierPositif(ENTIER_MAX).optional(),
 
-    // Confort
-    capaciteStationnement: entierPositif(ENTIER_MAX).optional(),
-    dpe: enumeration(['A', 'B', 'C', 'D', 'E', 'F', 'G']).optional(),
-    typeChauffage: enumeration([
-      'individuelGaz',
-      'individuelElectrique',
-      'pompeAChaleur',
-      'collectif',
-      'bois',
-      'autre',
-    ]).optional(),
-    exterieur: enumeration(['aucun', 'balcon', 'terrasse', 'jardin']).optional(),
-  })
-)
+  // Confort
+  capaciteStationnement: entierPositif(ENTIER_MAX).optional(),
+  dpe: enumeration(['A', 'B', 'C', 'D', 'E', 'F', 'G']).optional(),
+  typeChauffage: enumeration([
+    'individuelGaz',
+    'individuelElectrique',
+    'pompeAChaleur',
+    'collectif',
+    'bois',
+    'autre',
+  ]).optional(),
+  exterieur: enumeration(['aucun', 'balcon', 'terrasse', 'jardin']).optional(),
+})
+
+export const modifierBienValidator = vine.compile(schemaModification)
 
 /**
  * Les champs qu'une modification accepte : les quinze Critères, plus le
  * Libellé et l'URL de l'Annonce, que la fiche modifie comme les autres.
  *
- * Vine laisse passer les clés qu'il ne connaît pas plutôt que de les
- * refuser, et son objet compilé ne les expose pas : la liste est donc
- * réécrite ici, et `champInconnu` s'en sert pour que le contrôleur puisse
- * refuser une faute de frappe. Sans ce refus, `prixNegocie` s'enverrait sans
- * rien changer et sans rien dire — l'acheteur croirait avoir saisi un prix.
+ * Vine laisse passer les clés qu'il ne connaît pas plutôt que de les refuser,
+ * et `champInconnu` sert au contrôleur à les rejeter quand même. Sans ce
+ * refus, `prixNegocie` s'enverrait sans rien changer et sans rien dire —
+ * l'acheteur croirait avoir saisi un prix.
  *
- * Elle est tenue par les tests fonctionnels, qui décrivent la charge utile
- * que l'API accepte comme celle qu'elle rend (ADR-0010).
+ * La liste est **dérivée du schéma** et non réécrite : recopiée, elle
+ * finirait par diverger, et un Critère ajouté serait refusé à la modification
+ * alors même que sa règle existe — le genre d'écart qui ne se voit qu'à
+ * l'usage.
  */
-export const CHAMPS_MODIFIABLES = [
-  'libelle',
-  'urlAnnonce',
-  'prixDemande',
-  'taxeFonciere',
-  'chargesCopropriete',
-  'surfaceHabitable',
-  'nombrePieces',
-  'typeBien',
-  'anneeConstruction',
-  'travauxAPrevoir',
-  'adresse',
-  'villeQuartier',
-  'tempsTrajetTravail',
-  'capaciteStationnement',
-  'dpe',
-  'typeChauffage',
-  'exterieur',
-] as const
+export const CHAMPS_MODIFIABLES: readonly string[] = Object.keys(
+  schemaModification.toJSONSchema().properties ?? {}
+)
 
 /**
  * Le premier champ de cette saisie que la modification n'accepte pas, ou
@@ -228,9 +217,7 @@ export const CHAMPS_MODIFIABLES = [
  * réponse désigne un champ fautif, comme le fait Vine.
  */
 export function champInconnu(corps: Record<string, unknown>): string | undefined {
-  return Object.keys(corps).find(
-    (champ) => !(CHAMPS_MODIFIABLES as readonly string[]).includes(champ)
-  )
+  return Object.keys(corps).find((champ) => !CHAMPS_MODIFIABLES.includes(champ))
 }
 
 /**

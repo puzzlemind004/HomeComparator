@@ -109,24 +109,6 @@ describe('FicheBienPage', () => {
     expect(prix?.renseigne).toBe(false);
   });
 
-  it('écrit chaque valeur selon le type de son Critère', () => {
-    const fiche = creerFiche({
-      consulter: () =>
-        of<FicheBien>({
-          etat: 'chargee',
-          bien: unBien({ criteres: { prixDemande: 250000, surfaceHabitable: 72.5, dpe: 'C' } }),
-        }),
-    });
-
-    const lignes = fiche.groupes().flatMap(({ criteres }) => criteres);
-    const valeur = (id: string) => lignes.find(({ critere }) => critere.id === id)?.affichage;
-
-    expect(valeur('surfaceHabitable')).toBe('72,5 m²');
-    expect(valeur('dpe')).toBe('C');
-    // Le prix passe par le formatage commun : espace insécable et symbole.
-    expect(valeur('prixDemande')).toContain('250');
-  });
-
   it('compte les Critères qui restent à renseigner', () => {
     const fiche = creerFiche({
       consulter: () =>
@@ -317,6 +299,5 @@ describe('l’assistant depuis la fiche', () => {
     }
 
     expect(fiche.questionCourante()).toBeUndefined();
-    expect(fiche.assistantTermine()).toBe(true);
   });
 });

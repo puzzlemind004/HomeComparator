@@ -1,4 +1,4 @@
-import type { Critere } from './critere';
+import type { Critere, GroupeCritere } from './critere';
 
 /**
  * La définition centralisée des Critères : chacun déclaré une seule fois,
@@ -241,3 +241,22 @@ export function critereParId(id: string): Critere | undefined {
 export function criteresDuGroupe(groupe: Critere['groupe']): readonly Critere[] {
   return CRITERES_ORDONNES.filter((critere) => critere.groupe === groupe);
 }
+
+/**
+ * Les groupes dans l'ordre où les écrans les présentent, avec le titre sous
+ * lequel ils s'affichent.
+ *
+ * L'ordre est celui d'un déroulé de visite : ce que ça coûte, ce que c'est,
+ * où c'est, comment on y vit.
+ *
+ * Le titre vit ici et non dans la fiche, pour la même raison que le libellé
+ * d'un Critère (ADR-0004) : un groupe ajouté à `GroupeCritere` doit traverser
+ * les écrans sans qu'aucun soit retouché. Déclaré dans la fiche, il aurait
+ * fallu penser à l'y ajouter, et ses Critères auraient disparu en silence.
+ */
+export const GROUPES: readonly { groupe: GroupeCritere; libelle: string }[] = [
+  { groupe: 'budget', libelle: 'Budget' },
+  { groupe: 'logement', libelle: 'Logement' },
+  { groupe: 'localisation', libelle: 'Localisation' },
+  { groupe: 'confort', libelle: 'Confort' },
+];

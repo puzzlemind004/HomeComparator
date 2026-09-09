@@ -1,6 +1,6 @@
 import type { Critere } from './critere';
 import type { ValeurCritere } from './comparaison';
-import { criteresNonRenseignes, estRenseigne, type ValeursCriteres } from './valeurs';
+import { criteresNonRenseignes, type ValeursCriteres } from './valeurs';
 
 /**
  * L'assistant de complétion : les Critères manquants, enchaînés un par un.
@@ -41,6 +41,11 @@ export interface Assistant {
    * Les Critères passés pendant cette session. Passer veut dire « pas
    * maintenant » : les reposer au tour suivant ferait tourner l'assistant en
    * rond, alors qu'ils restent bien manquants.
+   *
+   * Distinct de `reponses` : un Critère répondu à vide y figure — l'acheteur
+   * a dit qu'il n'a pas de valeur —, un Critère passé non. Les confondre
+   * rendrait impossible de revenir un jour sur les seules questions
+   * réellement laissées de côté.
    */
   readonly passes: readonly string[];
 }
@@ -51,22 +56,23 @@ export function demarrer(valeurs: ValeursCriteres): Assistant {
 }
 
 /**
- * Les Critères d'un Bien restés sans valeur, dans l'ordre de la définition.
- *
- * L'ordre suit le déroulé d'une visite — budget, logement, emplacement,
- * confort — et non l'ordre des clés reçues de l'API, qui n'en a aucun.
- */
-export function criteresManquants(valeurs: ValeursCriteres): readonly Critere[] {
-  return criteresNonRenseignes(valeurs);
-}
-
-/**
  * Les questions qu'il reste à poser : les Critères encore manquants, sauf
- * ceux que l'acheteur a passés.
+ * ceux dont l'acheteur s'est déjà occupé pendant cette session — qu'il les
+ * ait passés, ou répondus à vide.
+ *
+ * Les deux sortent du parcours pour la même raison — les reposer ferait
+ * tourner l'assistant en rond — mais restent distinctes dans l'état : seul
+ * `passes` dit ce qui a été laissé de côté.
+ *
+ * L'ordre est celui de la définition, qui suit le déroulé d'une visite —
+ * budget, logement, emplacement, confort — et non l'ordre des clés reçues de
+ * l'API, qui n'en a aucun.
  */
 function questionsRestantes(assistant: Assistant): readonly Critere[] {
-  return criteresManquants(assistant.valeurs).filter(
-    (critere) => !assistant.passes.includes(critere.id),
+  return criteresNonRenseignes(assistant.valeurs).filter(
+    (critere) =>
+      !assistant.passes.includes(critere.id) &&
+      !Object.hasOwn(assistant.reponses, critere.id),
   );
 }
 
@@ -99,12 +105,13 @@ export function repondre(assistant: Assistant, valeur: ValeurCritere): Assistant
 
   return {
     ...assistant,
-    // La valeur rejoint l'état du Bien : la question ne se reposera pas, et
-    // seulement si la réponse en est vraiment une. Répondre `null` laisse le
-    // Critère manquant, mais `passes` l'écarte de la suite du parcours.
+    // La valeur rejoint l'état du Bien, ce qui suffit à ne pas reposer la
+    // question quand la réponse en est une. Répondre à vide laisse le Critère
+    // manquant : c'est `reponses`, où la clé figure désormais, qui l'écarte
+    // de la suite du parcours — et non `passes`, réservé à ce qui a vraiment
+    // été laissé de côté.
     valeurs: { ...assistant.valeurs, [question.id]: valeur },
     reponses: { ...assistant.reponses, [question.id]: valeur },
-    passes: estRenseigne(valeur) ? assistant.passes : [...assistant.passes, question.id],
   };
 }
 

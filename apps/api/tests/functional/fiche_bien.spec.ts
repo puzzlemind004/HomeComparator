@@ -139,6 +139,49 @@ test.group('Fiche d’un Bien', (group) => {
     assert.equal(response.body().errors[0].field, 'prixNegocie')
   })
 
+  test('accepte les quinze Critères de la définition, et eux seuls', async ({ client, assert }) => {
+    /**
+     * La liste des champs acceptés est dérivée du schéma de validation, mais
+     * c'est ici qu'on vérifie ce qu'elle contient réellement : un Critère
+     * oublié dans le schéma serait refusé à la modification sans que rien
+     * d'autre ne le signale, et l'acheteur ne pourrait tout simplement pas
+     * le renseigner.
+     *
+     * Les identifiants sont recopiés à la main, comme dans `biens.spec.ts` :
+     * la définition vit côté front et n'est pas importable ici, et c'est la
+     * duplication qui rend la divergence visible (ADR-0010).
+     */
+    const bien = await unBien()
+
+    const modifications = {
+      prixDemande: 250_000,
+      taxeFonciere: 1_450,
+      chargesCopropriete: 120,
+      surfaceHabitable: 72.5,
+      nombrePieces: 3,
+      typeBien: 'appartement',
+      anneeConstruction: 1998,
+      travauxAPrevoir: 'aucun',
+      adresse: '12 rue des Lilas',
+      villeQuartier: 'Centre',
+      tempsTrajetTravail: 25,
+      capaciteStationnement: 1,
+      dpe: 'C',
+      typeChauffage: 'pompeAChaleur',
+      exterieur: 'balcon',
+    }
+
+    const response = await avecSession(client.patch(`/biens/${bien.id}`), session).json(
+      modifications
+    )
+
+    response.assertStatus(200)
+    await bien.refresh()
+    for (const [champ, valeur] of Object.entries(modifications)) {
+      assert.equal((bien as unknown as Record<string, unknown>)[champ], valeur, champ)
+    }
+  })
+
   test('refuse une valeur hors de la définition d’une énumération', async ({ client, assert }) => {
     const bien = await unBien()
 

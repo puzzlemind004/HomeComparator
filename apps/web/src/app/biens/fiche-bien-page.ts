@@ -4,8 +4,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { BienService, type FicheBien } from './bien.service';
 import type { ModificationBien } from './bien';
 import type { Critere, GroupeCritere } from '../criteres/critere';
-import { criteresDuGroupe } from '../criteres/definition';
-import { formaterValeur } from '../criteres/formatage';
+import { GROUPES, criteresDuGroupe } from '../criteres/definition';
 import { estRenseigne } from '../criteres/valeurs';
 import type { ValeurCritere } from '../criteres/comparaison';
 import {
@@ -13,7 +12,6 @@ import {
   passer,
   questionCourante,
   repondre,
-  termine,
   type Assistant,
 } from '../criteres/assistant';
 
@@ -23,9 +21,6 @@ export interface LigneCritere {
 
   /** La valeur brute, celle que le champ de saisie reçoit et renvoie. */
   valeur: ValeurCritere;
-
-  /** La valeur écrite selon le type et l'unité du Critère. */
-  affichage: string;
 
   /**
    * Vrai dès qu'une valeur a été saisie, zéro compris. C'est la distinction
@@ -41,19 +36,6 @@ export interface BlocCriteres {
   libelle: string;
   criteres: LigneCritere[];
 }
-
-/**
- * Les groupes dans l'ordre où la fiche les présente, avec leur titre.
- *
- * L'ordre est celui d'un déroulé de visite : ce que ça coûte, ce que c'est,
- * où c'est, comment on y vit.
- */
-const GROUPES: readonly { groupe: GroupeCritere; libelle: string }[] = [
-  { groupe: 'budget', libelle: 'Budget' },
-  { groupe: 'logement', libelle: 'Logement' },
-  { groupe: 'localisation', libelle: 'Localisation' },
-  { groupe: 'confort', libelle: 'Confort' },
-];
 
 /**
  * La fiche d'un Bien : consulter tout ce qui a été noté, et modifier
@@ -144,13 +126,6 @@ export class FicheBienPage {
     const assistant = this.assistant();
 
     return assistant ? questionCourante(assistant) : undefined;
-  });
-
-  /** Vrai quand l'assistant en cours n'a plus rien à demander. */
-  readonly assistantTermine = computed(() => {
-    const assistant = this.assistant();
-
-    return assistant ? termine(assistant) : false;
   });
 
   constructor() {
@@ -252,7 +227,6 @@ function ligne(critere: Critere, valeur: ValeurCritere | undefined): LigneCriter
   return {
     critere,
     valeur: valeurConnue,
-    affichage: formaterValeur(critere, valeurConnue),
     renseigne: estRenseigne(valeurConnue),
   };
 }
