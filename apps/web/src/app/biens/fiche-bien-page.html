@@ -1,0 +1,205 @@
+@if (fiche(); as etat) {
+  @switch (etat.etat) {
+    @case ('chargee') {
+      <section class="fiche">
+        <a class="retour" routerLink="/">← Mes Biens</a>
+
+        <header class="entete">
+          <h2>{{ libelle() }}</h2>
+
+          @if (urlAnnonce(); as url) {
+            <a class="entete__annonce" [href]="url" target="_blank" rel="noopener noreferrer">
+              Voir l'Annonce
+            </a>
+          }
+        </header>
+
+        <p class="manquants">
+          @if (nombreManquants()) {
+            <span class="manquants__nombre">{{ nombreManquants() }}</span>
+            Critère{{ nombreManquants() > 1 ? 's' : '' }} à renseigner
+          } @else {
+            Tous les Critères sont renseignés.
+          }
+
+          @if (!assistant() && nombreManquants()) {
+            <button type="button" class="assistant__lancer" (click)="lancerAssistant()">
+              Lancer l'assistant
+            </button>
+          }
+        </p>
+
+        @if (erreurs().length) {
+          <ul class="erreurs" role="alert">
+            @for (erreur of erreurs(); track erreur) {
+              <li>{{ erreur }}</li>
+            }
+          </ul>
+        }
+
+        @if (assistant()) {
+          <!--
+            L'assistant : une question à la fois, jamais imposé, et
+            interruptible à tout instant sans rien perdre (ADR-0008).
+          -->
+          <section class="assistant" aria-label="Assistant de complétion">
+            @if (questionCourante(); as question) {
+              <p class="assistant__question">{{ question.libelle }}</p>
+
+              @if (question.valeurs; as valeurs) {
+                <div class="assistant__choix">
+                  @for (admise of valeurs; track admise.valeur) {
+                    <button type="button" (click)="repondreQuestion(admise.valeur)">
+                      {{ admise.libelle }}
+                    </button>
+                  }
+                </div>
+              } @else {
+                <form
+                  class="assistant__saisie"
+                  (ngSubmit)="repondreQuestion(reponse)"
+                >
+                  <label>
+                    <span class="visuellement-cache">{{ question.libelle }}</span>
+                    <input
+                      name="reponse"
+                      [type]="question.type === 'texte' ? 'text' : 'number'"
+                      [ngModel]="reponse"
+                      (ngModelChange)="reponse = $event"
+                      autocomplete="off"
+                    />
+                  </label>
+
+                  @if (question.unite; as unite) {
+                    <span class="assistant__unite">{{ unite }}</span>
+                  }
+
+                  <button type="submit" [disabled]="enregistrement()">Enregistrer</button>
+                </form>
+              }
+
+              <div class="assistant__actions">
+                <button type="button" class="assistant__passer" (click)="passerQuestion()">
+                  Passer
+                </button>
+                <button type="button" class="assistant__quitter" (click)="quitterAssistant()">
+                  Quitter l'assistant
+                </button>
+              </div>
+            } @else {
+              <p class="assistant__fin">Plus rien à demander pour l'instant.</p>
+              <button type="button" class="assistant__quitter" (click)="quitterAssistant()">
+                Fermer
+              </button>
+            }
+          </section>
+        }
+
+        <!--
+          Le Libellé et l'URL de l'Annonce se modifient comme les Critères,
+          dans leur propre bloc parce qu'ils ne sont pas comparables (#6).
+        -->
+        <section class="bloc">
+          <h3>Identification</h3>
+
+          <label class="critere">
+            <span class="critere__libelle">Libellé</span>
+            <input
+              name="libelle"
+              [ngModel]="libelle()"
+              (blur)="enregistrer('libelle', $any($event.target).value)"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="critere">
+            <span class="critere__libelle">
+              URL de l'Annonce
+              @if (!urlAnnonce()) {
+                <em class="critere__manquant">non renseignée</em>
+              }
+            </span>
+            <input
+              name="urlAnnonce"
+              type="url"
+              [ngModel]="urlAnnonce() ?? ''"
+              (blur)="enregistrer('urlAnnonce', $any($event.target).value)"
+              placeholder="https://…"
+              autocomplete="off"
+            />
+          </label>
+        </section>
+
+        @for (bloc of groupes(); track bloc.groupe) {
+          <section class="bloc">
+            <h3>{{ bloc.libelle }}</h3>
+
+            @for (ligne of bloc.criteres; track ligne.critere.id) {
+              <div class="critere" [class.critere--manquant]="!ligne.renseigne">
+                <!--
+                  L'étiquette est associée par `for` plutôt qu'en enveloppant
+                  le champ : celui-ci est une liste ou une saisie selon le
+                  type du Critère, et l'association explicite vaut pour les
+                  deux formes.
+                -->
+                <label class="critere__libelle" [for]="ligne.critere.id">
+                  {{ ligne.critere.libelle }}
+                  @if (!ligne.renseigne) {
+                    <em class="critere__manquant">non renseigné</em>
+                  }
+                </label>
+
+                @if (ligne.critere.valeurs; as valeurs) {
+                  <select
+                    [id]="ligne.critere.id"
+                    [name]="ligne.critere.id"
+                    [ngModel]="ligne.valeur ?? ''"
+                    (ngModelChange)="enregistrer(ligne.critere.id, $event === '' ? null : $event)"
+                  >
+                    <option value="">—</option>
+                    @for (admise of valeurs; track admise.valeur) {
+                      <option [value]="admise.valeur">{{ admise.libelle }}</option>
+                    }
+                  </select>
+                } @else {
+                  <span class="critere__saisie">
+                    <input
+                      [id]="ligne.critere.id"
+                      [name]="ligne.critere.id"
+                      [type]="ligne.critere.type === 'texte' ? 'text' : 'number'"
+                      [step]="ligne.critere.type === 'decimal' ? '0.1' : '1'"
+                      [ngModel]="ligne.valeur ?? ''"
+                      (blur)="enregistrer(ligne.critere.id, $any($event.target).value)"
+                      autocomplete="off"
+                    />
+                    @if (ligne.critere.unite; as unite) {
+                      <span class="critere__unite">{{ unite }}</span>
+                    }
+                  </span>
+                }
+              </div>
+            }
+          </section>
+        }
+      </section>
+    }
+
+    @case ('introuvable') {
+      <section class="fiche">
+        <a class="retour" routerLink="/">← Mes Biens</a>
+        <p class="liste--erreur" role="alert">Ce Bien n'existe pas ou plus.</p>
+      </section>
+    }
+
+    @default {
+      <section class="fiche">
+        <a class="retour" routerLink="/">← Mes Biens</a>
+        <p class="liste--erreur" role="alert">
+          L'API est injoignable : la fiche n'a pas pu être chargée.
+        </p>
+      </section>
+    }
+  }
+} @else {
+  <p class="liste--vide">Chargement de la fiche…</p>
+}

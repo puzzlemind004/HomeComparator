@@ -4,6 +4,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, of, throwError, type Observable } from 'rxjs';
 import { BienService } from './bien.service';
 import type { BienApi } from './bien.api';
+import { unBien } from './bien.test-helper';
 
 /**
  * Le service est construit sans TestBed : un Injector nu suffit à fournir
@@ -15,6 +16,7 @@ import type { BienApi } from './bien.api';
 function creerService(http: {
   get?: (url: string) => Observable<unknown>;
   post?: (url: string, corps: unknown) => Observable<unknown>;
+  patch?: (url: string, corps: unknown) => Observable<unknown>;
 }) {
   const injector = Injector.create({ providers: [{ provide: HttpClient, useValue: http }] });
 
@@ -57,8 +59,8 @@ describe('BienService', () => {
       expect(liste).toEqual({
         chargee: true,
         biens: [
-          { id: 1, libelle: 'le T3 avec la terrasse', urlAnnonce: null },
-          { id: 2, libelle: 'celui avec la cuisine refaite', urlAnnonce: null },
+          unBien(),
+          unBien({ id: 2, libelle: 'celui avec la cuisine refaite' }),
         ],
       });
     });
@@ -100,7 +102,7 @@ describe('BienService', () => {
       ]);
       expect(resultat).toEqual({
         cree: true,
-        bien: { id: 1, libelle: 'le T3 avec la terrasse', urlAnnonce: null },
+        bien: unBien(),
       });
     });
 
@@ -130,6 +132,94 @@ describe('BienService', () => {
       expect(resultat).toEqual({
         cree: false,
         erreurs: ["L'API est injoignable. Le Bien n'a pas été enregistré."],
+      });
+    });
+  });
+  describe('consulter', () => {
+    it('interroge la fiche du Bien et la traduit pour l’affichage', async () => {
+      const urls: string[] = [];
+      const service = creerService({
+        get: (url) => {
+          urls.push(url);
+          return of(bienApi({ prixDemande: 250000 }));
+        },
+      });
+
+      const fiche = await firstValueFrom(service.consulter(1));
+
+      expect(urls).toEqual(['/api/biens/1']);
+      expect(fiche).toEqual({ etat: 'chargee', bien: unBien({ criteres: { prixDemande: 250000 } }) });
+    });
+
+    it('distingue un Bien introuvable d’une API injoignable', async () => {
+      // L'un est un fait — une adresse qui ne désigne plus rien —, l'autre
+      // un incident qui se répare en réessayant : l'écran n'a pas la même
+      // chose à dire dans les deux cas.
+      const introuvable = creerService({
+        get: () => throwError(() => new HttpErrorResponse({ status: 404 })),
+      });
+      const injoignable = creerService({
+        get: () => throwError(() => new HttpErrorResponse({ status: 0 })),
+      });
+
+      expect(await firstValueFrom(introuvable.consulter(1))).toEqual({ etat: 'introuvable' });
+      expect(await firstValueFrom(injoignable.consulter(1))).toEqual({ etat: 'injoignable' });
+    });
+  });
+
+  describe('modifier', () => {
+    it('n’envoie que les Critères modifiés', async () => {
+      // C'est ce qui fait la mise à jour partielle : sans cela, chaque
+      // modification effacerait les quatorze autres Critères.
+      const envois: { url: string; corps: unknown }[] = [];
+      const service = creerService({
+        patch: (url, corps) => {
+          envois.push({ url, corps });
+          return of(bienApi({ prixDemande: 245000 }));
+        },
+      });
+
+      await firstValueFrom(service.modifier(1, { prixDemande: 245000 }));
+
+      expect(envois).toEqual([{ url: '/api/biens/1', corps: { prixDemande: 245000 } }]);
+    });
+
+    it('rend le Bien tel qu’il est après enregistrement', async () => {
+      const service = creerService({ patch: () => of(bienApi({ prixDemande: 245000 })) });
+
+      const resultat = await firstValueFrom(service.modifier(1, { prixDemande: 245000 }));
+
+      expect(resultat).toEqual({
+        enregistre: true,
+        bien: unBien({ criteres: { prixDemande: 245000 } }),
+      });
+    });
+
+    it('rapporte les messages de validation de l’API plutôt que de les propager', async () => {
+      const service = creerService({
+        patch: () => throwError(() => erreurValidation('libelle', 'Le Libellé est obligatoire')),
+      });
+
+      const resultat = await firstValueFrom(service.modifier(1, { libelle: '' }));
+
+      expect(resultat).toEqual({
+        enregistre: false,
+        erreurs: ['Le Libellé est obligatoire'],
+      });
+    });
+
+    it('dit que rien n’a été enregistré quand l’API est injoignable', async () => {
+      // Le message doit parler de la modification, et non du Bien : celui-ci
+      // existe déjà, et laisser croire qu'il a disparu serait pire.
+      const service = creerService({
+        patch: () => throwError(() => new HttpErrorResponse({ status: 0 })),
+      });
+
+      const resultat = await firstValueFrom(service.modifier(1, { prixDemande: 1 }));
+
+      expect(resultat).toEqual({
+        enregistre: false,
+        erreurs: ["L'API est injoignable. La modification n'a pas été enregistrée."],
       });
     });
   });

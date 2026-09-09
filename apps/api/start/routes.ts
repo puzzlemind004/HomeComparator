@@ -41,5 +41,23 @@ router
   .group(() => {
     router.get('/biens', [BiensController, 'index'])
     router.post('/biens', [BiensController, 'store'])
+    router.get('/biens/:id', [BiensController, 'show'])
+    // `PATCH` et non `PUT` : la fiche et l'assistant n'envoient que le
+    // Critère modifié, et le reste du Bien n'a pas à transiter pour rester
+    // en place (#6).
+    router.patch('/biens/:id', [BiensController, 'update'])
   })
   .use(middleware.authentification())
+
+/**
+ * L'identifiant d'un Bien est un entier, et une adresse qui n'en porte pas
+ * ne désigne aucun Bien : elle doit rendre le 404 des Biens absents.
+ *
+ * Sans cette contrainte, `/biens/abc` atteint la requête SQL, où PostgreSQL
+ * refuse la conversion — une erreur 500 qui porte le texte de la requête
+ * dans sa réponse. C'est le mauvais code, et c'est en dire trop.
+ *
+ * Déclaré globalement plutôt que route par route : tout `:id` du carnet
+ * désigne un Bien, et une route ajoutée en hérite sans qu'on y pense.
+ */
+router.where('id', router.matchers.number())

@@ -1,5 +1,6 @@
-import type { Bien, CreationBien } from './bien';
-import type { BienApi, CreationBienApi } from './bien.api';
+import { CRITERES } from '../criteres/definition';
+import type { Bien, CreationBien, ModificationBien } from './bien';
+import type { BienApi, CreationBienApi, ModificationBienApi } from './bien.api';
 
 /**
  * La traduction entre les formes échangées avec l'API et les modèles que
@@ -7,9 +8,29 @@ import type { BienApi, CreationBienApi } from './bien.api';
  * partout ailleurs, on ne manipule que des `Bien`.
  */
 
-/** Un Bien tel que l'API l'envoie, ramené à ce que l'interface affiche. */
-export function versBien({ id, libelle, urlAnnonce }: BienApi): Bien {
-  return { id, libelle, urlAnnonce };
+/**
+ * Un Bien tel que l'API l'envoie, ramené à ce que l'interface affiche.
+ *
+ * Les Critères sont rassemblés dans une carte, en parcourant la définition
+ * plutôt que la charge utile : c'est la définition qui dit ce qu'est un
+ * Critère, et un champ que l'API rendrait sans qu'aucun Critère le déclare
+ * — l'`id`, les dates — n'a rien à faire dans la fiche.
+ *
+ * Un Critère que l'API ne rendrait pas est ramené à `null`, et non laissé
+ * absent : la fiche affiche une ligne par Critère de la définition, et
+ * « pas encore renseigné » est ce qu'elle doit y lire.
+ */
+export function versBien(bienApi: BienApi): Bien {
+  const { id, libelle, urlAnnonce } = bienApi;
+
+  return {
+    id,
+    libelle,
+    urlAnnonce,
+    criteres: Object.fromEntries(
+      CRITERES.map((critere) => [critere.id, bienApi[critere.id] ?? null]),
+    ),
+  };
 }
 
 /**
@@ -23,4 +44,31 @@ export function versCreationBienApi({ libelle, urlAnnonce }: CreationBien): Crea
     libelle: libelle.trim(),
     ...(urlSaisie ? { urlAnnonce: urlSaisie } : {}),
   };
+}
+
+/**
+ * Une modification, ramenée à ce que l'API attend.
+ *
+ * Les deux formes coïncident déjà — un champ par identifiant de Critère,
+ * lequel est aussi le nom du champ côté API. La fonction existe quand même :
+ * elle est le point où la traduction se ferait si les deux divergeaient, et
+ * sans elle le service enverrait un modèle d'affichage tel quel, ce
+ * qu'ADR-0010 écarte explicitement.
+ *
+ * Les espaces de bordure d'une saisie de texte sont retirés ici : un champ
+ * rempli d'espaces vaut « pas renseigné », et doit arriver à `null` plutôt
+ * que de créer une valeur qui n'en est pas une.
+ */
+export function versModificationBienApi(modification: ModificationBien): ModificationBienApi {
+  return Object.fromEntries(
+    Object.entries(modification).map(([champ, valeur]) => {
+      if (typeof valeur !== 'string') {
+        return [champ, valeur];
+      }
+
+      const saisie = valeur.trim();
+
+      return [champ, saisie === '' ? null : saisie];
+    }),
+  );
 }
