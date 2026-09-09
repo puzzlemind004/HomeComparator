@@ -6,13 +6,14 @@ import { BienService } from './bien.service';
 import type { Bien, CreationBien } from './bien';
 import type { CreationBienResultat, ListeBiens } from './bien.service';
 import { unBien } from './bien.test-helper';
+import type { Statut } from '../criteres/statut';
 
 /**
  * Le composant est construit sans TestBed : seul son service est injecté,
  * et les assertions portent sur ses signaux plutôt que sur le DOM rendu.
  */
 function creerPage(service: {
-  lister?: () => Observable<ListeBiens>;
+  lister?: (statut?: Statut) => Observable<ListeBiens>;
   creer?: (saisie: CreationBien) => Observable<CreationBienResultat>;
 }) {
   const injector = Injector.create({
@@ -138,5 +139,118 @@ describe('BiensPage', () => {
 
     expect(appels).toBe(1);
     expect(page.enregistrement()).toBe(true);
+  });
+
+  describe('le filtre par Statut', () => {
+    it('ne filtre rien à l’ouverture', () => {
+      // Ouvrir le carnet montre tous les Biens, sorties comprises : un
+      // filtre par défaut cacherait des Biens sans le dire (#7).
+      const demandes: (Statut | undefined)[] = [];
+      const page = creerPage({
+        lister: (statut) => {
+          demandes.push(statut);
+          return of(chargee([bien]));
+        },
+      });
+
+      expect(page.filtre()).toBeNull();
+      expect(demandes).toEqual([undefined]);
+    });
+
+    it('demande à l’API les Biens du Statut choisi', () => {
+      // Le filtre est en SQL (ADR-0004) : la liste n'a pas à voyager en
+      // entier pour qu'on en regarde le quart.
+      const demandes: (Statut | undefined)[] = [];
+      const page = creerPage({
+        lister: (statut) => {
+          demandes.push(statut);
+          return of(chargee([]));
+        },
+      });
+
+      page.filtrer('visite');
+
+      expect(page.filtre()).toBe('visite');
+      expect(demandes).toEqual([undefined, 'visite']);
+    });
+
+    it('revient à la liste complète', () => {
+      const demandes: (Statut | undefined)[] = [];
+      const page = creerPage({
+        lister: (statut) => {
+          demandes.push(statut);
+          return of(chargee([]));
+        },
+      });
+
+      page.filtrer('ecarte');
+      page.filtrer(null);
+
+      expect(page.filtre()).toBeNull();
+      expect(demandes).toEqual([undefined, 'ecarte', undefined]);
+    });
+
+    it('remet la liste à l’état de chargement pendant le changement', () => {
+      /**
+       * Sans cela, les Biens du filtre précédent restent affichés jusqu'à la
+       * réponse : l'écran montrerait des Biens que le filtre courant exclut,
+       * ce qui se lit comme un filtre qui ne marche pas.
+       */
+      const reponse = new Subject<ListeBiens>();
+      const page = creerPage({
+        lister: (statut) => (statut === undefined ? of(chargee([bien])) : reponse),
+      });
+
+      expect(biensAffiches(page.liste())).toEqual([bien]);
+
+      page.filtrer('visite');
+      expect(page.liste()).toBeNull();
+
+      reponse.next(chargee([]));
+      expect(biensAffiches(page.liste())).toEqual([]);
+    });
+
+    it('ajoute le Bien créé quand la liste n’est pas filtrée', () => {
+      const cree: Bien = unBien({ id: 3, libelle: 'le T2 près du parc' });
+      const page = creerPage({
+        lister: () => of(chargee([])),
+        creer: () => of({ cree: true, bien: cree }),
+      });
+
+      page.creer();
+
+      expect(biensAffiches(page.liste())).toEqual([cree]);
+    });
+
+    it('n’ajoute pas le Bien créé à une liste filtrée sur un autre Statut', () => {
+      /**
+       * Un Bien créé est « À contacter » (#7) : l'ajouter à une liste
+       * « Visité » y ferait figurer un Bien que le filtre exclut, et le
+       * prochain chargement le ferait disparaître sans explication.
+       */
+      const cree: Bien = unBien({ id: 3, statut: 'aContacter' });
+      const page = creerPage({
+        lister: () => of(chargee([])),
+        creer: () => of({ cree: true, bien: cree }),
+      });
+
+      page.filtrer('visite');
+      page.creer();
+
+      expect(biensAffiches(page.liste())).toEqual([]);
+    });
+
+    it('ajoute le Bien créé à une liste filtrée sur son propre Statut', () => {
+      const cree: Bien = unBien({ id: 3, statut: 'aContacter' });
+      const page = creerPage({
+        lister: () => of(chargee([])),
+        creer: () => of({ cree: true, bien: cree }),
+      });
+
+      page.filtrer('aContacter');
+      page.creer();
+
+      expect(biensAffiches(page.liste())).toEqual([cree]);
+    });
   });
 });

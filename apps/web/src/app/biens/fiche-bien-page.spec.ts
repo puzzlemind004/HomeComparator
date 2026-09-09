@@ -334,4 +334,219 @@ describe('l’assistant depuis la fiche', () => {
 
     expect(fiche.questionCourante()?.id).toBe('taxeFonciere');
   });
+
+  describe('le cycle de vie', () => {
+    it('affiche le Statut du Bien', () => {
+      const fiche = creerFiche({
+        consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'visite' }) }),
+      });
+
+      expect(fiche.statut()).toBe('visite');
+    });
+
+    it('propose les six Statuts, quel que soit l’état courant', () => {
+      /**
+       * Aucune transition n'est interdite : les sorties sont atteignables
+       * depuis n'importe quel état, et tout retour arrière est permis (#7).
+       * Un sélecteur qui n'en proposerait qu'une partie réintroduirait par
+       * l'écran la contrainte que le modèle refuse.
+       */
+      const fiche = creerFiche({
+        consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'vendu' }) }),
+      });
+
+      expect(fiche.statuts.map(({ valeur }) => valeur)).toEqual([
+        'aContacter',
+        'aVisiter',
+        'visite',
+        'offreFaite',
+        'ecarte',
+        'vendu',
+      ]);
+    });
+
+    it('enregistre un changement de Statut comme une modification partielle', () => {
+      const envoyees: ModificationBien[] = [];
+      const fiche = creerFiche({
+        modifier: (_id, modification) => {
+          envoyees.push(modification);
+          return of<ModificationBienResultat>({
+            enregistre: true,
+            bien: unBien({ statut: 'offreFaite' }),
+          });
+        },
+      });
+
+      fiche.changerStatut('offreFaite');
+
+      // Le Statut seul part : le reste du Bien n'a pas à transiter pour
+      // rester en place (#6).
+      expect(envoyees).toEqual([{ statut: 'offreFaite' }]);
+      expect(fiche.statut()).toBe('offreFaite');
+    });
+
+    it('permet de reculer dans le cycle', () => {
+      // Une offre refusée ramène le Bien à Visité (#7).
+      const envoyees: ModificationBien[] = [];
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'offreFaite' }) }),
+        modifier: (_id, modification) => {
+          envoyees.push(modification);
+          return of<ModificationBienResultat>({
+            enregistre: true,
+            bien: unBien({ statut: 'visite' }),
+          });
+        },
+      });
+
+      fiche.changerStatut('visite');
+
+      expect(envoyees).toEqual([{ statut: 'visite' }]);
+      expect(fiche.statut()).toBe('visite');
+    });
+
+    it('laisse le Statut affiché intact quand l’API refuse', () => {
+      // Montrer un Statut que l'API a refusé ferait croire qu'il y est.
+      const fiche = creerFiche({
+        consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'visite' }) }),
+        modifier: () =>
+          of<ModificationBienResultat>({
+            enregistre: false,
+            erreurs: ['Le Statut n’est pas une étape connue du cycle'],
+          }),
+      });
+
+      fiche.changerStatut('aVendre');
+
+      expect(fiche.statut()).toBe('visite');
+      expect(fiche.erreurs()).toEqual(['Le Statut n’est pas une étape connue du cycle']);
+    });
+
+    it('n’affiche aucun champ lié au Statut à « À contacter »', () => {
+      // Un Bien tout juste repéré n'a ni visite ni offre à porter
+      // (ADR-0002).
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'aContacter' }) }),
+      });
+
+      expect(fiche.champsStatut()).toEqual([]);
+    });
+
+    it('affiche la date de visite à partir de « À visiter »', () => {
+      const fiche = creerFiche({
+        consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'aVisiter' }) }),
+      });
+
+      expect(fiche.champsStatut().map(({ champ }) => champ.id)).toEqual(['dateVisite']);
+    });
+
+    it('affiche le montant d’offre à partir de « Offre faite »', () => {
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'offreFaite' }) }),
+      });
+
+      expect(fiche.champsStatut().map(({ champ }) => champ.id)).toEqual([
+        'dateVisite',
+        'montantDerniereOffre',
+      ]);
+    });
+
+    it('porte la valeur saisie sur un champ lié au Statut', () => {
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({ statut: 'aVisiter', champsStatut: { dateVisite: '2026-09-12' } }),
+          }),
+      });
+
+      expect(fiche.champsStatut()[0].valeur).toBe('2026-09-12');
+    });
+
+    it('laisse la date de visite vide tant que le rendez-vous n’est pas fixé', () => {
+      // « À visiter » sans date est l'état ordinaire du Bien qu'on vient
+      // d'appeler (#7).
+      const fiche = creerFiche({
+        consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'aVisiter' }) }),
+      });
+
+      expect(fiche.champsStatut()[0].valeur).toBeNull();
+    });
+
+    it('retire le champ de l’écran en reculant, sans effacer sa valeur', () => {
+      /**
+       * La conséquence assumée d'ADR-0002 : reculer laisse des données
+       * orphelines, et on les conserve. Le champ disparaît de la fiche,
+       * mais rien n'est envoyé pour le vider — la seule modification qui
+       * part est celle du Statut.
+       */
+      const envoyees: ModificationBien[] = [];
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({
+              statut: 'offreFaite',
+              champsStatut: { dateVisite: '2026-09-12', montantDerniereOffre: 240000 },
+            }),
+          }),
+        modifier: (_id, modification) => {
+          envoyees.push(modification);
+          return of<ModificationBienResultat>({
+            enregistre: true,
+            bien: unBien({
+              statut: 'aVisiter',
+              // L'API rend le Bien tel qu'elle l'a écrit : les valeurs sont
+              // toujours là, c'est l'écran qui choisit de ne pas les montrer.
+              champsStatut: { dateVisite: '2026-09-12', montantDerniereOffre: 240000 },
+            }),
+          });
+        },
+      });
+
+      expect(fiche.champsStatut()).toHaveLength(2);
+
+      fiche.changerStatut('aVisiter');
+
+      // Le montant d'offre n'est plus à l'écran...
+      expect(fiche.champsStatut().map(({ champ }) => champ.id)).toEqual(['dateVisite']);
+      // ...et rien n'a été envoyé pour l'effacer.
+      expect(envoyees).toEqual([{ statut: 'aVisiter' }]);
+      expect(bienAffiche(fiche)?.champsStatut['montantDerniereOffre']).toBe(240000);
+    });
+
+    it('ne compte pas les champs liés au Statut parmi les Critères manquants', () => {
+      /**
+       * Ce qui manque à un Bien, c'est ce qu'il reste à demander à l'agence.
+       * Une date de visite non fixée n'est pas de cet ordre : elle attend le
+       * rendez-vous, pas un coup de téléphone. La compter gonflerait le
+       * chiffre d'un Critère que l'assistant ne pourrait pas poser.
+       */
+      const surAVisiter = creerFiche({
+        consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'aVisiter' }) }),
+      });
+      const surAContacter = creerFiche({
+        consulter: () =>
+          of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'aContacter' }) }),
+      });
+
+      expect(surAVisiter.nombreManquants()).toBe(surAContacter.nombreManquants());
+    });
+
+    it('n’affiche le Statut dans aucun bloc de Critères', () => {
+      // Le Statut n'est pas un Critère : il a son propre bloc, et n'a rien
+      // à faire dans « Budget » ou « Logement ».
+      const fiche = creerFiche({});
+      const identifiants = fiche
+        .groupes()
+        .flatMap(({ criteres }) => criteres.map(({ critere }) => critere.id));
+
+      expect(identifiants).not.toContain('statut');
+      expect(identifiants).not.toContain('dateVisite');
+      expect(identifiants).not.toContain('montantDerniereOffre');
+    });
+  });
 });

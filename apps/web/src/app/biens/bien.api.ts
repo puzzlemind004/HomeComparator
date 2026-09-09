@@ -26,6 +26,23 @@ export interface BienApi {
   id: number;
   libelle: string;
   urlAnnonce: string | null;
+
+  /**
+   * Le cycle de vie (#7). L'API le rend sur tout Bien : c'est la seule
+   * colonne obligatoire du carnet avec le Libellé, un Bien étant toujours
+   * quelque part dans la recherche.
+   */
+  statut: string;
+
+  /**
+   * Les champs liés au Statut, rendus même à une étape où ils n'ont pas de
+   * valeur — « pas encore » y arrive comme `null`, jamais comme une clé
+   * absente. La date est une chaîne `YYYY-MM-DD` : c'est un jour, sans
+   * heure ni fuseau.
+   */
+  dateVisite: string | null;
+  montantDerniereOffre: number | null;
+
   createdAt: string;
   updatedAt: string;
   [critere: string]: ValeurCritere | undefined;

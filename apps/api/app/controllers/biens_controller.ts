@@ -2,6 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import Bien from '#models/bien'
 import { champInconnu, creerBienValidator, modifierBienValidator } from '#validators/bien'
 import { PROPRIETAIRE_UNIQUE } from '#services/proprietaire'
+import { STATUT_INITIAL, STATUTS, type Statut } from '#services/statut'
 
 /**
  * Les Biens : les créer avec leur seul Libellé, les retrouver dans une
@@ -11,9 +12,27 @@ import { PROPRIETAIRE_UNIQUE } from '#services/proprietaire'
  * tard, au téléphone ou pendant la visite (ADR-0008).
  */
 export default class BiensController {
-  /** Tous les Biens enregistrés, du plus récemment repéré au plus ancien. */
-  async index({ response }: HttpContext) {
-    const biens = await Bien.query().orderBy('created_at', 'desc').orderBy('id', 'desc')
+  /**
+   * Tous les Biens enregistrés, du plus récemment repéré au plus ancien, et
+   * filtrés par Statut quand la requête en demande un (#7).
+   *
+   * Le filtre est en SQL et non côté écran : c'est ce que la colonne permet
+   * (ADR-0004), et la liste n'a pas à voyager en entier pour qu'on en
+   * regarde le quart.
+   *
+   * Un `statut` que la liste ne connaît pas est **ignoré**, et la liste
+   * complète est rendue. C'est un paramètre d'affichage, pas une saisie : le
+   * refuser laisserait l'écran sans liste pour une adresse mal recopiée,
+   * alors que tout montrer est exactement ce qu'il fait sans filtre.
+   */
+  async index({ request, response }: HttpContext) {
+    const demande: unknown = request.input('statut')
+    const statut = STATUTS.find((connu) => connu === demande)
+
+    const biens = await Bien.query()
+      .if(statut !== undefined, (requete) => requete.where('statut', statut as Statut))
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'desc')
 
     return response.ok(biens)
   }
@@ -41,6 +60,17 @@ export default class BiensController {
       // Le propriétaire n'est pas saisi : il n'y a qu'un utilisateur, et
       // aucun écran ne le demandera (#4).
       proprietaireId: PROPRIETAIRE_UNIQUE,
+      // Le Statut ne se saisit pas non plus à la création : un Bien qu'on
+      // vient de repérer est « À contacter », et le faire choisir
+      // rallongerait le geste de quelques secondes qui fait tout l'écran
+      // (ADR-0008). Il se change ensuite depuis la fiche, sans restriction.
+      statut: STATUT_INITIAL,
+      // Écrits à `null` plutôt que laissés absents, pour la même raison que
+      // `urlAnnonce` : Lucid ne sérialise que ce qu'on lui a assigné, et un
+      // champ absent de la réponse arriverait `undefined` au front, là où
+      // l'adapter et le contrat attendent « pas encore renseigné » (#7).
+      dateVisite: null,
+      montantDerniereOffre: null,
     })
 
     return response.created(bien)

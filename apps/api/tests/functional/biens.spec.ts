@@ -230,6 +230,14 @@ test.group('Biens', (group) => {
       'dpe',
       'typeChauffage',
       'exterieur',
+      // Le cycle de vie (#7). Le Statut n'est pas un Critère — il ne se
+      // compare pas d'un Bien à l'autre, il décide de ce qui est pertinent
+      // — et les deux champs qui suivent n'existent qu'à partir d'une étape
+      // (ADR-0002). Ils figurent au contrat quand même : l'adapter les lit
+      // sur tout Bien, et « pas encore » doit y arriver comme `null`.
+      'statut',
+      'dateVisite',
+      'montantDerniereOffre',
     ])
   })
 

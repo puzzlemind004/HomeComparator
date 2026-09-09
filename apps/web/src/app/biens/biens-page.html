@@ -38,6 +38,35 @@
 
   <h2>Mes Biens</h2>
 
+  <!--
+    Le filtre par Statut. « Tous » d'abord et sélectionné par défaut :
+    ouvrir le carnet montre tout, sorties comprises, et un filtre par défaut
+    cacherait des Biens sans le dire (#7).
+  -->
+  <div class="filtres" role="group" aria-label="Filtrer par Statut">
+    <button
+      type="button"
+      class="filtre"
+      [class.filtre--actif]="filtre() === null"
+      [attr.aria-pressed]="filtre() === null"
+      (click)="filtrer(null)"
+    >
+      Tous
+    </button>
+
+    @for (option of statuts; track option.valeur) {
+      <button
+        type="button"
+        class="filtre"
+        [class.filtre--actif]="filtre() === option.valeur"
+        [attr.aria-pressed]="filtre() === option.valeur"
+        (click)="filtrer(option.valeur)"
+      >
+        {{ option.libelle }}
+      </button>
+    }
+  </div>
+
   @if (liste(); as liste) {
     @if (liste.chargee) {
       @if (liste.biens.length) {
@@ -45,6 +74,15 @@
           @for (bien of liste.biens; track bien.id) {
             <li class="bien">
               <a class="bien__libelle" [routerLink]="['/biens', bien.id]">{{ bien.libelle }}</a>
+
+              <!--
+                Où en est le Bien, lisible sans ouvrir la fiche : c'est ce
+                qu'on vient chercher en parcourant la liste (#7).
+              -->
+              <span class="bien__statut" [attr.data-statut]="bien.statut">
+                {{ libelleStatut(bien.statut) }}
+              </span>
+
               @if (bien.urlAnnonce; as url) {
                 <a class="bien__annonce" [href]="url" target="_blank" rel="noopener noreferrer">
                   Voir l'Annonce
@@ -53,6 +91,12 @@
             </li>
           }
         </ul>
+      } @else if (filtre(); as statut) {
+        <!--
+          « Rien à ce stade » est une réponse, et elle se dit autrement que
+          « le carnet est vide » : le filtre est ce qui explique l'absence.
+        -->
+        <p class="liste--vide">Aucun Bien à l'étape « {{ libelleStatut(statut) }} ».</p>
       } @else {
         <p class="liste--vide">Aucun Bien pour l'instant.</p>
       }

@@ -2,6 +2,7 @@ import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import Bien from '#models/bien'
 import { PROPRIETAIRE_UNIQUE } from '#services/proprietaire'
+import { STATUT_INITIAL } from '#services/statut'
 
 /**
  * Les colonnes des quinze Critères, écrites ici plutôt que déduites du
@@ -87,6 +88,7 @@ test.group('Migrations', () => {
       // Le propriétaire n'est pas un Critère : il est rempli à la création
       // avec la même valeur constante que le contrôleur écrit (#4).
       proprietaireId: PROPRIETAIRE_UNIQUE,
+      statut: STATUT_INITIAL,
     })
 
     // Relu depuis la base : l'instance en mémoire ne porte que ce qui lui a
@@ -100,6 +102,46 @@ test.group('Migrations', () => {
     await relu.delete()
   })
 
+  test('le Statut est en place et obligatoire', async ({ assert }) => {
+    // Le seul champ obligatoire du carnet avec le Libellé : un Bien est
+    // toujours quelque part dans la recherche, et « pas de Statut » ne veut
+    // rien dire (#7).
+    const colonne = await db.connection().columnsInfo('biens', 'statut')
+
+    assert.isFalse(colonne.nullable)
+  })
+
+  test('les champs liés au Statut sont facultatifs', async ({ assert }) => {
+    // Ils n'existent qu'à partir d'une étape (ADR-0002), donc jamais à la
+    // création — et la date de visite reste vide tant que le rendez-vous
+    // n'est pas fixé (#7).
+    const colonnes = await db.connection().columnsInfo('biens')
+
+    for (const champ of ['date_visite', 'montant_derniere_offre'] as const) {
+      assert.property(colonnes, champ, `le champ ${champ} n'a pas de colonne`)
+      assert.isTrue(colonnes[champ].nullable, `le champ ${champ} est obligatoire`)
+    }
+  })
+
+  test('un Bien déjà saisi reçoit le Statut initial', async ({ assert }) => {
+    // La migration remplit les lignes existantes avant de rendre la colonne
+    // obligatoire : rien ne dit qu'un Bien déjà en base a été contacté, et
+    // c'est là que la création l'aurait mis.
+    const cree = await Bien.create({
+      libelle: 'le T3 saisi avant le cycle de vie',
+      proprietaireId: PROPRIETAIRE_UNIQUE,
+      statut: STATUT_INITIAL,
+    })
+    const relu = await Bien.findOrFail(cree.id)
+
+    assert.equal(relu.statut, 'aContacter')
+    // Les champs liés au Statut n'existent pas encore à cette étape.
+    assert.isNull(relu.dateVisite)
+    assert.isNull(relu.montantDerniereOffre)
+
+    await relu.delete()
+  })
+
   test('la surface habitable revient sous forme de nombre', async ({ assert }) => {
     // `pg` rend les décimaux en chaîne : sans conversion, le front
     // recevrait `"72.50"` là où il attend une valeur à comparer, et le prix
@@ -108,6 +150,7 @@ test.group('Migrations', () => {
       libelle: 'le T3 avec la terrasse',
       surfaceHabitable: 72.5,
       proprietaireId: PROPRIETAIRE_UNIQUE,
+      statut: STATUT_INITIAL,
     })
     const relu = await Bien.findOrFail(cree.id)
 
@@ -124,6 +167,7 @@ test.group('Migrations', () => {
     const cree = await Bien.create({
       libelle: 'le T3 dont la surface est inconnue',
       proprietaireId: PROPRIETAIRE_UNIQUE,
+      statut: STATUT_INITIAL,
     })
     const relu = await Bien.findOrFail(cree.id)
 
