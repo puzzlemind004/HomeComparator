@@ -47,15 +47,15 @@ export class BiensPage {
    */
   readonly filtre = signal<Statut | null>(null);
 
-  constructor() {
-    this.rafraichir();
-  }
-
   /**
    * Le libellé sous lequel un Statut s'affiche, pour la pastille de chaque
    * Bien de la liste.
    */
   readonly libelleStatut = libelleStatut;
+
+  constructor() {
+    this.rafraichir();
+  }
 
   /**
    * Le changement de filtre, qui relance le chargement.

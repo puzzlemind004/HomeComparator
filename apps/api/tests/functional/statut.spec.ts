@@ -263,6 +263,31 @@ test.group('Cycle de vie d’un Bien', (group) => {
     assert.equal(response.body().errors[0].field, 'dateVisite')
   })
 
+  test('refuse une date de visite mal formée ou impossible', async ({ client, assert }) => {
+    /**
+     * Le format déclaré est `YYYY-MM-DD`, celui du champ `date` HTML.
+     *
+     * « 12/09/2026 » est refusé plutôt qu'interprété : rien ne dit si le
+     * premier nombre est le jour ou le mois, et deviner ferait enregistrer
+     * une visite au mauvais jour sans que rien ne le signale. Un jour qui
+     * n'existe pas et un mois hors bornes sont refusés pour la même raison
+     * — mieux vaut redemander que retenir une date fausse.
+     */
+    const bien = await unBien({ statut: 'aVisiter' })
+
+    for (const saisie of ['2026-02-30', '2026-13-01', '12/09/2026', '2026-09-12T10:00:00Z']) {
+      const response = await avecSession(client.patch(`/biens/${bien.id}`), session).json({
+        dateVisite: saisie,
+      })
+
+      response.assertStatus(422)
+      assert.equal(response.body().errors[0].field, 'dateVisite', `sur « ${saisie} »`)
+    }
+
+    await bien.refresh()
+    assert.isNull(bien.dateVisite)
+  })
+
   test('enregistre et vide le montant de la dernière offre', async ({ client, assert }) => {
     const bien = await unBien({ statut: 'offreFaite' })
 

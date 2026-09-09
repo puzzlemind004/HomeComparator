@@ -62,22 +62,47 @@ export interface DefinitionStatut {
 }
 
 /**
- * Les six Statuts, déclarés une seule fois. La liste est écrite dans l'ordre
- * du cycle, et c'est l'ordre dans lequel les écrans les présentent.
+ * Les quatre étapes de la recherche, dans l'ordre où on les traverse. Leur
+ * rang est leur position : c'est la seule chose que l'ordre a à dire.
+ */
+const ETAPES: readonly { valeur: Statut; libelle: string }[] = [
+  { valeur: 'aContacter', libelle: 'À contacter' },
+  { valeur: 'aVisiter', libelle: 'À visiter' },
+  { valeur: 'visite', libelle: 'Visité' },
+  { valeur: 'offreFaite', libelle: 'Offre faite' },
+];
+
+/**
+ * Les deux sorties. Écarté est une décision de l'acheteur, Vendu un fait
+ * extérieur : les distinguer sert à savoir, en relisant le carnet, si le
+ * Bien a été refusé ou s'il est parti.
+ */
+const SORTIES: readonly { valeur: Statut; libelle: string }[] = [
+  { valeur: 'ecarte', libelle: 'Écarté' },
+  { valeur: 'vendu', libelle: 'Vendu' },
+];
+
+/**
+ * Les six Statuts, déclarés une seule fois : les étapes puis les sorties,
+ * dans l'ordre où les écrans les présentent.
+ *
+ * Le rang des sorties est **dérivé** de celui de la dernière étape, et non
+ * recopié. Écrit à la main, il aurait fallu penser à le relever en ajoutant
+ * une cinquième étape — et l'oubli aurait fait disparaître de la fiche d'un
+ * Bien écarté les champs que la base conserve, sans que rien ne le signale.
  */
 export const STATUTS: readonly DefinitionStatut[] = [
-  { valeur: 'aContacter', libelle: 'À contacter', nature: 'etape', rang: 0 },
-  { valeur: 'aVisiter', libelle: 'À visiter', nature: 'etape', rang: 1 },
-  { valeur: 'visite', libelle: 'Visité', nature: 'etape', rang: 2 },
-  { valeur: 'offreFaite', libelle: 'Offre faite', nature: 'etape', rang: 3 },
+  ...ETAPES.map((etape, rang): DefinitionStatut => ({ ...etape, nature: 'etape', rang })),
 
-  /**
-   * Les deux sorties. Écarté est une décision de l'acheteur, Vendu un fait
-   * extérieur : les distinguer sert à savoir, en relisant le carnet, si le
-   * Bien a été refusé ou s'il est parti.
-   */
-  { valeur: 'ecarte', libelle: 'Écarté', nature: 'sortie', rang: 3 },
-  { valeur: 'vendu', libelle: 'Vendu', nature: 'sortie', rang: 3 },
+  // Un Bien écarté ou vendu a pu l'être à n'importe quel moment, et ce qui
+  // avait été saisi reste consultable : les sorties portent donc le rang de
+  // l'étape la plus avancée. Les masquer reviendrait à effacer à l'écran ce
+  // que la base conserve.
+  ...SORTIES.map((sortie): DefinitionStatut => ({
+    ...sortie,
+    nature: 'sortie',
+    rang: ETAPES.length - 1,
+  })),
 ];
 
 /** Le Statut d'un Bien nouvellement créé : il vient d'être repéré (#7). */
@@ -159,8 +184,16 @@ export function libelleStatut(valeur: string): string {
  * cycle a atteint l'étape dont le champ dépend (ADR-0002).
  *
  * Un Statut inconnu ne rend aucun champ pertinent : à défaut de savoir où en
- * est le Bien, la fiche s'en tient à ce dont elle est sûre plutôt que de
- * montrer un champ qui n'a peut-être pas lieu d'être.
+ * est le Bien, on s'en tient à ce dont on est sûr plutôt que de montrer un
+ * champ qui n'a peut-être pas lieu d'être.
+ *
+ * Ce garde ne se déclenche pas depuis la fiche, et c'est voulu : l'adapter
+ * ramène déjà tout Statut inconnu au Statut initial (ADR-0010), de sorte
+ * qu'un `Bien` en porte toujours un vrai. Les deux réponses diffèrent — le
+ * Statut initial d'un côté, aucun champ de l'autre — parce que les deux
+ * questions diffèrent : l'adapter doit rendre un Bien affichable, cette
+ * fonction seulement décider d'un affichage. Elle reste défendue pour les
+ * appelants qui ne passent pas par l'adapter, tests compris.
  */
 export function estPertinent(champ: ChampStatut, statut: string): boolean {
   const courant = statutParValeur(statut);

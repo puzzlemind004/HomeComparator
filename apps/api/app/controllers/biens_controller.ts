@@ -2,7 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import Bien from '#models/bien'
 import { champInconnu, creerBienValidator, modifierBienValidator } from '#validators/bien'
 import { PROPRIETAIRE_UNIQUE } from '#services/proprietaire'
-import { STATUT_INITIAL, STATUTS, type Statut } from '#services/statut'
+import { STATUT_INITIAL, STATUTS } from '#services/statut'
 
 /**
  * Les Biens : les créer avec leur seul Libellé, les retrouver dans une
@@ -29,10 +29,16 @@ export default class BiensController {
     const demande: unknown = request.input('statut')
     const statut = STATUTS.find((connu) => connu === demande)
 
-    const biens = await Bien.query()
-      .if(statut !== undefined, (requete) => requete.where('statut', statut as Statut))
-      .orderBy('created_at', 'desc')
-      .orderBy('id', 'desc')
+    const requete = Bien.query().orderBy('created_at', 'desc').orderBy('id', 'desc')
+
+    // `if` du constructeur de requêtes plutôt que `.if()` : celui-ci masque
+    // le rétrécissement de type, et obligerait à réaffirmer que `statut` en
+    // est bien un alors que le `find` juste au-dessus vient de l'établir.
+    if (statut) {
+      requete.where('statut', statut)
+    }
+
+    const biens = await requete
 
     return response.ok(biens)
   }

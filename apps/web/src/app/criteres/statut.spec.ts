@@ -65,6 +65,28 @@ describe('la définition des Statuts', () => {
     expect(sorties.map(({ valeur }) => valeur)).toEqual(['ecarte', 'vendu']);
   });
 
+  it('range les étapes dans l’ordre du cycle', () => {
+    const etapes = STATUTS.filter(({ nature }) => nature === 'etape');
+
+    expect(etapes.map(({ rang }) => rang)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('donne aux sorties le rang de l’étape la plus avancée', () => {
+    /**
+     * Dérivé et non recopié : une cinquième étape ajoutée relève le rang des
+     * sorties du seul fait d'entrer dans la liste. Écrit à la main, l'oubli
+     * aurait fait disparaître de la fiche d'un Bien écarté les champs que la
+     * base conserve, sans que rien ne le signale.
+     */
+    const rangMaximal = Math.max(
+      ...STATUTS.filter(({ nature }) => nature === 'etape').map(({ rang }) => rang),
+    );
+
+    for (const sortie of STATUTS.filter(({ nature }) => nature === 'sortie')) {
+      expect(sortie.rang, `pour ${sortie.valeur}`).toBe(rangMaximal);
+    }
+  });
+
   it('donne à chaque Statut un libellé lisible', () => {
     expect(libelleStatut('aContacter')).toBe('À contacter');
     expect(libelleStatut('offreFaite')).toBe('Offre faite');
