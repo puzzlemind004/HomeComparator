@@ -1,13 +1,15 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { catchError, map, type Observable, of } from 'rxjs';
-import type { Bien, CreationBien } from './bien';
+import type { Bien, CreationBien, ModificationBien } from './bien';
 import type { BienApi, ReponseErreurValidationApi } from './bien.api';
-import { versBien, versCreationBienApi } from './bien.adapter';
+import { versBien, versCreationBienApi, versModificationBienApi } from './bien.adapter';
 
 const BIENS_URL = '/api/biens';
 
 const API_INJOIGNABLE = "L'API est injoignable. Le Bien n'a pas été enregistré.";
+
+const MODIFICATION_INJOIGNABLE = "L'API est injoignable. La modification n'a pas été enregistrée.";
 
 const LISTE_INJOIGNABLE: ListeBiens = { chargee: false };
 
@@ -20,11 +22,30 @@ export type CreationBienResultat =
   | { cree: false; erreurs: string[] };
 
 /**
+ * L'issue d'une modification, sur le même principe : le Bien tel qu'il est
+ * après enregistrement, ou les messages qui disent pourquoi il ne l'est pas.
+ */
+export type ModificationBienResultat =
+  | { enregistre: true; bien: Bien }
+  | { enregistre: false; erreurs: string[] };
+
+/**
  * L'issue d'un chargement de la liste. Une API qui n'a pas répondu n'a par
  * définition aucun Bien à rapporter : le type refuse de confondre ce cas
  * avec une liste réellement vide, que l'écran affiche tout autrement.
  */
 export type ListeBiens = { chargee: true; biens: Bien[] } | { chargee: false };
+
+/**
+ * L'issue du chargement d'une fiche. Le Bien introuvable est distingué de
+ * l'API injoignable : le premier est un fait — une adresse qui ne désigne
+ * plus rien —, le second un incident qui se répare en réessayant, et
+ * l'écran n'a pas la même chose à dire dans les deux cas.
+ */
+export type FicheBien =
+  | { etat: 'chargee'; bien: Bien }
+  | { etat: 'introuvable' }
+  | { etat: 'injoignable' };
 
 @Injectable({ providedIn: 'root' })
 export class BienService {
@@ -45,6 +66,20 @@ export class BienService {
     );
   }
 
+  /** La fiche d'un Bien : tout ce qui a été noté à son sujet (#6). */
+  consulter(id: number): Observable<FicheBien> {
+    return this.http.get<BienApi>(`${BIENS_URL}/${id}`).pipe(
+      map((bien): FicheBien => ({ etat: 'chargee', bien: versBien(bien) })),
+      catchError((erreur: unknown) =>
+        of<FicheBien>(
+          erreur instanceof HttpErrorResponse && erreur.status === 404
+            ? { etat: 'introuvable' }
+            : { etat: 'injoignable' },
+        ),
+      ),
+    );
+  }
+
   /**
    * Un refus de l'API est un état à afficher dans le formulaire, pas une
    * exception à laisser fuir : les messages viennent de l'API, qui les
@@ -56,20 +91,42 @@ export class BienService {
       catchError((erreur: unknown) => of({ cree: false as const, erreurs: messages(erreur) })),
     );
   }
+
+  /**
+   * La modification de quelques Critères d'un Bien, jamais forcément tous
+   * (#6).
+   *
+   * `PATCH` et non `PUT` : ce qui n'est pas transmis n'est pas touché, ce
+   * qui permet à la fiche de n'envoyer que le champ modifié et à
+   * l'assistant que la réponse à sa question.
+   */
+  modifier(id: number, modification: ModificationBien): Observable<ModificationBienResultat> {
+    return this.http
+      .patch<BienApi>(`${BIENS_URL}/${id}`, versModificationBienApi(modification))
+      .pipe(
+        map((bien): ModificationBienResultat => ({ enregistre: true, bien: versBien(bien) })),
+        catchError((erreur: unknown) =>
+          of({
+            enregistre: false as const,
+            erreurs: messages(erreur, MODIFICATION_INJOIGNABLE),
+          }),
+        ),
+      );
+  }
 }
 
 /**
- * Les messages à afficher pour un échec de création. L'API rédige ceux de
- * validation pour être lus tels quels ; tout le reste — API éteinte, panne,
- * réponse inattendue — se résume à un seul message, le Bien n'ayant de toute
- * façon pas été enregistré.
+ * Les messages à afficher pour un échec. L'API rédige ceux de validation
+ * pour être lus tels quels ; tout le reste — API éteinte, panne, réponse
+ * inattendue — se résume à un seul message, rien n'ayant de toute façon été
+ * enregistré.
  */
-function messages(erreur: unknown): string[] {
+function messages(erreur: unknown, defaut = API_INJOIGNABLE): string[] {
   if (!(erreur instanceof HttpErrorResponse)) {
-    return [API_INJOIGNABLE];
+    return [defaut];
   }
 
   const corps = erreur.error as Partial<ReponseErreurValidationApi> | null;
 
-  return corps?.errors?.length ? corps.errors.map(({ message }) => message) : [API_INJOIGNABLE];
+  return corps?.errors?.length ? corps.errors.map(({ message }) => message) : [defaut];
 }

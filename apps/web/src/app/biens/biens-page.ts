@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { BienService, type ListeBiens } from './bien.service';
 
 /**
@@ -9,7 +10,7 @@ import { BienService, type ListeBiens } from './bien.service';
  */
 @Component({
   selector: 'app-biens-page',
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   styleUrl: './biens-page.scss',
   templateUrl: './biens-page.html',
 })

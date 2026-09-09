@@ -41,5 +41,10 @@ router
   .group(() => {
     router.get('/biens', [BiensController, 'index'])
     router.post('/biens', [BiensController, 'store'])
+    router.get('/biens/:id', [BiensController, 'show'])
+    // `PATCH` et non `PUT` : la fiche et l'assistant n'envoient que le
+    // Critère modifié, et le reste du Bien n'a pas à transiter pour rester
+    // en place (#6).
+    router.patch('/biens/:id', [BiensController, 'update'])
   })
   .use(middleware.authentification())

@@ -185,6 +185,69 @@ test.group('Biens', (group) => {
     assert.deepEqual(libelles, ['celui avec la cuisine refaite', 'le T3 avec la terrasse'])
   })
 
+  test('rend chaque Bien avec exactement les champs du contrat', async ({ client, assert }) => {
+    /**
+     * Le front décrit ses propres modèles et ne partage aucune source
+     * TypeScript avec l'API (ADR-0010) : ce sont ces tests, et eux seuls,
+     * qui tiennent le contrat entre les deux formes.
+     *
+     * L'assertion porte sur la liste *exacte* des clés, et non sur un
+     * sous-ensemble : un Critère ajouté à la définition côté front sans sa
+     * colonne ici — ou l'inverse — ne se verrait autrement qu'à l'écran, sur
+     * une valeur qui n'arrive jamais.
+     *
+     * Les quinze identifiants sont recopiés à la main plutôt que lus depuis
+     * la définition, qui vit côté front et n'est pas importable ici. C'est
+     * précisément le point de la duplication : elle rend la divergence
+     * visible au lieu de la laisser filer.
+     */
+    await avecSession(client.post('/biens'), session).json({ libelle: 'le T3 avec la terrasse' })
+
+    const response = await avecSession(client.get('/biens'), session)
+
+    response.assertStatus(200)
+    const [bien] = response.body()
+    assert.sameMembers(Object.keys(bien), [
+      'id',
+      'libelle',
+      'urlAnnonce',
+      'proprietaireId',
+      'createdAt',
+      'updatedAt',
+      // Les quinze Critères de la définition centralisée (ADR-0004).
+      'prixDemande',
+      'taxeFonciere',
+      'chargesCopropriete',
+      'surfaceHabitable',
+      'nombrePieces',
+      'typeBien',
+      'anneeConstruction',
+      'travauxAPrevoir',
+      'adresse',
+      'villeQuartier',
+      'tempsTrajetTravail',
+      'capaciteStationnement',
+      'dpe',
+      'typeChauffage',
+      'exterieur',
+    ])
+  })
+
+  test('rend les Critères non renseignés à null, et non absents', async ({ client, assert }) => {
+    // Un Critère absent de la charge utile et un Critère à `null` se lisent
+    // pareil en JavaScript, mais pas au raisonnement : le front construit
+    // sa fiche depuis la définition, et attend une clé par Critère.
+    await avecSession(client.post('/biens'), session).json({ libelle: 'le T3 avec la terrasse' })
+
+    const response = await avecSession(client.get('/biens'), session)
+
+    const [bien] = response.body()
+    assert.isNull(bien.prixDemande)
+    assert.isNull(bien.surfaceHabitable)
+    assert.isNull(bien.dpe)
+    assert.isNull(bien.exterieur)
+  })
+
   test('rend une liste vide quand aucun Bien n’est enregistré', async ({ client, assert }) => {
     const response = await avecSession(client.get('/biens'), session)
 

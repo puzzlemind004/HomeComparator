@@ -5,6 +5,7 @@ import { BiensPage } from './biens-page';
 import { BienService } from './bien.service';
 import type { Bien, CreationBien } from './bien';
 import type { CreationBienResultat, ListeBiens } from './bien.service';
+import { unBien } from './bien.test-helper';
 
 /**
  * Le composant est construit sans TestBed : seul son service est injecté,
@@ -26,7 +27,7 @@ function creerPage(service: {
   return runInInjectionContext(injector, () => new BiensPage());
 }
 
-const bien: Bien = { id: 1, libelle: 'le T3 avec la terrasse', urlAnnonce: null };
+const bien: Bien = unBien();
 
 function chargee(biens: Bien[]): ListeBiens {
   return { chargee: true, biens };
@@ -55,7 +56,7 @@ describe('BiensPage', () => {
 
   it('ajoute le Bien créé en tête de liste sans recharger', () => {
     // Le Bien doit apparaître immédiatement : c'est tout l'objet de l'écran.
-    const dejaLa: Bien = { id: 2, libelle: 'celui avec la cuisine refaite', urlAnnonce: null };
+    const dejaLa: Bien = unBien({ id: 2, libelle: 'celui avec la cuisine refaite' });
     const page = creerPage({
       lister: () => of(chargee([dejaLa])),
       creer: () => of({ cree: true, bien }),

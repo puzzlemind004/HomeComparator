@@ -44,7 +44,7 @@
         <ul class="liste">
           @for (bien of liste.biens; track bien.id) {
             <li class="bien">
-              <span class="bien__libelle">{{ bien.libelle }}</span>
+              <a class="bien__libelle" [routerLink]="['/biens', bien.id]">{{ bien.libelle }}</a>
               @if (bien.urlAnnonce; as url) {
                 <a class="bien__annonce" [href]="url" target="_blank" rel="noopener noreferrer">
                   Voir l'Annonce
