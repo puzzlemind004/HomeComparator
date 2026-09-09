@@ -43,6 +43,9 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_DATABASE: ${POSTGRES_DB}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4200}
+      # Sans valeur, l'API refuse de démarrer : mieux vaut un conteneur qui
+      # s'arrête qu'un carnet déployé en accès libre (#4).
+      APP_PASSWORD: ${APP_PASSWORD:?APP_PASSWORD est obligatoire}
     ports:
       - '${API_PORT:-3333}:3333'
 

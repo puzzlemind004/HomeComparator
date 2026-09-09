@@ -25,6 +25,15 @@ export default class Bien extends BaseModel {
   @column()
   declare urlAnnonce: string | null
 
+  /**
+   * Le propriétaire du Bien, rempli à la création avec une valeur constante
+   * (#4). L'outil n'a qu'un utilisateur et n'offre aucune gestion de
+   * comptes ; cette colonne n'existe que pour qu'un éventuel passage au
+   * multi-utilisateurs n'ait pas à rattacher après coup des Biens existants.
+   */
+  @column()
+  declare proprietaireId: string
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 

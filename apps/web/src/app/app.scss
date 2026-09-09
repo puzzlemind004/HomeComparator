@@ -5,6 +5,25 @@
   padding: 2rem 1rem;
 }
 
+.entete {
+  align-items: baseline;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.deconnexion {
+  background: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.375rem;
+  color: #475569;
+  cursor: pointer;
+  flex: none;
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 0.375rem 0.75rem;
+}
+
 .health {
   border: 1px solid #cbd5e1;
   border-left: 4px solid #16a34a;

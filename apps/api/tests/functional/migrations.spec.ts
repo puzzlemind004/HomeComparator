@@ -9,4 +9,12 @@ test.group('Migrations', () => {
 
     assert.isTrue(hasBiens)
   })
+
+  test('la colonne de propriétaire est en place et obligatoire', async ({ assert }) => {
+    // Elle ne sert aucun écran : c'est la migration seule qui la porte, et
+    // rien d'autre ne signalerait sa disparition (#4).
+    const colonne = await db.connection().columnsInfo('biens', 'proprietaire_id')
+
+    assert.isFalse(colonne.nullable)
+  })
 })

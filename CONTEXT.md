@@ -26,6 +26,10 @@ _Avoid_: Titre, nom, surnom
 Le texte libre attaché à un Bien, pour tout ce qui compte mais ne se compare pas en colonne : impressions de visite, travaux à prévoir, remarques sur le voisinage.
 _Avoid_: Commentaire, description, mémo
 
+**Propriétaire** :
+Celui à qui appartient un Bien dans le carnet. L'outil n'a qu'un utilisateur et n'offre aucune gestion de comptes : tous les Biens portent la même valeur constante. Le terme n'existe que pour rendre indolore un éventuel passage au multi-utilisateurs (ADR-0011), et ne désigne jamais le vendeur du logement.
+_Avoid_: Utilisateur, compte, vendeur
+
 ### Cycle de vie
 
 **Statut** :
