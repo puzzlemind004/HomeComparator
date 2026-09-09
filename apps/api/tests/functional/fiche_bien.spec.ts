@@ -50,6 +50,25 @@ test.group('Fiche d’un Bien', (group) => {
     response.assertStatus(404)
   })
 
+  test('répond 404 sur un identifiant qui n’est pas un nombre', async ({ client, assert }) => {
+    // Une adresse mal recopiée ne désigne aucun Bien : c'est un 404, comme
+    // pour un Bien absent. Sans contrainte de route, l'identifiant atteint
+    // la requête SQL, où PostgreSQL refuse la conversion — et la réponse 500
+    // emporte alors le texte de la requête, ce qui en dit bien trop.
+    const response = await avecSession(client.get('/biens/abc'), session)
+
+    response.assertStatus(404)
+    assert.notInclude(JSON.stringify(response.body()), 'select')
+  })
+
+  test('répond 404 en modifiant un identifiant qui n’est pas un nombre', async ({ client }) => {
+    const response = await avecSession(client.patch('/biens/abc'), session).json({
+      prixDemande: 1,
+    })
+
+    response.assertStatus(404)
+  })
+
   test('modifie un seul Critère sans toucher aux autres', async ({ client, assert }) => {
     // C'est le geste de la fiche : corriger une valeur, et rien d'autre.
     const bien = await unBien({ prixDemande: 250_000, surfaceHabitable: 72.5, dpe: 'C' })

@@ -163,6 +163,12 @@ export class FicheBienPage {
    * Enregistrer au fil de l'eau plutôt qu'à la fin est ce qui rend
    * l'interruption sans conséquence : une visite s'interrompt, et la
    * réponse donnée au troisième Critère ne doit pas dépendre du quinzième.
+   *
+   * L'assistant n'avance **qu'une fois l'API d'accord**. Avancer d'abord
+   * perdrait la réponse refusée : `repondre` inscrit la clé dans `reponses`,
+   * que le parcours écarte définitivement, et la question ne reviendrait
+   * jamais. L'acheteur croirait avoir saisi une valeur qui n'est nulle part
+   * — précisément ce que le refus des Critères inconnus cherche à éviter.
    */
   repondreQuestion(valeur: ValeurCritere): void {
     const assistant = this.assistant();
@@ -177,9 +183,10 @@ export class FicheBienPage {
     // envoyé du tout.
     const saisie = typeof valeur === 'string' && valeur.trim() === '' ? null : valeur;
 
-    this.assistant.set(repondre(assistant, saisie));
-    this.reponse = '';
-    this.envoyer({ [question.id]: saisie });
+    this.envoyer({ [question.id]: saisie }, () => {
+      this.assistant.set(repondre(assistant, saisie));
+      this.reponse = '';
+    });
   }
 
   /**
@@ -197,13 +204,21 @@ export class FicheBienPage {
 
   /**
    * L'envoi d'une modification partielle, et la reprise du Bien tel que
-   * l'API l'a enregistré — et non tel qu'il a été saisi : c'est la base qui
-   * dit ce qui est vrai, et un écart entre les deux se verrait aussitôt.
+   * l'API le rend — et non tel qu'il a été saisi, pour qu'un écart entre les
+   * deux se voie aussitôt.
+   *
+   * L'API rend l'instance qu'elle vient d'écrire, pas une relecture de la
+   * base : une valeur que la colonne arrondit — `decimal(8, 2)` ramène
+   * 72,555 à 72,56 — s'affiche ici non arrondie jusqu'au prochain
+   * chargement de la fiche. L'écart est borné au dixième que la surface
+   * admet, et le seul Critère décimal d'aujourd'hui est celle-ci.
    *
    * Un refus laisse le Bien affiché intact : montrer une valeur que l'API a
-   * refusée ferait croire qu'elle y est.
+   * refusée ferait croire qu'elle y est. `apresEnregistrement` n'est donc
+   * appelé que sur un succès — c'est ce qui retient l'assistant d'avancer
+   * sur une réponse que l'API n'a pas voulue.
    */
-  private envoyer(modification: ModificationBien): void {
+  private envoyer(modification: ModificationBien, apresEnregistrement?: () => void): void {
     this.enregistrement.set(true);
     this.erreurs.set([]);
 
@@ -216,6 +231,7 @@ export class FicheBienPage {
       }
 
       this.fiche.set({ etat: 'chargee', bien: resultat.bien });
+      apresEnregistrement?.();
     });
   }
 }

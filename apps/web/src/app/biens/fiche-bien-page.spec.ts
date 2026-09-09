@@ -300,4 +300,38 @@ describe('l’assistant depuis la fiche', () => {
 
     expect(fiche.questionCourante()).toBeUndefined();
   });
+  it('ne perd pas une réponse que l’API refuse', () => {
+    // L'assistant n'avance qu'une fois l'API d'accord. Avancer d'abord
+    // écarterait définitivement la question — `repondre` inscrit la clé dans
+    // `reponses` —, et l'acheteur croirait avoir saisi une valeur qui n'est
+    // nulle part.
+    const fiche = creerFiche({
+      modifier: () =>
+        of<ModificationBienResultat>({
+          enregistre: false,
+          erreurs: ['Le Prix demandé ne peut pas être négatif'],
+        }),
+    });
+
+    fiche.lancerAssistant();
+    fiche.repondreQuestion(-5);
+
+    expect(fiche.questionCourante()?.id).toBe('prixDemande');
+    expect(fiche.erreurs()).toEqual(['Le Prix demandé ne peut pas être négatif']);
+  });
+
+  it('avance une fois la réponse acceptée', () => {
+    const fiche = creerFiche({
+      modifier: () =>
+        of<ModificationBienResultat>({
+          enregistre: true,
+          bien: unBien({ criteres: { prixDemande: 250000 } }),
+        }),
+    });
+
+    fiche.lancerAssistant();
+    fiche.repondreQuestion(250000);
+
+    expect(fiche.questionCourante()?.id).toBe('taxeFonciere');
+  });
 });
