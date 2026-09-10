@@ -17,6 +17,7 @@ function creerService(http: {
   get?: (url: string, options?: { params?: HttpParams }) => Observable<unknown>;
   post?: (url: string, corps: unknown) => Observable<unknown>;
   patch?: (url: string, corps: unknown) => Observable<unknown>;
+  delete?: (url: string) => Observable<unknown>;
 }) {
   const injector = Injector.create({ providers: [{ provide: HttpClient, useValue: http }] });
 
@@ -258,6 +259,53 @@ describe('BienService', () => {
       expect(resultat).toEqual({
         enregistre: false,
         erreurs: ["L'API est injoignable. La modification n'a pas été enregistrée."],
+      });
+    });
+  });
+
+  describe('supprimer', () => {
+    it('demande à l’API la suppression du Bien', async () => {
+      const urls: string[] = [];
+      const service = creerService({
+        delete: (url) => {
+          urls.push(url);
+          return of(null);
+        },
+      });
+
+      const resultat = await firstValueFrom(service.supprimer(1));
+
+      expect(urls).toEqual(['/api/biens/1']);
+      expect(resultat).toEqual({ supprime: true });
+    });
+
+    it('distingue un Bien déjà disparu d’une API injoignable', async () => {
+      // Les deux sont des échecs, mais l'écran n'a pas la même chose à en
+      // faire : le premier est un fait acquis — le Bien n'est plus là, ce
+      // qui était le but —, le second se répare en réessayant.
+      const service = creerService({
+        delete: () => throwError(() => new HttpErrorResponse({ status: 404 })),
+      });
+
+      const resultat = await firstValueFrom(service.supprimer(1));
+
+      expect(resultat).toEqual({ supprime: false, disparu: true, erreurs: [] });
+    });
+
+    it('dit que rien n’a été supprimé quand l’API est injoignable', async () => {
+      // Le message doit dire que le Bien est toujours là : croire à une
+      // suppression qui n'a pas eu lieu ferait chercher un Bien qu'on
+      // retrouverait au rechargement suivant.
+      const service = creerService({
+        delete: () => throwError(() => new HttpErrorResponse({ status: 0 })),
+      });
+
+      const resultat = await firstValueFrom(service.supprimer(1));
+
+      expect(resultat).toEqual({
+        supprime: false,
+        disparu: false,
+        erreurs: ["L'API est injoignable. Le Bien n'a pas été supprimé."],
       });
     });
   });

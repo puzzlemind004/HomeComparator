@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { Injector, runInInjectionContext } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { of, type Observable } from 'rxjs';
 import { FicheBienPage } from './fiche-bien-page';
-import { BienService, type FicheBien, type ModificationBienResultat } from './bien.service';
+import {
+  BienService,
+  type FicheBien,
+  type ModificationBienResultat,
+  type SuppressionBienResultat,
+} from './bien.service';
 import type { ModificationBien } from './bien';
 import { unBien } from './bien.test-helper';
 
@@ -15,8 +20,11 @@ function creerFiche(
   service: {
     consulter?: (id: number) => Observable<FicheBien>;
     modifier?: (id: number, modification: ModificationBien) => Observable<ModificationBienResultat>;
+    supprimer?: (id: number) => Observable<SuppressionBienResultat>;
   },
   id = '1',
+  /** Les adresses vers lesquelles la fiche a navigué, quand un test les lit. */
+  navigations: unknown[][] = [],
 ) {
   const injector = Injector.create({
     providers: [
@@ -25,10 +33,20 @@ function creerFiche(
         useValue: {
           consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien() }),
           modifier: () => of<ModificationBienResultat>({ enregistre: true, bien: unBien() }),
+          supprimer: () => of<SuppressionBienResultat>({ supprime: true }),
           ...service,
         },
       },
       { provide: ActivatedRoute, useValue: { snapshot: { paramMap: new Map([['id', id]]) } } },
+      {
+        provide: Router,
+        useValue: {
+          navigate: (adresse: unknown[]) => {
+            navigations.push(adresse);
+            return Promise.resolve(true);
+          },
+        },
+      },
     ],
   });
 
@@ -609,5 +627,198 @@ describe('l’assistant depuis la fiche', () => {
       expect(identifiants).not.toContain('dateVisite');
       expect(identifiants).not.toContain('montantDerniereOffre');
     });
+  });
+});
+
+/**
+ * La suppression définitive (#9).
+ *
+ * Elle ne fait pas double emploi avec le Statut Écarté : écarter garde le
+ * Bien et sa raison, supprimer corrige une saisie ou un doublon. Et comme
+ * elle ne se rattrape pas, tout ici tourne autour d'une seule question :
+ * combien de gestes distincts séparent la fiche d'un Bien qui n'existe plus.
+ */
+describe('la suppression d’un Bien', () => {
+  it('ne propose rien d’autre qu’un premier geste au départ', () => {
+    // La confirmation n'est pas ouverte à l'ouverture de la fiche : le
+    // bouton qui supprime pour de bon n'est nulle part à portée de doigt.
+    const fiche = creerFiche({});
+
+    expect(fiche.confirmationSuppression()).toBe(false);
+  });
+
+  it('demande confirmation au lieu de supprimer', () => {
+    // Le premier geste n'appelle pas l'API : c'est tout ce qui sépare un
+    // effleurement d'une perte de données.
+    const appels: number[] = [];
+    const fiche = creerFiche({
+      supprimer: (id) => {
+        appels.push(id);
+        return of<SuppressionBienResultat>({ supprime: true });
+      },
+    });
+
+    fiche.demanderSuppression();
+
+    expect(fiche.confirmationSuppression()).toBe(true);
+    expect(appels).toEqual([]);
+  });
+
+  it('renonce sans rien supprimer', () => {
+    const appels: number[] = [];
+    const fiche = creerFiche({
+      supprimer: (id) => {
+        appels.push(id);
+        return of<SuppressionBienResultat>({ supprime: true });
+      },
+    });
+
+    fiche.demanderSuppression();
+    fiche.renoncerSuppression();
+
+    expect(fiche.confirmationSuppression()).toBe(false);
+    expect(appels).toEqual([]);
+  });
+
+  it('supprime le Bien de l’adresse une fois confirmé', () => {
+    const appels: number[] = [];
+    const fiche = creerFiche(
+      {
+        supprimer: (id) => {
+          appels.push(id);
+          return of<SuppressionBienResultat>({ supprime: true });
+        },
+      },
+      '7',
+    );
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(appels).toEqual([7]);
+  });
+
+  it('ne supprime rien tant que la confirmation n’a pas été demandée', () => {
+    /**
+     * Le garde-fou tient dans le composant et non dans le seul gabarit :
+     * une confirmation qui ne serait qu'un bouton caché disparaîtrait au
+     * premier remaniement du HTML, sans qu'un test s'en aperçoive.
+     */
+    const appels: number[] = [];
+    const fiche = creerFiche({
+      supprimer: (id) => {
+        appels.push(id);
+        return of<SuppressionBienResultat>({ supprime: true });
+      },
+    });
+
+    fiche.confirmerSuppression();
+
+    expect(appels).toEqual([]);
+  });
+
+  it('ramène au carnet une fois le Bien supprimé', () => {
+    // La fiche d'un Bien supprimé n'a plus rien à montrer, et y rester
+    // laisserait à l'écran un Bien qui n'existe plus.
+    const navigations: unknown[][] = [];
+    const fiche = creerFiche({}, '1', navigations);
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(navigations).toEqual([['/']]);
+  });
+
+  it('ramène au carnet quand le Bien avait déjà disparu', () => {
+    // Supprimé depuis un autre onglet : l'état visé est atteint, et
+    // afficher une erreur pour un Bien absent ferait s'inquiéter d'un
+    // succès.
+    const navigations: unknown[][] = [];
+    const fiche = creerFiche(
+      { supprimer: () => of<SuppressionBienResultat>({ supprime: false, disparu: true, erreurs: [] }) },
+      '1',
+      navigations,
+    );
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(navigations).toEqual([['/']]);
+    expect(fiche.erreurs()).toEqual([]);
+  });
+
+  it('reste sur la fiche quand la suppression échoue', () => {
+    const navigations: unknown[][] = [];
+    const fiche = creerFiche(
+      {
+        supprimer: () =>
+          of<SuppressionBienResultat>({
+            supprime: false,
+            disparu: false,
+            erreurs: ["L'API est injoignable. Le Bien n'a pas été supprimé."],
+          }),
+      },
+      '1',
+      navigations,
+    );
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(navigations).toEqual([]);
+    expect(fiche.erreurs()).toEqual(["L'API est injoignable. Le Bien n'a pas été supprimé."]);
+    // Le Bien est toujours là : la fiche continue de le montrer.
+    expect(bienAffiche(fiche)?.id).toBe(1);
+  });
+
+  it('referme la confirmation sur un échec', () => {
+    // Laisser le bouton armé après un échec ferait du geste suivant — un
+    // doigt qui revient au même endroit — une suppression non confirmée.
+    const fiche = creerFiche({
+      supprimer: () =>
+        of<SuppressionBienResultat>({
+          supprime: false,
+          disparu: false,
+          erreurs: ['injoignable'],
+        }),
+    });
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(fiche.confirmationSuppression()).toBe(false);
+  });
+
+  it('n’enchaîne pas deux suppressions sur un double appui', () => {
+    // Le second appui trouve la confirmation déjà refermée, et n'a donc
+    // aucun Bien à supprimer.
+    const appels: number[] = [];
+    const fiche = creerFiche({
+      supprimer: (id) => {
+        appels.push(id);
+        return of<SuppressionBienResultat>({ supprime: true });
+      },
+    });
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+    fiche.confirmerSuppression();
+
+    expect(appels).toEqual([1]);
+  });
+
+  it('oublie les erreurs précédentes en supprimant', () => {
+    const fiche = creerFiche({
+      modifier: () =>
+        of<ModificationBienResultat>({ enregistre: false, erreurs: ['Le Libellé est obligatoire'] }),
+    });
+
+    fiche.enregistrer('libelle', '');
+    expect(fiche.erreurs()).toEqual(['Le Libellé est obligatoire']);
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(fiche.erreurs()).toEqual([]);
   });
 });

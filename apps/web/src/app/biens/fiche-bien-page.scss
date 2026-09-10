@@ -263,3 +263,92 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+/**
+ * La suppression définitive (#9).
+ *
+ * Un bloc à part, en fin de fiche, dont l'encadré rouge dit avant tout
+ * qu'on n'est plus dans les Critères qu'on corrige d'un blur. Ce qui se
+ * fait ici ne se défait pas.
+ */
+.suppression {
+  border-color: #fecaca;
+  /* La marge du haut détache le bloc du dernier groupe de Critères : il ne
+     doit pas se lire comme un bloc de plus qu'on parcourt du pouce. */
+  margin-top: 2rem;
+
+  h3 {
+    color: #991b1b;
+  }
+}
+
+.suppression__avertissement {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin: 0 0 0.75rem;
+}
+
+.suppression__question {
+  color: #991b1b;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+
+/**
+ * Le premier appui : rouge, mais creux. Il n'est pas l'action principale de
+ * la fiche, et un aplat plein le ferait ressortir plus que « Lancer
+ * l'assistant », qui est ce qu'on vient y faire.
+ */
+.suppression__demander {
+  background: none;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+}
+
+/**
+ * Les deux boutons de la confirmation.
+ *
+ * `column-reverse` sur mobile : « Annuler » est écrit en premier et se
+ * retrouve donc en bas, c'est-à-dire là où le doigt vient de quitter
+ * « Supprimer ce Bien ». Un second appui au même endroit renonce, quand la
+ * disposition inverse supprimerait — et c'est ce genre de geste, deux fois
+ * le même point, qui échappe à l'attention.
+ *
+ * L'ordre lu par les lecteurs d'écran et le clavier reste celui du gabarit,
+ * où annuler précède : c'est l'issue sans conséquence, et elle doit se
+ * rencontrer la première.
+ */
+.suppression__actions {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.75rem;
+}
+
+.suppression__renoncer {
+  background: none;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+}
+
+/**
+ * Le bouton qui supprime pour de bon : plein, explicite, et le seul de la
+ * fiche à porter cette couleur. Il n'existe qu'une fois la confirmation
+ * ouverte, et jamais à l'endroit du premier appui.
+ */
+.suppression__confirmer {
+  background: #b91c1c;
+  /* Plus haut que les boutons ordinaires : ce qu'on vise ici, on doit le
+     viser exprès, et la cible large sert la lisibilité du geste autant que
+     sa précision. */
+  padding: 0.75rem 1rem;
+}
+
+@media (min-width: 40rem) {
+  /* Au-delà du pouce, l'ordre lu est le bon : annuler à gauche, supprimer à
+     droite, et les deux assez loin l'un de l'autre pour qu'un clic ne parte
+     pas sur le mauvais. */
+  .suppression__actions {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+}
