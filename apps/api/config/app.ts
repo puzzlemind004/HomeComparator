@@ -1,4 +1,5 @@
 import env from '#start/env'
+import { estAdresseInterne } from '#services/adresses_internes'
 import app from '@adonisjs/core/services/app'
 import { Secret } from '@adonisjs/core/helpers'
 import { defineConfig } from '@adonisjs/core/http'
@@ -59,35 +60,3 @@ export const http = defineConfig({
     sameSite: 'lax',
   },
 })
-
-/**
- * Les adresses d'où l'API accepte qu'on lui annonce l'appelant : la boucle
- * locale et les trois plages privées d'IPv4, plus leurs équivalents IPv6.
- * C'est de là, et de nulle part ailleurs, que nginx la joint.
- *
- * Écrit à la main plutôt que délégué aux noms de plages de `proxy-addr` :
- * le paquet est une dépendance indirecte, sans types, et l'ajouter aux
- * dépendances directes pour trois expressions régulières coûterait plus que
- * de les lire ici.
- */
-const ADRESSES_INTERNES = [
-  /^127\./,
-  /^10\./,
-  /^192\.168\./,
-  // 172.16.0.0/12, soit 172.16 à 172.31 — et non tout 172.
-  /^172\.(1[6-9]|2\d|3[01])\./,
-]
-
-export function estAdresseInterne(adresse: string): boolean {
-  // Node préfixe les adresses IPv4 reçues sur une pile double : `::ffff:` ne
-  // doit pas empêcher de reconnaître une adresse privée.
-  const nue = adresse.replace(/^::ffff:/i, '')
-
-  // `::1` est la boucle locale IPv6 ; `fc00::/7` (fc/fd) et `fe80::/10`
-  // (fe8 à feb) en sont les plages internes.
-  if (/^(::1|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i.test(nue)) {
-    return true
-  }
-
-  return ADRESSES_INTERNES.some((plage) => plage.test(nue))
-}

@@ -34,19 +34,30 @@ export const TENTATIVES = 10
  */
 export const FENETRE = '15 minutes'
 
-/** Le compteur, tel que le magasin le connaît. */
-function compteur() {
+/**
+ * Le préfixe des clés de ce compteur.
+ *
+ * Nommé ici et pas ailleurs, pour la même raison que `CLE_SESSION` : le
+ * magasin est une table partagée, et deux orthographes divergentes feraient
+ * deux compteurs là où il n'en faut qu'un — donc deux fois le quota pour
+ * qui essaie.
+ */
+const PREFIXE_CLE = 'connexion_'
+
+/**
+ * Le compteur, tel que le magasin le connaît.
+ *
+ * Exporté pour que les tests interrogent le compteur réel plutôt que d'en
+ * reconstruire un à l'identique : deux définitions qui divergeraient
+ * laisseraient les tests au vert sur un quota qui n'est plus celui-là.
+ */
+export function compteur() {
   return limiter.use({ requests: TENTATIVES, duration: FENETRE })
 }
 
-/**
- * La clé sous laquelle une adresse est comptée.
- *
- * Préfixée : le magasin est une table partagée, et une adresse ne doit pas
- * pouvoir entrer en collision avec la clé d'un autre usage ajouté plus tard.
- */
-function cle(adresse: string) {
-  return `connexion_${adresse}`
+/** La clé sous laquelle une adresse est comptée. */
+export function cle(adresse: string) {
+  return `${PREFIXE_CLE}${adresse}`
 }
 
 /**

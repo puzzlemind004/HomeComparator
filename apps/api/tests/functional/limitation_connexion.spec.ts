@@ -1,8 +1,8 @@
 import { test } from '@japa/runner'
 import limiter from '@adonisjs/limiter/services/main'
 import { avecSession, connecter, sessionDe } from '#tests/session'
-import { FENETRE, TENTATIVES } from '#services/limitation_connexion'
-import { estAdresseInterne } from '#config/app'
+import { TENTATIVES, cle, compteur } from '#services/limitation_connexion'
+import { estAdresseInterne } from '#services/adresses_internes'
 
 /**
  * La connexion est la seule serrure du carnet (#26) : rien d'autre ne se
@@ -147,12 +147,38 @@ test.group('Limitation des tentatives de connexion', (group) => {
     const ip = adresse()
     await epuiser(client, ip)
 
-    const restant = await limiter
-      .use({ requests: TENTATIVES, duration: FENETRE })
-      .availableIn(`connexion_${ip}`)
+    // Le compteur réel et sa vraie clé, pas une reconstruction : deux
+    // définitions qui divergeraient laisseraient ce test au vert sur un
+    // quota qui n'est plus celui de l'application.
+    const restant = await compteur().availableIn(cle(ip))
 
+    // Une expiration existe, et elle ne dépasse pas la fenêtre annoncée.
+    // La borne est déduite de `FENETRE`, jamais recopiée : la changer sans
+    // changer ce test laisserait passer une fenêtre bien plus longue.
     assert.isAbove(restant, 0)
-    assert.isAtMost(restant, 15 * 60)
+    assert.isAtMost(restant, compteur().duration)
+  })
+
+  test('un compteur expiré ne bloque plus', async ({ assert }) => {
+    // Le pendant du test précédent, qui ne vérifiait que l'existence d'une
+    // expiration. Ici on l'observe jouer, sur une fenêtre d'une seconde :
+    // le mécanisme est celui de la fenêtre réelle, seule sa durée change.
+    const bref = limiter.use({ requests: TENTATIVES, duration: '1 second' })
+    const ip = adresse()
+
+    for (let essai = 0; essai < TENTATIVES; essai += 1) {
+      await bref.increment(cle(ip))
+    }
+
+    // Quota épuisé : c'est l'état dans lequel une tentative est refusée.
+    assert.equal(await bref.remaining(cle(ip)), 0)
+
+    await new Promise((suite) => setTimeout(suite, 1200))
+
+    // La fenêtre écoulée, le compteur a disparu de lui-même et l'adresse
+    // retrouve son quota entier — c'est ce qui rouvre la porte.
+    assert.isNull(await bref.get(cle(ip)))
+    assert.equal(await bref.remaining(cle(ip)), TENTATIVES)
   })
 })
 
@@ -201,26 +227,39 @@ test.group('Limitation et confiance au proxy', (group) => {
     response.assertStatus(401)
   })
 
-  test('une adresse interne déclarée par le client ne lui donne pas un compteur neuf', async ({
+  test('un client interne pourrait se renommer si nginx allongeait la chaîne', async ({
     client,
   }) => {
-    // Le cas que `nginx.conf` ferme en remplaçant l'en-tête plutôt qu'en
-    // l'allongeant. Si la chaîne était allongée, un client du réseau
-    // interne — le déploiement visé — n'aurait qu'à déclarer une adresse
-    // privée, que l'API tient pour fiable, pour repartir de zéro à chaque
-    // tentative. Ici l'en-tête ne porte qu'une adresse : celle que nginx a
-    // posée, la seule que le client ne choisisse pas.
-    const ip = '203.0.113.220'
+    // Ce test défend une limite, pas une protection : il montre ce que
+    // l'API *ne* peut *pas* faire seule, et donc pourquoi `nginx.conf`
+    // remplace `X-Forwarded-For` au lieu de l'allonger.
+    //
+    // `proxy-addr` remonte la chaîne de droite à gauche, franchit les
+    // maillons fiables et retient le premier qui ne l'est pas. Une adresse
+    // privée est fiable — c'est de là que nginx appelle. Un client déjà sur
+    // le réseau interne, soit le déploiement visé, verrait donc nginx
+    // ajouter *sa* propre adresse privée à droite de ce qu'il a déclaré :
+    // `proxy-addr` la franchirait et retiendrait sa déclaration à lui.
+    //
+    // On reproduit ici cette chaîne allongée. Chaque déclaration ouvre un
+    // compteur neuf, et le quota ne retient plus rien : c'est ce que le
+    // remplacement dans `nginx.conf` rend impossible. Si ce test venait à
+    // finir sur un refus, c'est que la chaîne serait de nouveau transmise
+    // et que la limitation entière serait à reprendre.
+    const interne = '192.168.1.50'
 
     for (let essai = 0; essai < TENTATIVES; essai += 1) {
-      await connecter(client, 'pas le bon').header('X-Forwarded-For', ip)
+      await connecter(client, 'pas le bon').header('X-Forwarded-For', `10.0.0.1, ${interne}`)
     }
 
-    // Ce que le client aurait aimé annoncer, s'il avait pu : sans le
-    // remplacement, `10.0.0.1` deviendrait son adresse et son compteur.
-    const response = await connecter(client).header('X-Forwarded-For', ip)
+    // Le quota de l'adresse déclarée est bien épuisé…
+    const epuisee = await connecter(client).header('X-Forwarded-For', `10.0.0.1, ${interne}`)
+    epuisee.assertStatus(401)
 
-    response.assertStatus(401)
+    // …mais il a suffi d'en déclarer une autre pour repartir de zéro.
+    const neuve = await connecter(client).header('X-Forwarded-For', `10.9.9.9, ${interne}`)
+
+    neuve.assertStatus(200)
   })
 
   test("l'adresse inventée ne se voit pas imputer les tentatives d'un autre", async ({
@@ -263,13 +302,26 @@ test.group('Adresses tenues pour internes', () => {
 
     // Pile double : Node préfixe les adresses IPv4 reçues en IPv6.
     assert.isTrue(estAdresseInterne('::ffff:172.18.0.5'))
-    assert.isTrue(estAdresseInterne('::1'))
+
+    // IPv6 : boucle locale, adresses uniques locales et lien local — y
+    // compris sous leur forme abrégée, `fc::1` valant `fc00::1`.
+    for (const adresse of ['::1', 'fc00::1', 'fd00::1', 'fc::1', 'fe80::1']) {
+      assert.isTrue(estAdresseInterne(adresse), `${adresse} aurait dû être interne`)
+    }
   })
 
   test('refuse sa confiance à une adresse publique', ({ assert }) => {
     // Le cœur de la limitation : faire confiance à celles-là laisserait
     // n'importe qui s'attribuer une adresse neuve à chaque tentative.
     for (const adresse of ['203.0.113.5', '8.8.8.8', '172.15.0.1', '172.32.0.1', '11.0.0.1']) {
+      assert.isFalse(estAdresseInterne(adresse), `${adresse} n'aurait pas dû être interne`)
+    }
+
+    // Les voisines des plages IPv6 internes, que des bornes trop larges
+    // avaleraient : `face::` commence par les mêmes lettres qu'une adresse
+    // unique locale, et `fec0::` est l'ancien site-local, aujourd'hui
+    // routable comme le reste.
+    for (const adresse of ['2001:db8::1', 'face::1', 'fec0::1', 'ff02::1', '::123']) {
       assert.isFalse(estAdresseInterne(adresse), `${adresse} n'aurait pas dû être interne`)
     }
   })
