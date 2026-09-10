@@ -1,0 +1,124 @@
+<!--
+  Le tableau desktop : une ligne par Bien, une colonne par Critère (#10).
+
+  L'écran étroit reçoit des cartes et non ce tableau (ADR-0006), dans un
+  ticket à part. Au-dessus du seuil, en revanche, dix-huit colonnes ne
+  tiennent pas sur un portable : le conteneur défile horizontalement, ce
+  qu'ADR-0006 rejette par ailleurs. Le constat et les pistes sont en #49.
+-->
+<div class="tableau">
+  <table>
+    <caption class="tableau__legende">
+      Les Biens du carnet, une ligne par Bien. Chaque en-tête de colonne trie le tableau ; les
+      Critères non renseignés se regroupent en fin de tri.
+    </caption>
+
+    <thead>
+      <tr>
+        <!--
+          Le Libellé et le Statut ne sont pas des colonnes de la définition :
+          le premier identifie la ligne, le second dit où en est le Bien sans
+          se comparer d'un Bien à l'autre (ADR-0002).
+        -->
+        <th scope="col" class="tableau__libelle">Bien</th>
+        <th scope="col">Statut</th>
+
+        @for (colonne of colonnes; track colonne.id) {
+          <th scope="col" [attr.aria-sort]="sensTriDe(colonne.id)">
+            <!--
+              Un bouton dans l'en-tête plutôt qu'un `click` sur la cellule :
+              le tri doit s'atteindre au clavier, et seul un bouton
+              l'annonce comme une action (ADR-0005).
+            -->
+            <button type="button" class="tableau__tri" (click)="basculerTri(colonne.id)">
+              <span>{{ colonne.libelle }}</span>
+
+              <!--
+                La flèche est décorative : `aria-sort` porte déjà
+                l'information, et la lire deux fois n'apprend rien.
+              -->
+              <span class="tableau__fleche" aria-hidden="true">
+                @switch (sensTriDe(colonne.id)) {
+                  @case ('ascending') {
+                    ↑
+                  }
+                  @case ('descending') {
+                    ↓
+                  }
+                  @default {
+                    ↕
+                  }
+                }
+              </span>
+            </button>
+          </th>
+        }
+      </tr>
+    </thead>
+
+    <tbody>
+      @for (ligne of lignes(); track ligne.bien.id) {
+        <tr>
+          <th scope="row" class="tableau__libelle">
+            <a [routerLink]="['/biens', ligne.bien.id]">{{ ligne.bien.libelle }}</a>
+
+            <!--
+              L'Annonce reste joignable depuis le tableau : la liste de
+              cartes la proposait, et c'est elle que le desktop masque
+              désormais. Sans ce lien, passer au tableau retirait à
+              l'acheteur l'accès d'un clic à la publication du Bien.
+            -->
+            @if (ligne.bien.urlAnnonce; as url) {
+              <a
+                class="tableau__annonce"
+                [href]="url"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span aria-hidden="true">↗</span>
+                <span class="tableau__lecture">
+                  Voir l'Annonce de {{ ligne.bien.libelle }}
+                </span>
+              </a>
+            }
+          </th>
+
+          <td>
+            <span class="tableau__statut" [attr.data-statut]="ligne.statut">
+              {{ ligne.libelleStatut }}
+            </span>
+          </td>
+
+          @for (donnee of ligne.cases; track donnee.colonne.id) {
+            <!--
+              Une case non renseignée se distingue par sa classe et non par
+              son texte : c'est ce qu'il reste à demander à l'agence (#6), et
+              un zéro saisi ne doit pas s'y confondre.
+            -->
+            <td
+              [class.tableau__absent]="!donnee.renseigne"
+              [class.tableau__nombre]="
+                donnee.colonne.type === 'entier' || donnee.colonne.type === 'decimal'
+              "
+            >
+              @if (donnee.renseigne) {
+                {{ donnee.texte }}
+              } @else {
+                <span class="tableau__manquant">
+                  <span aria-hidden="true">—</span>
+                  <!--
+                    Le tiret ne se lit pas : `aria-label` sur un `span` porte
+                    le rôle `generic`, que la spec ARIA interdit de nommer, et
+                    le lecteur d'écran annoncerait « tiret ». Le mot est donc
+                    écrit, puis masqué à l'œil comme la légende du tableau.
+                  -->
+                  <span class="tableau__lecture">non renseigné</span>
+                </span>
+              }
+            </td>
+          }
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

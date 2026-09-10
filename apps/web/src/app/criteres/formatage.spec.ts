@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { formaterDate, formaterMontant, formaterSurface, formaterValeur } from './formatage';
+import {
+  formaterDate,
+  formaterMontant,
+  formaterPrixAuMetreCarre,
+  formaterSurface,
+  formaterValeur,
+} from './formatage';
 import { critere } from './critere.test-helper';
 import type { Critere } from './critere';
 
@@ -25,6 +31,24 @@ describe('formaterMontant', () => {
 
   it("rend une chaîne vide quand le montant n'est pas renseigné", () => {
     expect(formaterMontant(null)).toBe('');
+  });
+});
+
+describe('formaterPrixAuMetreCarre', () => {
+  it("écrit un prix au mètre carré arrondi à l'euro", () => {
+    expect(normaliser(formaterPrixAuMetreCarre(3448.2758))).toBe('3 448 €/m²');
+  });
+
+  it("rend une chaîne vide quand il n'est pas renseigné", () => {
+    expect(formaterPrixAuMetreCarre(null)).toBe('');
+  });
+
+  it("s'écrit exactement comme un montant, à l'unité près", () => {
+    // Les deux colonnes se lisent côte à côte dans le tableau (#10) : un
+    // séparateur de milliers qui différerait les désalignerait. Ils ont
+    // différé — une espace fine insécable d'un côté, ordinaire de l'autre —
+    // parce que le prix au m² montait son propre `Intl`.
+    expect(formaterPrixAuMetreCarre(3448)).toBe(`${formaterMontant(3448)}/m²`);
   });
 });
 

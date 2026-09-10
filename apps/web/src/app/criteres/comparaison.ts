@@ -65,8 +65,14 @@ export function meilleureValeur(
  * Pour une énumération, le rang est la position dans la définition, où la
  * liste est écrite dans l'ordre : c'est ce qui fait que A vaut mieux que G
  * sans qu'aucun écran n'ait à connaître les lettres du DPE.
+ *
+ * Exporté parce que le tri du tableau (#10) classe sur la même échelle que
+ * la mise en évidence de la comparaison (#12) : deux façons de ranger qui
+ * divergeraient feraient désigner comme meilleur un Bien que le tri ne met
+ * pas en tête. Le tri y ajoute seulement le cas des textes, qui ne se
+ * classent pas sur une échelle mais alphabétiquement.
  */
-function rang(critere: Critere, valeur: ValeurCritere): number | null {
+export function rang(critere: Critere, valeur: ValeurCritere): number | null {
   if (valeur === null) {
     return null;
   }

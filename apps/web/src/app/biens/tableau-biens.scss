@@ -1,0 +1,191 @@
+// Le tableau reste utilisable avec plusieurs dizaines de Biens (#10) : le
+// conteneur défile, et l'en-tête reste collé en haut. Sans cela, on perd le
+// nom des colonnes au bout de dix lignes, et comparer demande de remonter.
+.tableau {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  max-height: 70vh;
+  // Le conteneur défile dans les deux sens, et le défilement horizontal
+  // n'est pas un cas limite : dix-huit colonnes en `nowrap` réclament de
+  // l'ordre de 2400 px, contre un seuil d'apparition à 1024. Sur un portable,
+  // l'acheteur voit donc une partie du tableau et fait défiler pour le reste.
+  //
+  // C'est en tension avec ADR-0006, qui rejette le défilement horizontal pour
+  // ce qu'il détruit — la comparaison d'un coup d'œil — et non pour la taille
+  // de l'appareil. Le constat est ouvert en #49, avec les pistes : colonnes
+  // sélectionnables, groupes repliables, largeurs par type, ou amendement
+  // assumé de l'ADR. Ce ticket-ci (#10) n'avait pas à trancher seul une
+  // décision de cette portée ; ce commentaire est là pour qu'elle ne se
+  // prenne pas par omission.
+  overflow: auto;
+
+  table {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.875rem;
+    width: 100%;
+  }
+}
+
+// Ce qui se lit sans se voir : la légende, qui annonce aux lecteurs d'écran
+// ce que le tableau contient et comment il se trie (ADR-0005), et le mot que
+// porte chaque case vide, dont le tiret n'est qu'une figure.
+//
+// La légende n'est pas montrée : l'écran porte déjà son titre juste au-dessus.
+.tableau__legende,
+.tableau__lecture {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+th,
+td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+thead th {
+  background: #f8fafc;
+  border-bottom: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 0.8125rem;
+  padding: 0;
+  position: sticky;
+  top: 0;
+  // Au-dessus du Libellé collé à gauche, dont l'en-tête est à l'intersection
+  // des deux : sans cela, la première cellule passerait sous les autres.
+  z-index: 2;
+}
+
+// Le Libellé reste visible quand le tableau défile de côté : c'est ce sous
+// quoi l'acheteur reconnaît un Bien, et une ligne sans nom ne se lit pas.
+.tableau__libelle {
+  background: #fff;
+  left: 0;
+  position: sticky;
+  z-index: 1;
+
+  a {
+    color: #1d4ed8;
+    font-weight: 600;
+  }
+}
+
+// Le lien vers l'Annonce, réduit à une flèche : le Libellé porte déjà le nom
+// du Bien, et une colonne répétée à chaque ligne n'a pas de place pour deux
+// mots de plus. Son intitulé est lu, jamais affiché.
+.tableau__annonce {
+  font-weight: 400;
+  margin-left: 0.4rem;
+  text-decoration: none;
+
+  &:focus-visible {
+    outline: 2px solid #1d4ed8;
+    outline-offset: 2px;
+  }
+}
+
+thead .tableau__libelle {
+  background: #f8fafc;
+  z-index: 3;
+}
+
+// L'en-tête est un bouton pleine cellule : la cible de clic est toute la
+// colonne, et le parcours au clavier passe par elle.
+.tableau__tri {
+  align-items: center;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-weight: 600;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  width: 100%;
+
+  &:hover {
+    color: #1d4ed8;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #1d4ed8;
+    outline-offset: -2px;
+  }
+}
+
+.tableau__fleche {
+  color: #94a3b8;
+  flex: none;
+  font-size: 0.75rem;
+}
+
+th[aria-sort='ascending'],
+th[aria-sort='descending'] {
+  color: #1d4ed8;
+
+  .tableau__fleche {
+    color: #1d4ed8;
+  }
+}
+
+// Les nombres se lisent alignés à droite : c'est ce qui permet de comparer
+// des ordres de grandeur d'un coup d'œil, sans lire les chiffres.
+.tableau__nombre {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+// Une case non renseignée se distingue d'une valeur saisie (#10) : le tiret
+// dit « rien ici », et le fond dit qu'il reste quelque chose à demander.
+.tableau__absent {
+  background: #fefce8;
+}
+
+.tableau__manquant {
+  color: #a16207;
+}
+
+.tableau__statut {
+  background: #f1f5f9;
+  border-radius: 999px;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.6rem;
+  white-space: nowrap;
+
+  // Les mêmes couleurs que la pastille de la liste : les deux écrans
+  // montrent la même chose, et un Bien écarté doit se repérer pareil.
+  &[data-statut='ecarte'] {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
+  &[data-statut='vendu'] {
+    background: #f5f3ff;
+    color: #5b21b6;
+  }
+
+  &[data-statut='offreFaite'] {
+    background: #ecfdf5;
+    color: #065f46;
+  }
+}
+
+tbody tr:hover {
+  // La ligne survolée se suit du regard jusqu'au bout : avec seize colonnes,
+  // c'est ce qui évite de lire la valeur du voisin.
+  td:not(.tableau__absent),
+  .tableau__libelle {
+    background: #f8fafc;
+  }
+}

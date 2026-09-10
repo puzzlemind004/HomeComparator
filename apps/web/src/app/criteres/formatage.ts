@@ -49,6 +49,23 @@ export function formaterMontant(montant: number | null): string {
   return montant === null ? '' : MONTANT.format(montant);
 }
 
+/**
+ * Un prix au mètre carré, arrondi à l'euro. Chaîne vide s'il est absent.
+ *
+ * Il vit ici et non dans le tableau qui l'affiche, pour la raison que ce
+ * module pose en tête : le prix et le prix au m² se lisent côte à côte
+ * (#10), et deux `Intl` montés séparément divergent. Ils divergeaient
+ * — l'un séparait ses milliers d'une espace fine insécable, l'autre d'une
+ * espace ordinaire, et les deux colonnes ne s'alignaient pas.
+ *
+ * Le montant passe par le même format que `formaterMontant`, dont il ne
+ * diffère que par l'unité : « /m² » s'accole au symbole plutôt que de
+ * refaire un format.
+ */
+export function formaterPrixAuMetreCarre(prix: number | null): string {
+  return prix === null ? '' : `${MONTANT.format(prix)}/m²`;
+}
+
 /** Une surface en mètres carrés. Chaîne vide si elle est absente. */
 export function formaterSurface(surface: number | null): string {
   return surface === null ? '' : `${NOMBRE_DECIMAL.format(surface)} m²`;

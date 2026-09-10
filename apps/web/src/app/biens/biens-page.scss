@@ -104,6 +104,31 @@
   color: #fff;
 }
 
+// Le tableau sur desktop, les cartes sur écran étroit (ADR-0006). Les deux
+// présentations montrent les mêmes Biens : c'est ici qu'on choisit laquelle
+// paraît, et non dans le composant, qui n'a pas à savoir sur quel écran il
+// est monté.
+//
+// Le seuil est **provisoire**, et la liste ci-dessous n'est pas encore la
+// présentation mobile : ce ticket ne concerne que le desktop (#10), et les
+// cartes font l'objet d'un ticket distinct (ADR-0006). Ce qu'il faut ici,
+// c'est seulement ne pas livrer un tableau de seize colonnes sur un
+// téléphone en attendant. C'est ce ticket-là qui arrêtera le seuil et
+// dessinera les cartes.
+.vue-desktop {
+  display: none;
+}
+
+@media (min-width: 64rem) {
+  .vue-desktop {
+    display: block;
+  }
+
+  .vue-mobile {
+    display: none;
+  }
+}
+
 .liste {
   list-style: none;
   margin: 0;
