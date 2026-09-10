@@ -1,3 +1,4 @@
+import { isIP } from 'node:net'
 import limiter from '@adonisjs/limiter/services/main'
 import type { HttpContext } from '@adonisjs/core/http'
 
@@ -61,13 +62,44 @@ export function cle(adresse: string) {
 }
 
 /**
+ * L'adresse de l'appelant, ou rien si ce n'en est pas une.
+ *
+ * `X-Forwarded-For` n'est validé par personne : `proxy-addr` retient le
+ * premier maillon non fiable tel quel, et `request.ip()` peut donc rendre
+ * du texte arbitraire, de longueur arbitraire. Servi tel quel au compteur,
+ * ce texte partait en clé vers une colonne bornée, et l'erreur de
+ * PostgreSQL remontait en 500 portant le texte de la contrainte — sur la
+ * route qui s'applique précisément à ne jamais rendre autre chose qu'un
+ * 401 (ADR-0011).
+ *
+ * On ne tronque pas, on écarte : une clé tronquée rangerait sous un même
+ * compteur des appelants qui n'ont rien à voir. Ce qui n'a pas la forme
+ * d'une adresse n'est pas une adresse, et n'a pas de compteur.
+ */
+function adresseDe({ request }: HttpContext): string | null {
+  const adresse = request.ip()
+
+  return isIP(adresse) ? adresse : null
+}
+
+/**
  * L'adresse de l'appelant a-t-elle encore droit à une tentative ?
  *
  * Interrogé avant la comparaison du mot de passe, jamais après : au-delà du
  * quota, le mot de passe proposé n'est pas comparé du tout.
  */
-export async function tentativeAutorisee({ request }: HttpContext): Promise<boolean> {
-  const etat = await compteur().get(cle(request.ip()))
+export async function tentativeAutorisee(ctx: HttpContext): Promise<boolean> {
+  const adresse = adresseDe(ctx)
+
+  // Sans adresse reconnaissable, il n'y a personne à compter. La tentative
+  // suit alors son cours et sera refusée comme les autres si le mot de
+  // passe ne convient pas : c'est le comportement d'avant la limitation,
+  // et il ne rend rien de plus à qui essaie.
+  if (adresse === null) {
+    return true
+  }
+
+  const etat = await compteur().get(cle(adresse))
 
   return etat === null || etat.remaining > 0
 }
@@ -78,8 +110,14 @@ export async function tentativeAutorisee({ request }: HttpContext): Promise<bool
  * Seuls les échecs comptent : une connexion réussie ne consomme rien, sans
  * quoi un usage normal finirait par s'épuiser lui-même.
  */
-export async function tentativeEchouee({ request }: HttpContext): Promise<void> {
-  await compteur().increment(cle(request.ip()))
+export async function tentativeEchouee(ctx: HttpContext): Promise<void> {
+  const adresse = adresseDe(ctx)
+
+  if (adresse === null) {
+    return
+  }
+
+  await compteur().increment(cle(adresse))
 }
 
 /**
@@ -89,6 +127,12 @@ export async function tentativeEchouee({ request }: HttpContext): Promise<void> 
  * cherche à ralentir : le décompte de ses erreurs précédentes n'a plus lieu
  * d'être.
  */
-export async function tentativeReussie({ request }: HttpContext): Promise<void> {
-  await compteur().delete(cle(request.ip()))
+export async function tentativeReussie(ctx: HttpContext): Promise<void> {
+  const adresse = adresseDe(ctx)
+
+  if (adresse === null) {
+    return
+  }
+
+  await compteur().delete(cle(adresse))
 }

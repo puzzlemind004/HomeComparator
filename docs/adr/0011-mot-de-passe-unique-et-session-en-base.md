@@ -43,7 +43,9 @@ nginx **remplace** donc l'en-tête au lieu de l'allonger (`proxy_set_header X-Fo
 
 ### Ce que la limitation ne fait pas
 
-Elle ne journalise ni n'alerte : rien ne signale au propriétaire qu'on essaie d'entrer, ce qui reste un manque et mérite son propre ticket. Elle ne verrouille pas non plus au-delà de la fenêtre glissante, et ne s'applique qu'à la connexion — les autres routes sont derrière la session, et la connexion est la seule serrure.
+Elle ne journalise ni n'alerte : rien ne signale au propriétaire qu'on essaie d'entrer, ce qui reste un manque et mérite son propre ticket. Elle ne verrouille pas non plus au-delà de la fenêtre, et ne s'applique qu'à la connexion — les autres routes sont derrière la session, et la connexion est la seule serrure.
+
+La fenêtre est **fixe et non glissante** : le premier échec ouvre un quart d'heure, les suivants s'y accumulent sans le prolonger, et tout retombe à zéro à l'échéance. Un attaquant peut donc placer dix tentatives à la fin d'une fenêtre et dix au début de la suivante, soit vingt en peu de temps. C'est sans portée ici : ce qui compte face à une liste de mots de passe est le débit moyen, quarante tentatives par heure, que ce regroupement ne change pas. La fenêtre glissante coûterait une écriture de plus par tentative pour fermer une brèche qui n'en est pas une à cette échelle.
 
 Le compteur vit en base, dans une table `rate_limits`, pour la même raison que les sessions : la mémoire repartirait à zéro à chaque redémarrage, et qui essaie longtemps finirait par tomber sur un déploiement. Comme la table `sessions`, ce n'est pas une donnée du carnet : elle se reconstitue d'elle-même, et une sauvegarde qui l'omettrait ne perdrait rien (ADR-0007).
 

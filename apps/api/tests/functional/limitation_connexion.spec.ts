@@ -262,6 +262,36 @@ test.group('Limitation et confiance au proxy', (group) => {
     neuve.assertStatus(200)
   })
 
+  test("une adresse qui n'en est pas une reste un refus ordinaire", async ({ client, assert }) => {
+    // `X-Forwarded-For` n'est validé par personne : `proxy-addr` retient le
+    // premier maillon non fiable tel quel, fût-il du texte arbitraire. Ce
+    // texte servait de clé au compteur, et une clé trop longue faisait
+    // remonter l'erreur de PostgreSQL — un 500 portant le texte de la
+    // contrainte, là où toute la route s'applique à ne rendre qu'un 401.
+    //
+    // C'est le motif que `start/routes.ts` documente avoir déjà corrigé
+    // pour `/biens/:id` : ce qui n'a pas la forme attendue doit rendre le
+    // refus ordinaire, pas une erreur qui en dit trop.
+    const refus = await connecter(client, 'pas le bon').header('X-Forwarded-For', 'ceci, 10.0.0.1')
+
+    refus.assertStatus(401)
+    assert.deepEqual(Object.keys(refus.body()), ['message'])
+
+    // Une clé bien plus longue que ce que la colonne accepte : c'est le cas
+    // qui rendait 500 avec le texte de la contrainte.
+    const longue = `${'A'.repeat(400)}, 10.0.0.1`
+    const trop = await connecter(client, 'pas le bon').header('X-Forwarded-For', longue)
+
+    trop.assertStatus(401)
+    assert.deepEqual(trop.body(), refus.body())
+
+    // Rien n'a été compté : ce qui n'a pas la forme d'une adresse n'en est
+    // pas une, et n'ouvre pas de compteur. Ce n'est pas un contournement —
+    // qui joint l'API directement s'en donne déjà d'autres, avec des
+    // adresses valables celles-là (#18) ; ce n'en est pas un de plus.
+    assert.isNull(await compteur().get(cle('ceci')))
+  })
+
   test("l'adresse inventée ne se voit pas imputer les tentatives d'un autre", async ({
     client,
   }) => {
