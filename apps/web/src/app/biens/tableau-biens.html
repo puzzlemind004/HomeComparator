@@ -1,10 +1,10 @@
 <!--
   Le tableau desktop : une ligne par Bien, une colonne par Critère (#10).
 
-  Le conteneur défile verticalement et non horizontalement : le défilement
-  horizontal a été explicitement écarté (ADR-0006), il détruit ce qui fait
-  l'intérêt d'un tableau. C'est la présentation mobile — des cartes — qui
-  répond à l'écran étroit, dans un ticket à part.
+  L'écran étroit reçoit des cartes et non ce tableau (ADR-0006), dans un
+  ticket à part. Au-dessus du seuil, en revanche, dix-huit colonnes ne
+  tiennent pas sur un portable : le conteneur défile horizontalement, ce
+  qu'ADR-0006 rejette par ailleurs. Le constat et les pistes sont en #49.
 -->
 <div class="tableau">
   <table>

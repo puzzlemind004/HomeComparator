@@ -5,9 +5,18 @@
   border: 1px solid #cbd5e1;
   border-radius: 0.5rem;
   max-height: 70vh;
-  // Le défilement horizontal du conteneur est un filet de sécurité pour un
-  // écran de bureau étroit, jamais la présentation prévue : c'est en cartes
-  // que le mobile affiche les Biens (ADR-0006).
+  // Le conteneur défile dans les deux sens, et le défilement horizontal
+  // n'est pas un cas limite : dix-huit colonnes en `nowrap` réclament de
+  // l'ordre de 2400 px, contre un seuil d'apparition à 1024. Sur un portable,
+  // l'acheteur voit donc une partie du tableau et fait défiler pour le reste.
+  //
+  // C'est en tension avec ADR-0006, qui rejette le défilement horizontal pour
+  // ce qu'il détruit — la comparaison d'un coup d'œil — et non pour la taille
+  // de l'appareil. Le constat est ouvert en #49, avec les pistes : colonnes
+  // sélectionnables, groupes repliables, largeurs par type, ou amendement
+  // assumé de l'ADR. Ce ticket-ci (#10) n'avait pas à trancher seul une
+  // décision de cette portée ; ce commentaire est là pour qu'elle ne se
+  // prenne pas par omission.
   overflow: auto;
 
   table {
