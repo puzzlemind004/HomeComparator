@@ -169,6 +169,22 @@ test.group('Migrations', () => {
     await relu.delete()
   })
 
+  test('la table qui compte les tentatives de connexion est en place', async ({ assert }) => {
+    // Le schéma est celui qu'attend `rate-limiter-flexible`, sur lequel
+    // repose le magasin base du limiteur : les noms de colonnes ne sont pas
+    // libres, et s'en écarter ferait échouer la limitation au premier
+    // comptage plutôt qu'au démarrage (#26).
+    const colonnes = await db.connection().columnsInfo('rate_limits')
+
+    for (const colonne of ['key', 'points', 'expire'] as const) {
+      assert.property(colonnes, colonne, `la colonne ${colonne} manque`)
+    }
+
+    // La clé porte l'adresse, et rien ne doit pouvoir la dédoubler : deux
+    // lignes pour une même adresse seraient deux quotas pour un attaquant.
+    assert.isFalse(colonnes.key.nullable)
+  })
+
   test('la surface habitable revient sous forme de nombre', async ({ assert }) => {
     // `pg` rend les décimaux en chaîne : sans conversion, le front
     // recevrait `"72.50"` là où il attend une valeur à comparer, et le prix

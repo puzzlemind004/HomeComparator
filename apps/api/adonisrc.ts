@@ -52,6 +52,10 @@ export default defineConfig({
     // Porte la session qui atteste du mot de passe unique (#4) : sans lui,
     // `ctx.session` n'existe pas et l'API repartirait ouverte à tous.
     () => import('@adonisjs/session/session_provider'),
+    // Compte les tentatives de connexion échouées (#26) : sans lui, le
+    // service de limitation n'a pas de magasin et la seule serrure du
+    // carnet se laisse de nouveau forcer par la répétition.
+    () => import('@adonisjs/limiter/limiter_provider'),
   ],
 
   /*
