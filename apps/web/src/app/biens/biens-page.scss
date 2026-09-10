@@ -109,12 +109,16 @@
 // paraît, et non dans le composant, qui n'a pas à savoir sur quel écran il
 // est monté.
 //
-// Le seuil est **provisoire**, et la liste ci-dessous n'est pas encore la
-// présentation mobile : ce ticket ne concerne que le desktop (#10), et les
-// cartes font l'objet d'un ticket distinct (ADR-0006). Ce qu'il faut ici,
-// c'est seulement ne pas livrer un tableau de seize colonnes sur un
-// téléphone en attendant. C'est ce ticket-là qui arrêtera le seuil et
-// dessinera les cartes.
+// Le seuil reste à 1024 px. Il n'est plus un cache-misère : le tableau
+// s'ouvre sur le seul groupe « Budget » déplié — de l'ordre de 830 px avec
+// le Libellé et le Statut (#49) —, et tient donc à cette largeur sans
+// défiler de côté. Le choix entre tableau et cartes est ainsi redevenu une
+// question de forme, et non de place.
+//
+// La liste ci-dessous n'est pas encore la présentation mobile : les cartes
+// font l'objet d'un ticket distinct (ADR-0006), qui les dessinera. Ce qu'il
+// faut ici, c'est seulement ne pas livrer un tableau sur un téléphone en
+// attendant.
 .vue-desktop {
   display: none;
 }

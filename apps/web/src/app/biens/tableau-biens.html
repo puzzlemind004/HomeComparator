@@ -2,28 +2,58 @@
   Le tableau desktop : une ligne par Bien, une colonne par Critère (#10).
 
   L'écran étroit reçoit des cartes et non ce tableau (ADR-0006), dans un
-  ticket à part. Au-dessus du seuil, en revanche, dix-huit colonnes ne
-  tiennent pas sur un portable : le conteneur défile horizontalement, ce
-  qu'ADR-0006 rejette par ailleurs. Le constat et les pistes sont en #49.
+  ticket à part. Au-dessus du seuil, les Critères se choisissent par groupe :
+  affichés tous les quatre, dix-huit colonnes en `nowrap` réclament de
+  l'ordre de 2400 px, quand le tableau paraît à 1024. « Budget » seul est
+  affiché à l'ouverture, ce qui tient sur un portable sans faire défiler de
+  côté — le défilement horizontal étant précisément ce qu'ADR-0006 rejette
+  (#49).
+
+  Les commandes sont au-dessus du tableau et non dans son en-tête : un
+  groupe masqué n'y laisserait qu'une bande de vingt pixels, trop étroite
+  pour porter son nom, et l'acheteur ne saurait pas laquelle rouvre quoi.
 -->
+<!--
+  Les quatre groupes, nommés en permanence : c'est par là qu'on rouvre un
+  groupe masqué, qui ne laisse aucune trace dans le tableau. Chaque bouton
+  porte son état (ADR-0005) et le nombre de colonnes qu'il ajoute, pour que
+  le coût du dépliage se voie avant le clic.
+-->
+<div class="groupes" role="group" aria-label="Groupes de Critères affichés">
+  @for (commande of commandes(); track commande.groupe) {
+    <button
+      type="button"
+      class="groupes__bouton"
+      [class.groupes__bouton--actif]="commande.deplie"
+      [attr.aria-pressed]="commande.deplie"
+      (click)="basculerGroupe(commande.groupe)"
+    >
+      {{ commande.libelle }}
+      <!--
+        Le compte est écrit une seule fois : le chiffre nu se lit à l'œil, et
+        le mot qui le suit n'est là que pour le lecteur d'écran, sans quoi il
+        annoncerait « Budget 4 » sans dire 4 de quoi.
+      -->
+      <span class="groupes__compte">
+        {{ commande.colonnes.length }}<span class="tableau__lecture"> colonnes</span>
+      </span>
+    </button>
+  }
+</div>
 <div class="tableau">
   <table>
     <caption class="tableau__legende">
-      Les Biens du carnet, une ligne par Bien. Chaque en-tête de colonne trie le tableau ; les
-      Critères non renseignés se regroupent en fin de tri.
+      Les Biens du carnet, une ligne par Bien. Les Critères affichés se choisissent par groupe,
+      au-dessus du tableau. Chaque en-tête de colonne trie le tableau ; les Critères non
+      renseignés se regroupent en fin de tri.
     </caption>
 
     <thead>
       <tr>
-        <!--
-          Le Libellé et le Statut ne sont pas des colonnes de la définition :
-          le premier identifie la ligne, le second dit où en est le Bien sans
-          se comparer d'un Bien à l'autre (ADR-0002).
-        -->
         <th scope="col" class="tableau__libelle">Bien</th>
         <th scope="col">Statut</th>
 
-        @for (colonne of colonnes; track colonne.id) {
+        @for (colonne of colonnesVisibles(); track colonne.id) {
           <th scope="col" [attr.aria-sort]="sensTriDe(colonne.id)">
             <!--
               Un bouton dans l'en-tête plutôt qu'un `click` sur la cellule :

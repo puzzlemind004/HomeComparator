@@ -1,9 +1,10 @@
 import { Component, Input, computed, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Bien } from './bien';
-import { COLONNES, type Colonne } from '../criteres/colonnes';
+import { GROUPES_COLONNES, type Colonne, type GroupeColonnes } from '../criteres/colonnes';
 import { TRI_INITIAL, basculer, trier, type Tri } from '../criteres/tri';
 import { libelleStatut, type Statut } from '../criteres/statut';
+import type { GroupeCritere } from '../criteres/critere';
 
 /** Une case du tableau : ce qui s'y écrit, et si le Critère est renseigné. */
 export interface CaseTableau {
@@ -23,6 +24,25 @@ export interface CaseTableau {
   renseigne: boolean;
 }
 
+/**
+ * Un groupe tel que les commandes le présentent : son titre, son état, et
+ * les colonnes qu'il porte.
+ *
+ * Les commandes vivent **au-dessus** du tableau et non dans son en-tête. Un
+ * groupe masqué n'y laisserait qu'une colonne d'une vingtaine de pixels,
+ * trop étroite pour porter son nom : l'acheteur y verrait trois bandes
+ * anonymes sans savoir laquelle ramène la localisation. Au-dessus, les
+ * quatre groupes sont nommés en permanence, affichés ou non.
+ */
+export interface CommandeGroupe {
+  groupe: GroupeCritere;
+  libelle: string;
+  deplie: boolean;
+
+  /** Ses colonnes, qui ne paraissent au tableau que s'il est affiché. */
+  colonnes: readonly Colonne[];
+}
+
 /** Une ligne du tableau : un Bien, son Statut, et ses cases. */
 export interface LigneTableau {
   bien: Bien;
@@ -35,6 +55,7 @@ export interface LigneTableau {
   statut: Statut;
   libelleStatut: string;
 
+  /** Une case par colonne visible, dans l'ordre où l'en-tête les pose. */
   cases: CaseTableau[];
 }
 
@@ -44,15 +65,22 @@ export interface LigneTableau {
  *
  * C'est la vue qui répond à « qu'est-ce que j'ai en stock » et qui fait voir
  * d'un coup d'œil le moins cher ou le plus grand. Elle ne sert que le
- * desktop : sur mobile, un tableau de seize colonnes est illisible quelle
+ * desktop : sur mobile, un tableau de dix-huit colonnes est illisible quelle
  * que soit l'astuce employée, et les cartes font l'objet d'un ticket à part
  * (ADR-0006).
  *
- * Le composant ne décide de rien qu'il puisse déléguer : les colonnes
- * viennent de `colonnes.ts`, l'ordre des lignes de `trier`. Il ne détient
- * que l'état du tri et le branchement au gabarit — ce qui laisse les deux
- * règles qui comptent, l'ordre des colonnes et le placement des valeurs
- * absentes, vérifiables sans monter d'écran.
+ * Les Critères s'y choisissent par groupe — budget, logement, localisation,
+ * confort. Seul « Budget » est affiché à l'ouverture : affichés tous les
+ * quatre, dix-huit colonnes en `nowrap` réclament de l'ordre de 2400 px pour
+ * un seuil d'apparition à 1024, et le tableau défilerait de côté — ce
+ * qu'ADR-0006 rejette pour ce que cela détruit, la comparaison d'un coup
+ * d'œil (#49). Au-delà, le débordement est demandé par l'acheteur, non subi.
+ *
+ * Le composant ne décide de rien qu'il puisse déléguer : les colonnes et
+ * leurs groupes viennent de `colonnes.ts`, l'ordre des lignes de `trier`. Il
+ * ne détient que l'état du tri, celui des groupes affichés et le branchement
+ * au gabarit — ce qui laisse les règles qui comptent, l'ordre des colonnes
+ * et le placement des valeurs absentes, vérifiables sans monter d'écran.
  */
 @Component({
   selector: 'app-tableau-biens',
@@ -82,8 +110,52 @@ export class TableauBiens {
     this.biens.set(biens);
   }
 
-  /** Les colonnes, dans l'ordre où la définition les ordonne (ADR-0004). */
-  readonly colonnes: readonly Colonne[] = COLONNES;
+  /** Les groupes de colonnes, dans l'ordre où la définition les ordonne (ADR-0004). */
+  readonly groupes: readonly GroupeColonnes[] = GROUPES_COLONNES;
+
+  /**
+   * Les groupes affichés. « Budget » seul à l'ouverture : c'est ce sur quoi
+   * l'acheteur ouvre son carnet, et c'est le seul état qui tienne au seuil
+   * d'apparition du tableau — de l'ordre de 830 px, contre 1024 (#49).
+   *
+   * Les autres groupes se consultent un à un sans défilement dès 1280 px,
+   * la largeur d'un portable courant ; « Logement », le plus large avec ses
+   * cinq Critères, en réclame environ 1060 et dépasse donc le seul seuil
+   * d'apparition. `colonnes.spec.ts` tient ces largeurs à jour.
+   *
+   * Le choix est éphémère et ne se retient pas d'une visite à l'autre : le
+   * carnet ne persiste aucune préférence, et en créer une première est une
+   * décision qui mérite son propre ticket (#49).
+   */
+  private readonly deplies = signal<ReadonlySet<GroupeCritere>>(new Set(['budget']));
+
+  /**
+   * Les colonnes affichées : celles des groupes dépliés, dans l'ordre de la
+   * définition et non dans celui des clics.
+   *
+   * Le Libellé et le Statut n'en sont pas et ne s'y trouvent donc pas : le
+   * gabarit les pose en tête de chaque ligne, hors de tout groupe, et ils
+   * restent visibles quels que soient les groupes affichés.
+   */
+  readonly colonnesVisibles = computed<readonly Colonne[]>(() =>
+    this.groupes
+      .filter(({ groupe }) => this.estDeplie(groupe))
+      .flatMap(({ colonnes }) => colonnes),
+  );
+
+  /**
+   * Les quatre groupes tels que les commandes les présentent, dans l'ordre
+   * de la définition. Tous y figurent en permanence : c'est ce qui permet de
+   * rouvrir un groupe masqué, qui ne laisse aucune trace dans le tableau.
+   */
+  readonly commandes = computed<CommandeGroupe[]>(() =>
+    this.groupes.map(({ groupe, libelle, colonnes }) => ({
+      groupe,
+      libelle,
+      colonnes,
+      deplie: this.estDeplie(groupe),
+    })),
+  );
 
   /** Le tri courant : aucun à l'ouverture, les Biens classés par Libellé. */
   readonly tri = signal<Tri>(TRI_INITIAL);
@@ -91,23 +163,54 @@ export class TableauBiens {
   /**
    * Les lignes, triées et prêtes à s'afficher.
    *
-   * Le calcul est fait une fois par changement de Biens ou de tri, et non à
-   * chaque lecture du gabarit : avec plusieurs dizaines de Biens et seize
-   * colonnes, formater les cases à chaque détection de changement se paierait
-   * à chaque clic (#10).
+   * Le calcul est fait une fois par changement de Biens, de tri ou de
+   * groupes affichés, et non à chaque lecture du gabarit : avec plusieurs
+   * dizaines de Biens, formater les cases à chaque détection de changement
+   * se paierait à chaque clic (#10). Seules les colonnes visibles sont
+   * formatées — celles d'un groupe masqué ne s'affichent pas, et les
+   * calculer ne se verrait nulle part.
    */
   readonly lignes = computed<LigneTableau[]>(() =>
     trier(this.biens(), this.tri()).map((bien) => ({
       bien,
       statut: bien.statut,
       libelleStatut: libelleStatut(bien.statut),
-      cases: this.colonnes.map((colonne) => ({
+      cases: this.colonnesVisibles().map((colonne) => ({
         colonne,
         texte: colonne.texte(bien.criteres),
         renseigne: colonne.valeur(bien.criteres) !== null,
       })),
     })),
   );
+
+  /**
+   * Vrai quand le groupe est affiché. C'est de là que sa bascule tire son
+   * `aria-pressed` : le bouton dit un état, non une action (ADR-0005).
+   */
+  estDeplie(groupe: GroupeCritere): boolean {
+    return this.deplies().has(groupe);
+  }
+
+  /**
+   * Le clic sur la bascule d'un groupe : afficher ses colonnes, ou les
+   * retirer.
+   *
+   * Le tri n'est pas touché. Retirer le groupe de la colonne triée laisse
+   * donc les lignes dans l'ordre demandé, et la colonne reparaît triée telle
+   * qu'on l'avait laissée : masquer est un geste d'affichage, et défaire un
+   * classement au passage ferait sauter les lignes sans qu'on l'ait demandé.
+   */
+  basculerGroupe(groupe: GroupeCritere): void {
+    this.deplies.update((deplies) => {
+      const suivant = new Set(deplies);
+
+      if (!suivant.delete(groupe)) {
+        suivant.add(groupe);
+      }
+
+      return suivant;
+    });
+  }
 
   /** Le clic sur un en-tête : trier sur cette colonne, ou renverser le sens. */
   basculerTri(colonne: string): void {
@@ -118,7 +221,8 @@ export class TableauBiens {
    * Ce que l'en-tête annonce dans son `aria-sort`.
    *
    * Une seule colonne est triée à la fois : les autres rendent `none`, sans
-   * quoi un lecteur d'écran annoncerait seize colonnes triées (ADR-0005).
+   * quoi un lecteur d'écran annoncerait toutes les colonnes triées
+   * (ADR-0005).
    */
   sensTriDe(colonne: string): 'ascending' | 'descending' | 'none' {
     const tri = this.tri();
