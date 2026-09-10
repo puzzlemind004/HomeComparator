@@ -306,22 +306,30 @@ button {
 }
 
 /**
- * Les deux boutons de la confirmation.
+ * Les deux boutons de la confirmation, empilés sur mobile.
  *
- * `column-reverse` sur mobile : « Annuler » est écrit en premier et se
- * retrouve donc en bas, c'est-à-dire là où le doigt vient de quitter
- * « Supprimer ce Bien ». Un second appui au même endroit renonce, quand la
- * disposition inverse supprimerait — et c'est ce genre de geste, deux fois
- * le même point, qui échappe à l'attention.
+ * L'ordre est celui du gabarit — « Annuler » d'abord, donc en haut : c'est
+ * lui qui occupe la place que « Supprimer ce Bien » vient de quitter, le
+ * bloc se substituant à lui-même au même endroit. Un second appui au même
+ * point renonce donc, là où la disposition inverse supprimerait, et c'est
+ * précisément ce geste — deux fois le même point, sans y penser — qui
+ * doit rester sans conséquence.
  *
- * L'ordre lu par les lecteurs d'écran et le clavier reste celui du gabarit,
- * où annuler précède : c'est l'issue sans conséquence, et elle doit se
- * rencontrer la première.
+ * D'où l'absence de `column-reverse` ici : il mettrait le bouton
+ * destructeur en haut, c'est-à-dire sous le doigt. La marge qui suit met
+ * de la distance entre les deux, pour que l'un ne s'atteigne pas en visant
+ * l'autre.
  */
 .suppression__actions {
   display: flex;
-  flex-direction: column-reverse;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Le message d'échec, sous les boutons : la marge du haut le décolle du
+   geste qui vient d'échouer, sans l'en éloigner. */
+.suppression__erreurs {
+  margin: 1rem 0 0;
 }
 
 .suppression__renoncer {
@@ -349,6 +357,7 @@ button {
      pas sur le mauvais. */
   .suppression__actions {
     flex-direction: row;
+    gap: 0.75rem;
     justify-content: space-between;
   }
 }

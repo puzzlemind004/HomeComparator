@@ -310,8 +310,11 @@
             <!--
               La confirmation, une fois demandée. Le bouton qui supprime
               n'apparaît qu'ici, et jamais à l'endroit du premier appui :
-              « Annuler » occupe cette place, de sorte qu'un second
-              effleurement au même point renonce au lieu de supprimer.
+              « Annuler » vient en premier et occupe donc cette place, de
+              sorte qu'un second effleurement au même point renonce au lieu
+              de supprimer. C'est la feuille de style qui tient cette
+              disposition — l'ordre écrit ici en est le fondement, et
+              l'inverser la retournerait.
             -->
             <p class="suppression__question">
               Supprimer définitivement « {{ libelle() }} » ?
@@ -321,6 +324,7 @@
               <button
                 type="button"
                 class="suppression__renoncer"
+                [disabled]="suppression()"
                 (click)="renoncerSuppression()"
               >
                 Annuler
@@ -331,9 +335,24 @@
                 [disabled]="suppression()"
                 (click)="confirmerSuppression()"
               >
-                Oui, supprimer définitivement
+                {{ suppression() ? 'Suppression…' : 'Oui, supprimer définitivement' }}
               </button>
             </div>
+
+            <!--
+              Ce qui a empêché la suppression, dit ici et non en tête de
+              fiche : le geste se fait en bas d'une page longue, et un
+              message affiché tout en haut serait hors de l'écran au moment
+              où il faut le lire. Sans lui, l'échec ressemblerait à une
+              réussite.
+            -->
+            @if (erreurSuppression().length) {
+              <ul class="erreurs suppression__erreurs" role="alert">
+                @for (erreur of erreurSuppression(); track erreur) {
+                  <li>{{ erreur }}</li>
+                }
+              </ul>
+            }
           }
         </section>
       </section>

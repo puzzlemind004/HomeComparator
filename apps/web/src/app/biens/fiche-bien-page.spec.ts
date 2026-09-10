@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Injector, runInInjectionContext } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { of, type Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import { FicheBienPage } from './fiche-bien-page';
 import {
   BienService,
@@ -766,14 +766,38 @@ describe('la suppression d’un Bien', () => {
     fiche.confirmerSuppression();
 
     expect(navigations).toEqual([]);
-    expect(fiche.erreurs()).toEqual(["L'API est injoignable. Le Bien n'a pas été supprimé."]);
     // Le Bien est toujours là : la fiche continue de le montrer.
     expect(bienAffiche(fiche)?.id).toBe(1);
   });
 
-  it('referme la confirmation sur un échec', () => {
-    // Laisser le bouton armé après un échec ferait du geste suivant — un
-    // doigt qui revient au même endroit — une suppression non confirmée.
+  it('dit dans le bloc de suppression ce qui l’a empêchée', () => {
+    /**
+     * Le message est porté par son propre signal, et non par celui de la
+     * fiche : le geste se fait en bas d'une page longue, et `erreurs`
+     * s'affiche tout en haut — hors de l'écran au moment précis où il
+     * faudrait le lire. Sans cela, l'échec ressemblerait à une réussite.
+     */
+    const fiche = creerFiche({
+      supprimer: () =>
+        of<SuppressionBienResultat>({
+          supprime: false,
+          disparu: false,
+          erreurs: ["L'API est injoignable. Le Bien n'a pas été supprimé."],
+        }),
+    });
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(fiche.erreurSuppression()).toEqual([
+      "L'API est injoignable. Le Bien n'a pas été supprimé.",
+    ]);
+  });
+
+  it('laisse la confirmation ouverte sur un échec', () => {
+    // Le Bien est toujours là et l'acheteur voulait le supprimer : le geste
+    // à refaire est celui-là même. Refermer l'obligerait à repartir du
+    // premier appui, sur un bouton qui ne dit pas ce qui a échoué.
     const fiche = creerFiche({
       supprimer: () =>
         of<SuppressionBienResultat>({
@@ -786,17 +810,24 @@ describe('la suppression d’un Bien', () => {
     fiche.demanderSuppression();
     fiche.confirmerSuppression();
 
-    expect(fiche.confirmationSuppression()).toBe(false);
+    expect(fiche.confirmationSuppression()).toBe(true);
+    expect(fiche.suppression()).toBe(false);
   });
 
   it('n’enchaîne pas deux suppressions sur un double appui', () => {
-    // Le second appui trouve la confirmation déjà refermée, et n'a donc
-    // aucun Bien à supprimer.
+    /**
+     * Deux appels d'affilée n'appellent l'API qu'une fois. Le premier laisse
+     * `suppression` armé le temps de la réponse, et c'est ce drapeau — et
+     * non la fermeture de la confirmation, qui n'a plus lieu sur un échec —
+     * qui arrête le second.
+     */
     const appels: number[] = [];
     const fiche = creerFiche({
       supprimer: (id) => {
         appels.push(id);
-        return of<SuppressionBienResultat>({ supprime: true });
+        // Une réponse qui n'arrive jamais : la requête est encore en vol,
+        // comme pendant le double appui qu'on décrit.
+        return new Observable<SuppressionBienResultat>(() => undefined);
       },
     });
 
@@ -805,20 +836,81 @@ describe('la suppression d’un Bien', () => {
     fiche.confirmerSuppression();
 
     expect(appels).toEqual([1]);
+    expect(fiche.suppression()).toBe(true);
   });
 
-  it('oublie les erreurs précédentes en supprimant', () => {
+  it('signale la suppression en cours', () => {
+    // La confirmation reste montée le temps de la réponse : la refermer
+    // aussitôt ferait revenir « Supprimer ce Bien » comme si rien n'avait
+    // été demandé, et l'acheteur n'aurait plus rien à regarder.
     const fiche = creerFiche({
-      modifier: () =>
-        of<ModificationBienResultat>({ enregistre: false, erreurs: ['Le Libellé est obligatoire'] }),
+      supprimer: () => new Observable<SuppressionBienResultat>(() => undefined),
     });
-
-    fiche.enregistrer('libelle', '');
-    expect(fiche.erreurs()).toEqual(['Le Libellé est obligatoire']);
 
     fiche.demanderSuppression();
     fiche.confirmerSuppression();
 
-    expect(fiche.erreurs()).toEqual([]);
+    expect(fiche.suppression()).toBe(true);
+    expect(fiche.confirmationSuppression()).toBe(true);
+  });
+
+  it('oublie le message d’un échec précédent en réessayant', () => {
+    let echoue = true;
+    const fiche = creerFiche({
+      supprimer: () =>
+        of<SuppressionBienResultat>(
+          echoue
+            ? { supprime: false, disparu: false, erreurs: ['injoignable'] }
+            : { supprime: true },
+        ),
+    });
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+    expect(fiche.erreurSuppression()).toEqual(['injoignable']);
+
+    echoue = false;
+    fiche.confirmerSuppression();
+
+    expect(fiche.erreurSuppression()).toEqual([]);
+  });
+
+  it('oublie le message d’un échec en renonçant', () => {
+    const fiche = creerFiche({
+      supprimer: () =>
+        of<SuppressionBienResultat>({ supprime: false, disparu: false, erreurs: ['injoignable'] }),
+    });
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+    fiche.renoncerSuppression();
+
+    expect(fiche.erreurSuppression()).toEqual([]);
+    expect(fiche.confirmationSuppression()).toBe(false);
+  });
+
+  it('ne touche pas aux erreurs d’un enregistrement en cours', () => {
+    /**
+     * Les deux messages ont leur propre signal : un Critère refusé reste
+     * affiché en tête de fiche pendant qu'une suppression échoue plus bas,
+     * et l'un n'efface pas l'autre. Ils disent des choses différentes, sur
+     * des gestes différents.
+     */
+    const fiche = creerFiche({
+      modifier: () =>
+        of<ModificationBienResultat>({
+          enregistre: false,
+          erreurs: ['Le Libellé est obligatoire'],
+        }),
+      supprimer: () =>
+        of<SuppressionBienResultat>({ supprime: false, disparu: false, erreurs: ['injoignable'] }),
+    });
+
+    fiche.enregistrer('libelle', '');
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(fiche.erreurs()).toEqual(['Le Libellé est obligatoire']);
+    expect(fiche.erreurSuppression()).toEqual(['injoignable']);
   });
 });

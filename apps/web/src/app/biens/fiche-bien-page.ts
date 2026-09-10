@@ -104,8 +104,27 @@ export class FicheBienPage {
    */
   readonly confirmationSuppression = signal(false);
 
-  /** Vrai le temps que l'API réponde à la suppression. */
+  /**
+   * Vrai le temps que l'API réponde à la suppression.
+   *
+   * La confirmation reste ouverte pendant ce temps : c'est elle qui porte
+   * le bouton, et la refermer aussitôt ferait revenir « Supprimer ce Bien »
+   * comme si rien n'avait été demandé. Sur une API lente, l'acheteur
+   * n'aurait plus rien à regarder.
+   */
   readonly suppression = signal(false);
+
+  /**
+   * Ce qui a empêché la suppression, affiché dans le bloc où le geste a été
+   * fait plutôt qu'en tête de fiche (#9).
+   *
+   * Séparé d'`erreurs` parce que l'endroit compte : la suppression est en
+   * bas d'une fiche longue, et un message affiché tout en haut serait hors
+   * de l'écran au moment précis où il faut le lire. Sans lui, un échec ne
+   * se distinguerait pas d'une réussite — le bouton reprend son état
+   * initial dans les deux cas, et l'acheteur croirait le Bien supprimé.
+   */
+  readonly erreurSuppression = signal<string[]>([]);
 
   /**
    * L'assistant en cours, ou `null` quand il ne l'est pas — c'est-à-dire à
@@ -302,12 +321,14 @@ export class FicheBienPage {
    * fiche qu'on fait défiler au pouce — une perte de données.
    */
   demanderSuppression(): void {
+    this.erreurSuppression.set([]);
     this.confirmationSuppression.set(true);
   }
 
   /** La suppression abandonnée, sans que rien n'ait été appelé. */
   renoncerSuppression(): void {
     this.confirmationSuppression.set(false);
+    this.erreurSuppression.set([]);
   }
 
   /**
@@ -324,13 +345,14 @@ export class FicheBienPage {
    * toujours là et doit continuer de se voir.
    */
   confirmerSuppression(): void {
-    if (!this.confirmationSuppression()) {
+    // Ni sans confirmation ouverte, ni deux fois : le second appui d'un
+    // double-clic trouve une suppression déjà en cours.
+    if (!this.confirmationSuppression() || this.suppression()) {
       return;
     }
 
-    this.confirmationSuppression.set(false);
     this.suppression.set(true);
-    this.erreurs.set([]);
+    this.erreurSuppression.set([]);
 
     this.bienService.supprimer(this.id).subscribe((resultat) => {
       this.suppression.set(false);
@@ -338,11 +360,19 @@ export class FicheBienPage {
       if (resultat.supprime || resultat.disparu) {
         // La fiche d'un Bien supprimé n'a plus rien à montrer : y rester
         // laisserait à l'écran un Bien qui n'existe plus.
+        this.confirmationSuppression.set(false);
         void this.router.navigate(['/']);
         return;
       }
 
-      this.erreurs.set(resultat.erreurs);
+      /**
+       * L'échec laisse la confirmation ouverte, avec son message juste
+       * au-dessous. Le Bien est toujours là, l'acheteur voulait le
+       * supprimer, et le geste à refaire est celui-là même : refermer
+       * l'obligerait à repartir du premier appui pour retrouver un bouton
+       * qui ne dit pas ce qui a échoué.
+       */
+      this.erreurSuppression.set(resultat.erreurs);
     });
   }
 

@@ -117,14 +117,25 @@ test.group('Suppression d’un Bien', (group) => {
     const restant = await db.from('biens').where('id', bien.id)
     assert.isEmpty(restant)
 
-    // Les tables du carnet, hors celles d'AdonisJS : aucune ne porte de
-    // colonne rattachant une ligne à un Bien.
+    /**
+     * Les clés étrangères qui pointent vers `biens`, telles que PostgreSQL
+     * les connaît — et non les colonnes dont le nom contient « bien ».
+     *
+     * Chercher sur le nom ne prouverait rien : une table de photos dont la
+     * colonne s'appellerait `logement_id`, ou une table de liaison dont la
+     * clé s'appellerait `ref`, passerait sans être vue. C'est le lien
+     * déclaré qui compte, quel que soit le nom qu'on lui donne.
+     */
     const referencesAuBien = await db
-      .from('information_schema.columns')
-      .select('table_name', 'column_name')
-      .where('table_schema', 'public')
-      .whereNot('table_name', 'biens')
-      .where('column_name', 'like', '%bien%')
+      .from('information_schema.table_constraints as contrainte')
+      .join(
+        'information_schema.constraint_column_usage as cible',
+        'contrainte.constraint_name',
+        'cible.constraint_name'
+      )
+      .select('contrainte.table_name')
+      .where('contrainte.constraint_type', 'FOREIGN KEY')
+      .where('cible.table_name', 'biens')
 
     assert.isEmpty(referencesAuBien)
   })
