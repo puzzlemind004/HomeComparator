@@ -875,6 +875,52 @@ describe('la suppression d’un Bien', () => {
     expect(fiche.erreurSuppression()).toEqual([]);
   });
 
+  it('ne supprime pas par-dessus un Critère en cours d’enregistrement', () => {
+    /**
+     * Les Critères s'enregistrent au `blur` : quitter un champ pour venir
+     * supprimer lance les deux écritures coup sur coup. Sans ce garde, le
+     * `PATCH` reviendrait sur un Bien qui n'existe plus, et son 404 — que le
+     * service ne distingue pas d'une panne — s'afficherait comme « L'API est
+     * injoignable » sur une fiche déjà quittée.
+     */
+    const appels: number[] = [];
+    const fiche = creerFiche({
+      // Un enregistrement qui n'a pas encore répondu : la requête est en vol.
+      modifier: () => new Observable<ModificationBienResultat>(() => undefined),
+      supprimer: (id) => {
+        appels.push(id);
+        return of<SuppressionBienResultat>({ supprime: true });
+      },
+    });
+
+    fiche.enregistrer('prixDemande', 250_000);
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(fiche.enregistrement()).toBe(true);
+    expect(appels).toEqual([]);
+  });
+
+  it('supprime une fois le Critère enregistré', () => {
+    // Le garde retient, il ne condamne pas : l'enregistrement terminé, le
+    // même geste passe.
+    const appels: number[] = [];
+    const fiche = creerFiche({
+      supprimer: (id) => {
+        appels.push(id);
+        return of<SuppressionBienResultat>({ supprime: true });
+      },
+    });
+
+    fiche.enregistrer('prixDemande', 250_000);
+    expect(fiche.enregistrement()).toBe(false);
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(appels).toEqual([1]);
+  });
+
   it('oublie le message d’un échec en renonçant', () => {
     const fiche = creerFiche({
       supprimer: () =>

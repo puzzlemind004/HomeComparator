@@ -345,9 +345,23 @@ export class FicheBienPage {
    * toujours là et doit continuer de se voir.
    */
   confirmerSuppression(): void {
-    // Ni sans confirmation ouverte, ni deux fois : le second appui d'un
-    // double-clic trouve une suppression déjà en cours.
-    if (!this.confirmationSuppression() || this.suppression()) {
+    /**
+     * Ni sans confirmation ouverte, ni deux fois — le second appui d'un
+     * double-clic trouve une suppression déjà en cours —, ni par-dessus un
+     * Critère en cours d'enregistrement.
+     *
+     * Ce dernier cas n'a rien de théorique : les Critères s'enregistrent au
+     * `blur`, donc quitter un champ pour venir supprimer lance les deux
+     * écritures coup sur coup. Le `PATCH` reviendrait sur un Bien qui
+     * n'existe plus, et son 404 — que le service ne sait pas distinguer
+     * d'une panne — s'afficherait comme « L'API est injoignable » sur une
+     * fiche qu'on a déjà quittée.
+     *
+     * Le garde vit ici et pas dans le seul `[disabled]` du gabarit, pour la
+     * même raison que la confirmation elle-même : un remaniement du HTML ne
+     * doit pas pouvoir le faire disparaître en silence.
+     */
+    if (!this.confirmationSuppression() || this.suppression() || this.enregistrement()) {
       return;
     }
 

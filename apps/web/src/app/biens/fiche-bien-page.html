@@ -329,15 +329,28 @@
               >
                 Annuler
               </button>
+              <!--
+                Désactivé aussi le temps d'un enregistrement de Critère : les
+                Critères s'enregistrent au `blur`, et quitter un champ pour
+                venir supprimer lance les deux écritures coup sur coup. Le
+                `PATCH` reviendrait alors sur un Bien qui n'existe plus.
+              -->
               <button
                 type="button"
                 class="suppression__confirmer"
-                [disabled]="suppression()"
+                [disabled]="suppression() || enregistrement()"
                 (click)="confirmerSuppression()"
               >
                 {{ suppression() ? 'Suppression…' : 'Oui, supprimer définitivement' }}
               </button>
             </div>
+
+            @if (enregistrement()) {
+              <p class="suppression__attente">
+                Un Critère est en cours d'enregistrement : la suppression sera
+                possible dès qu'il sera écrit.
+              </p>
+            }
 
             <!--
               Ce qui a empêché la suppression, dit ici et non en tête de

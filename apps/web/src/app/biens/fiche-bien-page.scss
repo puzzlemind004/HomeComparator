@@ -332,6 +332,14 @@ button {
   margin: 1rem 0 0;
 }
 
+/* Dit pourquoi le bouton ne répond pas, plutôt que de le laisser inerte
+   sans raison visible. */
+.suppression__attente {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin: 1rem 0 0;
+}
+
 .suppression__renoncer {
   background: none;
   border: 1px solid #cbd5e1;
