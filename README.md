@@ -54,6 +54,11 @@ court-circuiterait nginx, donc la limitation des tentatives de connexion, qui
 compte par adresse et suppose que l'en-tête `X-Forwarded-For` soit posé par le
 proxy (ADR-0011).
 
+Ce qui est fermé au réseau reste ouvert depuis l'hôte : qui a un accès à la
+machine joint ces deux ports comme avant. C'est délibéré — le développement
+en dépend — et cela situe la limite : ces liaisons protègent du réseau, pas
+de quelqu'un déjà entré.
+
 Le conteneur expose PostgreSQL sur le port **5433** de la machine hôte,
 et non 5432 : une instance PostgreSQL installée localement occupe souvent
 ce port et gagnerait la course à la liaison, ce qui produit des erreurs
@@ -100,6 +105,9 @@ l'initialisation du volume PostgreSQL. Leur configuration vient de
 ```bash
 cp apps/api/.env.test.example apps/api/.env.test
 ```
+
+Y reporter le `POSTGRES_PASSWORD` du `.env` racine : c'est la même base,
+dans le même conteneur, et ce mot de passe se génère à l'installation.
 
 Les tests du front n'utilisent pas TestBed : la logique vit dans des
 services et des composants que l'on peut instancier avec un simple

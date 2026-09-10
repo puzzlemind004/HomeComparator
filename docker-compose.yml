@@ -4,7 +4,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Sans valeur, l'image s'arrête au premier démarrage du volume sur un
+      # message qui ne dit pas quoi faire : mieux vaut échouer ici (#18).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire (openssl rand -base64 24)}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -56,10 +58,12 @@ services:
       # Lié à la boucle locale, pour deux raisons (#18). En production nginx
       # joint l'API par le réseau interne Compose et cette publication n'a
       # aucun usage. Et la limitation des tentatives de connexion (ADR-0011)
-      # compte par adresse en faisant confiance au `X-Forwarded-For` posé par
-      # nginx : sur ce chemin direct, personne ne l'écrase, et tout appelant
-      # venu d'une adresse privée contournerait le quota en changeant
-      # l'en-tête à chaque tentative.
+      # compte par adresse en faisant confiance au `X-Forwarded-For`, que
+      # nginx écrase mais que ce chemin direct laisse passer tel quel : qui
+      # l'atteint depuis une adresse tenue pour interne s'attribue un
+      # compteur neuf à chaque tentative. Restreindre la publication à la
+      # boucle locale ferme ce contournement au réseau ; il reste ouvert à
+      # qui a déjà accès à l'hôte, où seul un pare-feu ne peut rien.
       - '127.0.0.1:${API_PORT:-3333}:3333'
 
   web:
