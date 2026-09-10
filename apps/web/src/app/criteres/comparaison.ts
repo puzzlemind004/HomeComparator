@@ -102,15 +102,12 @@ export function rang(critere: Critere, valeur: ValeurCritere): number | null {
 /**
  * Le prix au mètre carré, ou `null` quand il ne se calcule pas.
  *
- * C'est le Critère calculé qui permet de comparer des Biens de surfaces
- * différentes (#10). Il n'est pas stocké : le dériver évite qu'il puisse
- * contredire le prix et la surface dont il sort.
- *
- * Il ne figure donc pas dans `CRITERES`, dont chaque entrée a une colonne :
- * l'y mettre obligerait la définition à porter deux sortes d'entrées, et
- * ferait chercher une colonne qui n'existe pas. C'est le tableau et la
- * comparaison qui l'ajoutent à leurs lignes, en appelant cette fonction sur
- * `prixDemande` et `surfaceHabitable`.
+ * La valeur qui permet de comparer des Biens de surfaces différentes (#10).
+ * Ce n'est pas un Critère mais une Colonne calculée : elle ne se saisit ni
+ * ne se stocke, et ne figure donc pas dans `CRITERES`, dont chaque entrée a
+ * une colonne en base (ADR-0013). C'est le tableau et la comparaison qui
+ * l'ajoutent à leurs lignes, en appelant cette fonction sur `prixDemande` et
+ * `surfaceHabitable`.
  *
  * Une surface nulle ou négative rend `null` plutôt qu'un infini ou un prix
  * négatif : c'est une saisie erronée, et l'écran a déjà de quoi afficher une

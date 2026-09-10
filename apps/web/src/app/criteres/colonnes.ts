@@ -79,7 +79,7 @@ export interface Colonne {
 }
 
 /**
- * L'identifiant de la colonne calculée. Il ne peut désigner aucun Critère,
+ * L'identifiant de la Colonne calculée. Il ne peut désigner aucun Critère,
  * puisqu'aucun n'a de colonne en base à ce nom (ADR-0004) — c'est ce qui
  * permet de le mêler aux identifiants de Critères sans risque de collision.
  */
@@ -111,8 +111,10 @@ function colonneDeCritere(critere: Critere): Colonne {
 }
 
 /**
- * La colonne calculée : le prix rapporté à la surface, qui permet de
- * comparer des Biens de surfaces différentes (#10).
+ * La seule Colonne calculée du carnet : le prix rapporté à la surface, qui
+ * permet de comparer des Biens de surfaces différentes (#10). Codée en dur
+ * plutôt qu'entrée d'une liste générique, faute d'une deuxième instance
+ * (ADR-0013).
  *
  * Elle reste vide dès que l'un des deux Critères manque — c'est ce que rend
  * `prixAuMetreCarre` —, et se trie donc comme n'importe quelle colonne dont
