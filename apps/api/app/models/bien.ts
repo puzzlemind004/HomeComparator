@@ -201,4 +201,24 @@ export default class Bien extends BaseModel {
 
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
+
+  /**
+   * Les colonnes que la liste rapatrie : toutes, sauf les Notes (#8).
+   *
+   * La liste n'affiche pas les Notes et n'a aucune raison de les faire
+   * voyager — un seul Bien bien rempli pèse plus lourd à lui seul que tout
+   * le reste de la liste réunie, et rien à l'écran n'en montre un caractère.
+   * La fiche, elle, les demande par `show`, où elles sont précisément ce
+   * qu'on vient lire.
+   *
+   * La liste est **dérivée des colonnes déclarées** plutôt qu'écrite à la
+   * main : un Critère ajouté au modèle entre dans la liste du seul fait
+   * d'exister, sans quoi il faudrait penser à l'ajouter ici — un geste de
+   * plus à chaque Critère, ce qu'ADR-0004 s'emploie justement à éviter.
+   */
+  static colonnesDeListe(): string[] {
+    return [...this.$columnsDefinitions.values()]
+      .map(({ columnName }) => columnName)
+      .filter((colonne) => colonne !== 'notes')
+  }
 }

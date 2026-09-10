@@ -211,9 +211,6 @@ test.group('Biens', (group) => {
       'id',
       'libelle',
       'urlAnnonce',
-      // Les Notes : ni Critère ni champ lié au Statut, mais un champ propre
-      // du Bien, rendu sur tout Bien comme le Libellé (#8).
-      'notes',
       'proprietaireId',
       'createdAt',
       'updatedAt',
@@ -242,6 +239,35 @@ test.group('Biens', (group) => {
       'dateVisite',
       'montantDerniereOffre',
     ])
+  })
+
+  test('ne fait pas voyager les Notes avec la liste', async ({ client, assert }) => {
+    /**
+     * La liste n'affiche pas les Notes, et n'a donc pas à les rapatrier : un
+     * seul Bien bien rempli pèserait à lui seul plus lourd que tout le reste
+     * de la liste réunie (#8). Elles restent lisibles par la fiche, qui est
+     * l'écran qui les montre.
+     *
+     * C'est un contrat, pas une optimisation opportuniste : le front construit
+     * ses lignes de liste depuis ce que l'API rend, et #10 comme #11 y
+     * reviendront chercher leurs colonnes.
+     */
+    const creation = await avecSession(client.post('/biens'), session).json({
+      libelle: 'le T3 avec la terrasse',
+    })
+    await avecSession(client.patch(`/biens/${creation.body().id}`), session).json({
+      notes: 'Chaudière à remplacer.',
+    })
+
+    const liste = await avecSession(client.get('/biens'), session)
+
+    liste.assertStatus(200)
+    const [depuisLaListe] = liste.body()
+    assert.notProperty(depuisLaListe, 'notes')
+
+    // Absentes de la liste, mais bien conservées : c'est la fiche qui les rend.
+    const fiche = await avecSession(client.get(`/biens/${creation.body().id}`), session)
+    assert.equal(fiche.body().notes, 'Chaudière à remplacer.')
   })
 
   test('rend les Critères non renseignés à null, et non absents', async ({ client, assert }) => {
@@ -286,6 +312,7 @@ test.group('Biens', (group) => {
     // assignation explicite fait figurer dans la réponse (#7, #8).
     assert.property(response.body(), 'notes')
     assert.isNull(response.body().notes)
+    // La liste, elle, ne les rapatrie pas : voir le test dédié plus bas.
     assert.isNull(response.body().dateVisite)
     assert.isNull(response.body().montantDerniereOffre)
   })

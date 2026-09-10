@@ -31,8 +31,14 @@ export interface BienApi {
    * Les Notes : le texte libre du Bien, `null` tant que rien n'y a été écrit
    * (#8). L'API ne rend jamais la chaîne vide — un champ effacé arrive à
    * `null`, comme l'URL de l'Annonce.
+   *
+   * **Absentes de la liste** : `GET /biens` ne les rapatrie pas, aucun écran
+   * de liste ne les affichant, et un seul Bien bien rempli y pèserait plus
+   * lourd que tout le reste réuni. Seule la fiche (`GET /biens/:id`) les
+   * porte, d'où l'`undefined` admis ici — c'est l'adapter qui ramène les deux
+   * cas à « rien d'écrit ».
    */
-  notes: string | null;
+  notes?: string | null;
 
   /**
    * Le cycle de vie (#7). L'API le rend sur tout Bien : c'est la seule

@@ -29,7 +29,19 @@ export default class BiensController {
     const demande: unknown = request.input('statut')
     const statut = STATUTS.find((connu) => connu === demande)
 
-    const requete = Bien.query().orderBy('created_at', 'desc').orderBy('id', 'desc')
+    /**
+     * Les Notes ne sont pas rapatriées : aucun écran de liste ne les affiche,
+     * et un seul Bien bien rempli pèserait à lui seul plus lourd que tout le
+     * reste de la liste réunie (#8). La fiche les demande par `show`, où
+     * elles sont précisément ce qu'on vient lire.
+     *
+     * La sélection est dérivée des colonnes du modèle : un Critère ajouté y
+     * entre sans qu'on ait à y penser (ADR-0004).
+     */
+    const requete = Bien.query()
+      .select(Bien.colonnesDeListe())
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'desc')
 
     // `if` du constructeur de requêtes plutôt que `.if()` : celui-ci masque
     // le rétrécissement de type, et obligerait à réaffirmer que `statut` en

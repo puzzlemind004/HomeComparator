@@ -48,11 +48,10 @@ describe('versBien', () => {
   });
 
   it('ramène à null des Notes que l’API ne rend pas', () => {
-    // L'API les rend toujours, mais les deux côtés ne partagent aucune
-    // source (ADR-0010) : c'est ici que la divergence s'arrête.
-    // Le contrat déclare la clé obligatoire, et c'est bien ce qu'on veut :
-    // seul un transtypage permet de décrire la charge utile qui l'omettrait.
-    const sansNotes = { ...bienApi, notes: undefined } as unknown as BienApi;
+    // Ce n'est pas un cas théorique : `GET /biens` ne rapatrie pas les Notes,
+    // aucun écran de liste ne les affichant (#8). L'adapter doit donc rendre
+    // un Bien de liste aussi affichable qu'un Bien de fiche.
+    const sansNotes: BienApi = { ...bienApi, notes: undefined };
 
     expect(versBien(sansNotes).notes).toBeNull();
   });
