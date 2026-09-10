@@ -18,10 +18,13 @@
   }
 }
 
-// La légende est lue par les lecteurs d'écran, qui annoncent ainsi ce que le
-// tableau contient et comment il se trie (ADR-0005). Elle n'est pas montrée :
-// l'écran porte déjà son titre juste au-dessus.
-.tableau__legende {
+// Ce qui se lit sans se voir : la légende, qui annonce aux lecteurs d'écran
+// ce que le tableau contient et comment il se trie (ADR-0005), et le mot que
+// porte chaque case vide, dont le tiret n'est qu'une figure.
+//
+// La légende n'est pas montrée : l'écran porte déjà son titre juste au-dessus.
+.tableau__legende,
+.tableau__lecture {
   clip-path: inset(50%);
   height: 1px;
   overflow: hidden;
@@ -62,6 +65,20 @@ thead th {
   a {
     color: #1d4ed8;
     font-weight: 600;
+  }
+}
+
+// Le lien vers l'Annonce, réduit à une flèche : le Libellé porte déjà le nom
+// du Bien, et une colonne répétée à chaque ligne n'a pas de place pour deux
+// mots de plus. Son intitulé est lu, jamais affiché.
+.tableau__annonce {
+  font-weight: 400;
+  margin-left: 0.4rem;
+  text-decoration: none;
+
+  &:focus-visible {
+    outline: 2px solid #1d4ed8;
+    outline-offset: 2px;
   }
 }
 

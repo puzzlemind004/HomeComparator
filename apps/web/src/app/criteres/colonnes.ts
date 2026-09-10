@@ -1,7 +1,7 @@
 import type { Critere, SensComparaison, TypeCritere } from './critere';
 import { prixAuMetreCarre, type ValeurCritere } from './comparaison';
 import { CRITERES_ORDONNES } from './definition';
-import { formaterValeur } from './formatage';
+import { formaterPrixAuMetreCarre, formaterValeur } from './formatage';
 import { estRenseigne, type ValeursCriteres } from './valeurs';
 
 /**
@@ -47,8 +47,13 @@ export interface Colonne {
 
   /**
    * Le sens dans lequel la colonne se compare, repris du Critère ou déclaré
-   * par la colonne calculée. La comparaison (#12) en tire sa mise en
-   * évidence sans avoir à savoir laquelle des deux elle tient.
+   * par la colonne calculée. Le tri s'en sert pour savoir dans quel sens
+   * partir.
+   *
+   * Il ne suffit pas encore à la comparaison (#12) : `meilleureValeur` exige
+   * un `Critere`, que la colonne calculée n'a pas. Le prix au m² devra donc
+   * lui être présenté autrement — c'est à ce ticket de trancher, et le tri
+   * s'en tire ici par une branche à part.
    */
   sensComparaison: SensComparaison;
 
@@ -106,13 +111,6 @@ function colonneDeCritere(critere: Critere): Colonne {
 }
 
 /**
- * Le format du prix au mètre carré : arrondi à l'euro, comme les montants
- * (`formatage.ts`). Le centime au mètre carré n'apprend rien et allonge une
- * colonne répétée à chaque ligne.
- */
-const PRIX_METRE_CARRE = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
-
-/**
  * La colonne calculée : le prix rapporté à la surface, qui permet de
  * comparer des Biens de surfaces différentes (#10).
  *
@@ -134,11 +132,10 @@ function colonnePrixAuMetreCarre(): Colonne {
     sensComparaison: 'plusPetitEstMeilleur',
     critere: null,
     valeur,
-    texte: (valeurs) => {
-      const calcule = valeur(valeurs);
-
-      return calcule === null ? '' : `${PRIX_METRE_CARRE.format(calcule)} €/m²`;
-    },
+    // L'écriture vit dans `formatage.ts` avec celle du prix : les deux
+    // colonnes se lisent côte à côte, et deux `Intl` montés séparément
+    // divergeaient déjà sur leur séparateur de milliers.
+    texte: (valeurs) => formaterPrixAuMetreCarre(valeur(valeurs)),
   };
 }
 

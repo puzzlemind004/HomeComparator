@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { COLONNES, ID_COLONNE_PRIX_METRE_CARRE, colonneParId } from './colonnes';
-import { CRITERES_ORDONNES } from './definition';
+import { CRITERES_ORDONNES, critereParId } from './definition';
 import { unBien } from '../biens/bien.test-helper';
+
+/**
+ * `Intl` insère des espaces insécables autour des unités et des séparateurs
+ * de milliers, comme le relève déjà `formatage.spec.ts`. Les comparer tels
+ * quels rendrait l'attente illisible et dépendante du caractère exact.
+ */
+function normaliser(texte: string): string {
+  return texte.replace(/[\u00a0\u202f]/g, ' ');
+}
 
 describe('COLONNES', () => {
   it('porte une colonne par Critère, dans l’ordre de la définition', () => {
@@ -26,6 +35,15 @@ describe('COLONNES', () => {
     const ids = COLONNES.map((colonne) => colonne.id);
 
     expect(ids.indexOf(ID_COLONNE_PRIX_METRE_CARRE)).toBe(ids.indexOf('prixDemande') + 1);
+  });
+
+  it('nomme des Critères qui existent bel et bien dans la définition', () => {
+    // La colonne calculée est le seul endroit du module qui cite des
+    // identifiants en dur — le prix au m² est par définition le prix divisé
+    // par la surface. Renommer l'un des deux Critères la viderait en
+    // silence : elle rendrait `null` partout sans que rien ne le signale.
+    expect(critereParId('prixDemande')).toBeDefined();
+    expect(critereParId('surfaceHabitable')).toBeDefined();
   });
 
   it('ne porte aucune colonne de Statut : ce n’est pas un Critère', () => {
@@ -66,11 +84,15 @@ describe('valeur de la colonne calculée', () => {
   });
 
   it('reste vide quand le prix manque', () => {
-    expect(prixMetreCarre.valeur(unBien({ criteres: { surfaceHabitable: 72.5 } }).criteres)).toBeNull();
+    expect(
+      prixMetreCarre.valeur(unBien({ criteres: { surfaceHabitable: 72.5 } }).criteres),
+    ).toBeNull();
   });
 
   it('reste vide quand la surface manque', () => {
-    expect(prixMetreCarre.valeur(unBien({ criteres: { prixDemande: 250000 } }).criteres)).toBeNull();
+    expect(
+      prixMetreCarre.valeur(unBien({ criteres: { prixDemande: 250000 } }).criteres),
+    ).toBeNull();
   });
 
   it('reste vide quand la surface est une saisie erronée', () => {
@@ -84,17 +106,23 @@ describe('texte d’une colonne', () => {
   it('écrit la valeur d’un Critère selon son type et son unité', () => {
     const surface = colonneParId('surfaceHabitable')!;
 
-    expect(surface.texte(unBien({ criteres: { surfaceHabitable: 72.5 } }).criteres)).toBe('72,5 m²');
+    expect(surface.texte(unBien({ criteres: { surfaceHabitable: 72.5 } }).criteres)).toBe(
+      '72,5 m²',
+    );
   });
 
   it('écrit le libellé d’une énumération, pas la valeur stockée', () => {
     const dpe = colonneParId('dpe')!;
 
-    expect(dpe.texte(unBien({ criteres: { travauxAPrevoir: 'lourds', dpe: 'C' } }).criteres)).toBe('C');
+    expect(dpe.texte(unBien({ criteres: { travauxAPrevoir: 'lourds', dpe: 'C' } }).criteres)).toBe(
+      'C',
+    );
 
     const travaux = colonneParId('travauxAPrevoir')!;
 
-    expect(travaux.texte(unBien({ criteres: { travauxAPrevoir: 'lourds' } }).criteres)).toBe('Lourds');
+    expect(travaux.texte(unBien({ criteres: { travauxAPrevoir: 'lourds' } }).criteres)).toBe(
+      'Lourds',
+    );
   });
 
   it('écrit le prix au mètre carré arrondi à l’euro', () => {
@@ -103,7 +131,7 @@ describe('texte d’une colonne', () => {
 
     // 3448,27… €/m² : le centime au mètre carré n'apprend rien et allonge
     // une colonne répétée à chaque ligne.
-    expect(prixMetreCarre.texte(bien.criteres)).toBe('3 448 €/m²');
+    expect(normaliser(prixMetreCarre.texte(bien.criteres))).toBe('3 448 €/m²');
   });
 
   it('rend la chaîne vide sur un Critère non renseigné', () => {

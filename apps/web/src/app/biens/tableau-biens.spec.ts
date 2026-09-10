@@ -7,6 +7,15 @@ import { ID_COLONNE_PRIX_METRE_CARRE } from '../criteres/colonnes';
 import { CRITERES_ORDONNES } from '../criteres/definition';
 
 /**
+ * `Intl` insère des espaces insécables autour des unités et des séparateurs
+ * de milliers, comme le relève déjà `formatage.spec.ts`. Les comparer tels
+ * quels rendrait l'attente illisible et dépendante du caractère exact.
+ */
+function normaliser(texte: string): string {
+  return texte.replace(/[\u00a0\u202f]/g, ' ');
+}
+
+/**
  * Le composant est construit sans TestBed, comme les autres écrans : les
  * Biens se posent sur son signal, et les assertions portent sur ce qu'il
  * calcule plutôt que sur le DOM rendu.
@@ -120,7 +129,7 @@ describe('TableauBiens', () => {
       .lignes()[0]
       .cases.find((c) => c.colonne.id === ID_COLONNE_PRIX_METRE_CARRE)!;
 
-    expect(calculee.texte).toBe('2 500 €/m²');
+    expect(normaliser(calculee.texte)).toBe('2 500 €/m²');
     expect(calculee.renseigne).toBe(true);
   });
 

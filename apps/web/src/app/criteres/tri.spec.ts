@@ -265,6 +265,22 @@ describe('trier', () => {
     ).toBe(true);
   });
 
+  it('trie la colonne calculée sur sa valeur, pas sur son texte arrondi', () => {
+    // Deux Biens dont les prix au m² s'écrivent pareil une fois arrondis à
+    // l'euro : le tri doit départager sur le calcul, sinon l'ordre dépendrait
+    // de l'affichage et deux colonnes identiques à l'œil se classeraient au
+    // hasard.
+    const biens = [
+      bien('un peu plus cher', { prixDemande: 200060, surfaceHabitable: 100 }),
+      bien('un peu moins cher', { prixDemande: 200010, surfaceHabitable: 100 }),
+    ];
+
+    expect(ordre(biens, { colonne: prixMetreCarre.id, sens: 'croissant' })).toEqual([
+      'un peu moins cher',
+      'un peu plus cher',
+    ]);
+  });
+
   it("range une valeur d'énumération hors définition avec les absents", () => {
     // Elle n'a pas de rang : la classer au hasard entre deux DPE vaudrait
     // moins que de la ranger avec ce qu'on ne sait pas placer, comme le fait

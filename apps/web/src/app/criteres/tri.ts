@@ -63,8 +63,13 @@ export function basculer(tri: Tri, colonne: string): Tri {
  * La comparaison des textes, localisée : « Élancourt » se range à E et non
  * après « Zola ». Une comparaison brute par `<` classerait sur les points de
  * code, où tous les accents suivent le Z.
+ *
+ * Pas de `sensitivity: 'base'`, qui rendrait « Cave » et « cave » égaux :
+ * le départage par Libellé retomberait alors sur l'ordre d'arrivée de l'API,
+ * dont ce module dit précisément qu'il n'a rien à apprendre à l'acheteur.
+ * L'accent reste secondaire au classement sans être ignoré.
  */
-const TEXTES = new Intl.Collator('fr-FR', { sensitivity: 'base', numeric: true });
+const TEXTES = new Intl.Collator('fr-FR', { numeric: true });
 
 /**
  * Les Biens dans l'ordre demandé, sans toucher à la liste reçue.
@@ -135,6 +140,14 @@ export function trier(biens: readonly Bien[], tri: Tri): Bien[] {
  * textes, qui ne se classent pas sur une échelle. Une adresse ou une ville
  * ne se compare pas — aucune n'est meilleure qu'une autre —, mais elle se
  * trie, et c'est toute la différence entre les deux écrans.
+ *
+ * Une valeur d'énumération absente de la définition se range donc avec les
+ * non renseignés, alors que `formaterValeur` l'**affiche** telle quelle
+ * plutôt que de vider la case. Les deux se tiennent : montrer ce qui est en
+ * base vaut mieux qu'une case qui se lirait « non renseigné », mais une
+ * valeur sans rang ne se place nulle part. La ligne paraît donc renseignée
+ * et se trie avec les absentes — c'est voulu, et ça se voit d'autant moins
+ * que le cas suppose une valeur écrite hors définition.
  */
 function rang(colonne: Colonne, valeur: ValeurCritere): number | string | null {
   // Une colonne calculée n'a pas de Critère : son prix au m² est un nombre,

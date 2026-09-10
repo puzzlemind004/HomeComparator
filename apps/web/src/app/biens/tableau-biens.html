@@ -61,6 +61,26 @@
         <tr>
           <th scope="row" class="tableau__libelle">
             <a [routerLink]="['/biens', ligne.bien.id]">{{ ligne.bien.libelle }}</a>
+
+            <!--
+              L'Annonce reste joignable depuis le tableau : la liste de
+              cartes la proposait, et c'est elle que le desktop masque
+              désormais. Sans ce lien, passer au tableau retirait à
+              l'acheteur l'accès d'un clic à la publication du Bien.
+            -->
+            @if (ligne.bien.urlAnnonce; as url) {
+              <a
+                class="tableau__annonce"
+                [href]="url"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span aria-hidden="true">↗</span>
+                <span class="tableau__lecture">
+                  Voir l'Annonce de {{ ligne.bien.libelle }}
+                </span>
+              </a>
+            }
           </th>
 
           <td>
@@ -84,7 +104,16 @@
               @if (donnee.renseigne) {
                 {{ donnee.texte }}
               } @else {
-                <span class="tableau__manquant" aria-label="non renseigné">—</span>
+                <span class="tableau__manquant">
+                  <span aria-hidden="true">—</span>
+                  <!--
+                    Le tiret ne se lit pas : `aria-label` sur un `span` porte
+                    le rôle `generic`, que la spec ARIA interdit de nommer, et
+                    le lecteur d'écran annoncerait « tiret ». Le mot est donc
+                    écrit, puis masqué à l'œil comme la légende du tableau.
+                  -->
+                  <span class="tableau__lecture">non renseigné</span>
+                </span>
               }
             </td>
           }
