@@ -241,6 +241,35 @@ test.group('Biens', (group) => {
     ])
   })
 
+  test('ne fait pas voyager les Notes avec la liste', async ({ client, assert }) => {
+    /**
+     * La liste n'affiche pas les Notes, et n'a donc pas à les rapatrier : un
+     * seul Bien bien rempli pèserait à lui seul plus lourd que tout le reste
+     * de la liste réunie (#8). Elles restent lisibles par la fiche, qui est
+     * l'écran qui les montre.
+     *
+     * C'est un contrat, pas une optimisation opportuniste : le front construit
+     * ses lignes de liste depuis ce que l'API rend, et #10 comme #11 y
+     * reviendront chercher leurs colonnes.
+     */
+    const creation = await avecSession(client.post('/biens'), session).json({
+      libelle: 'le T3 avec la terrasse',
+    })
+    await avecSession(client.patch(`/biens/${creation.body().id}`), session).json({
+      notes: 'Chaudière à remplacer.',
+    })
+
+    const liste = await avecSession(client.get('/biens'), session)
+
+    liste.assertStatus(200)
+    const [depuisLaListe] = liste.body()
+    assert.notProperty(depuisLaListe, 'notes')
+
+    // Absentes de la liste, mais bien conservées : c'est la fiche qui les rend.
+    const fiche = await avecSession(client.get(`/biens/${creation.body().id}`), session)
+    assert.equal(fiche.body().notes, 'Chaudière à remplacer.')
+  })
+
   test('rend les Critères non renseignés à null, et non absents', async ({ client, assert }) => {
     // Un Critère absent de la charge utile et un Critère à `null` se lisent
     // pareil en JavaScript, mais pas au raisonnement : le front construit
@@ -254,6 +283,38 @@ test.group('Biens', (group) => {
     assert.isNull(bien.surfaceHabitable)
     assert.isNull(bien.dpe)
     assert.isNull(bien.exterieur)
+  })
+
+  test('rend les Notes à la création, et non seulement à la relecture', async ({
+    client,
+    assert,
+  }) => {
+    /**
+     * La réponse de création n'est pas une relecture de la base : Lucid ne
+     * sérialise que ce qui a été assigné à l'instance, et un champ laissé
+     * absent du `create` manque à la réponse alors que la liste le porte.
+     *
+     * Le front insère le Bien créé en tête de liste sans le recharger : des
+     * Notes manquantes y arriveraient `undefined` là où l'adapter attend
+     * « rien d'écrit » (#8).
+     *
+     * Les quinze Critères manquent eux aussi à cette réponse, et l'adapter
+     * les ramène de la même façon. Les écrire un par un dans `store` irait
+     * contre ce qu'est la création — un Libellé, et rien d'autre (ADR-0008) :
+     * c'est l'adapter qui tient ce cas, et le contrat porté par la liste.
+     */
+    const response = await avecSession(client.post('/biens'), session).json({
+      libelle: 'le T3 avec la terrasse',
+    })
+
+    response.assertStatus(201)
+    // Les trois champs qui ne sont ni Critère ni Libellé, et que seule une
+    // assignation explicite fait figurer dans la réponse (#7, #8).
+    assert.property(response.body(), 'notes')
+    assert.isNull(response.body().notes)
+    // La liste, elle, ne les rapatrie pas : voir le test dédié plus bas.
+    assert.isNull(response.body().dateVisite)
+    assert.isNull(response.body().montantDerniereOffre)
   })
 
   test('rend une liste vide quand aucun Bien n’est enregistré', async ({ client, assert }) => {

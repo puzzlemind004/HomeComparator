@@ -98,7 +98,13 @@ const entierPositif = (max: number) =>
 /** Un Critère décimal et positif : la surface habitable, aujourd'hui seule. */
 const decimalPositif = (max: number) => vine.number().parse(videVersNull).min(0).max(max).nullable()
 
-/** Un Critère de texte libre, borné à la colonne qui le reçoit. */
+/**
+ * Un champ de texte libre, borné à ce que la colonne accepte.
+ *
+ * `trim` ne retire que les bordures : les sauts de ligne internes traversent
+ * intacts, ce dont les Notes ont besoin — une liste de travaux se lit en
+ * lignes (#8).
+ */
 const texte = (max: number) => vine.string().parse(videVersNull).trim().maxLength(max).nullable()
 
 /**
@@ -187,6 +193,15 @@ const SURFACE_MAX = 999_999.99
 /** Les colonnes `string` sans longueur explicite sont des `varchar(255)`. */
 const TEXTE_MAX = 255
 
+/**
+ * La borne des Notes. Leur colonne est un `text` et non un `varchar(255)`
+ * (ADR-0012) : dix mille caractères, soit plusieurs pages de remarques de
+ * visite. Ce n'est pas la place qui manque, c'est la requête démesurée qu'on
+ * refuse — un copier-coller de page entière, un envoi automatisé —, et non la
+ * longueur d'une impression de visite.
+ */
+const NOTES_MAX = 10_000
+
 export const creerBienValidator = vine.compile(
   vine.object({
     libelle: libelle(),
@@ -218,6 +233,12 @@ export const creerBienValidator = vine.compile(
 const schemaModification = vine.object({
   libelle: libelleModifie(),
   urlAnnonce: urlAnnonce().optional(),
+
+  /**
+   * Les Notes (#8, ADR-0012). Elles se modifient comme le Libellé, depuis la
+   * fiche, et leur borne n'est pas celle des autres champs de texte.
+   */
+  notes: texte(NOTES_MAX).optional(),
 
   /**
    * Le cycle de vie (#7). Il n'est pas dans la définition des Critères et
@@ -305,6 +326,9 @@ const MESSAGES = {
   'urlAnnonce.string': "L'URL de l'Annonce n'est pas une adresse valide",
   'urlAnnonce.url': "L'URL de l'Annonce n'est pas une adresse valide",
   'urlAnnonce.maxLength': "L'URL de l'Annonce ne doit pas dépasser 2048 caractères",
+
+  'notes.string': 'Les Notes doivent être du texte',
+  'notes.maxLength': 'Les Notes ne doivent pas dépasser 10 000 caractères',
 
   // Le Statut est le seul champ qui refuse d'être vidé : un Bien est
   // toujours quelque part dans la recherche (#7).

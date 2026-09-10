@@ -142,6 +142,33 @@ test.group('Migrations', () => {
     await relu.delete()
   })
 
+  test('les Notes sont en place, facultatives et sans limite de colonne', async ({ assert }) => {
+    // `text` et non `varchar(255)` : les Notes accueillent des impressions de
+    // visite et une liste de travaux, là où une adresse tient sur une ligne
+    // (#8). Une borne à 255 ferait perdre en cours de frappe.
+    const colonnes = await db.connection().columnsInfo('biens')
+
+    assert.property(colonnes, 'notes')
+    assert.isTrue(colonnes.notes.nullable)
+    assert.isNull(colonnes.notes.defaultValue)
+    assert.equal(colonnes.notes.type, 'text')
+  })
+
+  test('un Bien se crée sans Notes', async ({ assert }) => {
+    // Rien n'oblige à écrire quoi que ce soit : un Bien repéré le soir n'a
+    // pas encore été visité (ADR-0008).
+    const cree = await Bien.create({
+      libelle: 'le T3 sans rien de noté',
+      proprietaireId: PROPRIETAIRE_UNIQUE,
+      statut: STATUT_INITIAL,
+    })
+    const relu = await Bien.findOrFail(cree.id)
+
+    assert.isNull(relu.notes)
+
+    await relu.delete()
+  })
+
   test('la surface habitable revient sous forme de nombre', async ({ assert }) => {
     // `pg` rend les décimaux en chaîne : sans conversion, le front
     // recevrait `"72.50"` là où il attend une valeur à comparer, et le prix

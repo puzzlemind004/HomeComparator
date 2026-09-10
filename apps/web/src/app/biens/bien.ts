@@ -23,6 +23,19 @@ export interface Bien {
   urlAnnonce: string | null;
 
   /**
+   * Les Notes : le texte libre attaché au Bien — impressions de visite,
+   * défauts constatés, travaux à prévoir, remarques sur le voisinage —, ou
+   * `null` tant que rien n'y a été écrit (#8).
+   *
+   * Elles ne figurent ni dans `criteres` ni dans `champsStatut` : c'est un
+   * champ propre du Bien, comme le Libellé et l'URL de l'Annonce (ADR-0012).
+   *
+   * Les sauts de ligne y sont significatifs : c'est en lignes qu'on liste des
+   * travaux à prévoir, et l'écran doit les rendre tels quels.
+   */
+  notes: string | null;
+
+  /**
    * L'étape où se trouve le Bien dans la recherche (#7).
    *
    * Il ne figure pas dans `criteres` : un Critère se compare d'un Bien à

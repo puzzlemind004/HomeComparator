@@ -56,6 +56,23 @@ export default class Bien extends BaseModel {
   declare proprietaireId: string
 
   /**
+   * Les Notes : le texte libre attaché au Bien, pour tout ce qui compte mais
+   * ne se compare pas en colonne — impressions de visite, défauts constatés,
+   * travaux à prévoir, remarques sur le voisinage (#8).
+   *
+   * Un champ propre du Bien, ni Critère ni champ lié au Statut, et c'est
+   * pourquoi il est déclaré ici plutôt qu'avec les uns ou les autres
+   * (ADR-0012).
+   *
+   * `null` veut dire « rien d'écrit », et la chaîne vide n'est jamais
+   * stockée : c'est ce que le validateur en fait, comme pour l'URL de
+   * l'Annonce. Les sauts de ligne, eux, sont conservés tels quels — une liste
+   * de travaux se lit en lignes.
+   */
+  @column()
+  declare notes: string | null
+
+  /**
    * Les Critères, un champ par colonne (ADR-0004). Tous facultatifs : la
    * création ne demande qu'un Libellé (ADR-0008) et la complétion arrive
    * plus tard, au téléphone ou pendant la visite.
@@ -184,4 +201,24 @@ export default class Bien extends BaseModel {
 
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
+
+  /**
+   * Les colonnes que la liste rapatrie : toutes, sauf les Notes (#8).
+   *
+   * La liste n'affiche pas les Notes et n'a aucune raison de les faire
+   * voyager — un seul Bien bien rempli pèse plus lourd à lui seul que tout
+   * le reste de la liste réunie, et rien à l'écran n'en montre un caractère.
+   * La fiche, elle, les demande par `show`, où elles sont précisément ce
+   * qu'on vient lire.
+   *
+   * La liste est **dérivée des colonnes déclarées** plutôt qu'écrite à la
+   * main : un Critère ajouté au modèle entre dans la liste du seul fait
+   * d'exister, sans quoi il faudrait penser à l'ajouter ici — un geste de
+   * plus à chaque Critère, ce qu'ADR-0004 s'emploie justement à éviter.
+   */
+  static colonnesDeListe(): string[] {
+    return [...this.$columnsDefinitions.values()]
+      .map(({ columnName }) => columnName)
+      .filter((colonne) => colonne !== 'notes')
+  }
 }

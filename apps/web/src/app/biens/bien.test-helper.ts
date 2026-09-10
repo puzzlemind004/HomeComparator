@@ -22,6 +22,9 @@ export function unBien({ criteres, champsStatut, ...surcharges }: Partial<Bien> 
     id: 1,
     libelle: 'le T3 avec la terrasse',
     urlAnnonce: null,
+    // Rien d'écrit encore : les Notes se prennent à la visite, pas au
+    // repérage (#8).
+    notes: null,
     // Un Bien qu'on vient de repérer : c'est là que la création le met, et
     // le cas ordinaire des tests qui portent sur autre chose (#7).
     statut: STATUT_INITIAL,

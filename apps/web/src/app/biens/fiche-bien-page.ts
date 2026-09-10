@@ -118,6 +118,17 @@ export class FicheBienPage {
 
   readonly urlAnnonce = computed(() => this.bien()?.urlAnnonce ?? null);
 
+  /**
+   * Les Notes du Bien, ou `null` tant que rien n'y a été écrit (#8).
+   *
+   * Elles ne comptent pas dans `nombreManquants` et l'assistant ne les
+   * demande pas (ADR-0012) : ce qui manque à un Bien, c'est ce qu'il reste à
+   * demander à l'agence, et des Notes vides attendent une visite, pas un coup
+   * de téléphone. C'est la même raison qui tient les champs liés au Statut
+   * hors du compte (#7).
+   */
+  readonly notes = computed(() => this.bien()?.notes ?? null);
+
   /** Les six Statuts, tels que le sélecteur les propose. */
   readonly statuts = STATUTS;
 

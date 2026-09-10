@@ -192,6 +192,67 @@ describe('FicheBienPage', () => {
     expect(bienAffiche(fiche)?.criteres['prixDemande']).toBe(250000);
   });
 
+  it('affiche les Notes du Bien avec leurs sauts de ligne', () => {
+    // Ce qui a été écrit se relit tel quel : une liste de travaux se lit en
+    // lignes (#8).
+    const notes = 'Cuisine refaite.\nChaudière à remplacer.';
+    const fiche = creerFiche({
+      consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien({ notes }) }),
+    });
+
+    expect(fiche.notes()).toBe(notes);
+  });
+
+  it('laisse les Notes vides sans rien signaler', () => {
+    // Un Bien repéré le soir n'a pas encore été visité : des Notes vides sont
+    // le cas ordinaire, et rien n'en fait un manque (ADR-0008).
+    const fiche = creerFiche({});
+
+    expect(fiche.notes()).toBeNull();
+  });
+
+  it('n’enregistre les Notes que sous leur propre champ', () => {
+    const envois: ModificationBien[] = [];
+    const fiche = creerFiche({
+      modifier: (_id, modification) => {
+        envois.push(modification);
+        return of<ModificationBienResultat>({ enregistre: true, bien: unBien() });
+      },
+    });
+
+    fiche.enregistrer('notes', 'Chaudière à remplacer.');
+
+    expect(envois).toEqual([{ notes: 'Chaudière à remplacer.' }]);
+  });
+
+  it('reprend les Notes telles que l’API les a enregistrées', () => {
+    const fiche = creerFiche({
+      modifier: () =>
+        of<ModificationBienResultat>({
+          enregistre: true,
+          bien: unBien({ notes: 'Chaudière à remplacer.' }),
+        }),
+    });
+
+    fiche.enregistrer('notes', '  Chaudière à remplacer.  ');
+
+    expect(fiche.notes()).toBe('Chaudière à remplacer.');
+  });
+
+  it('ne compte pas les Notes parmi les Critères à renseigner', () => {
+    // Les Notes ne sont pas un Critère : ce qui manque à un Bien, c'est ce
+    // qu'il reste à demander à l'agence, et des Notes vides attendent une
+    // visite, pas un coup de téléphone (#8).
+    const sansNotes = creerFiche({});
+    const avecNotes = creerFiche({
+      consulter: () =>
+        of<FicheBien>({ etat: 'chargee', bien: unBien({ notes: 'Chaudière à remplacer.' }) }),
+    });
+
+    expect(sansNotes.nombreManquants()).toBe(15);
+    expect(avecNotes.nombreManquants()).toBe(15);
+  });
+
   it('oublie les erreurs précédentes à l’enregistrement suivant', () => {
     let refuse = true;
     const fiche = creerFiche({

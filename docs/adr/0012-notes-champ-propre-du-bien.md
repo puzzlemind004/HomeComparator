@@ -1,0 +1,9 @@
+# Les Notes sont un champ propre du Bien, ni Critère ni champ lié au Statut
+
+Le carnet range jusqu'ici les données d'un Bien en deux familles. Les Critères ont chacun leur colonne et leur entrée dans la définition centralisée (ADR-0004) ; ils sont renseignés pour tous les Biens, ce qui les rend comparables en colonne du tableau et en question de l'assistant. Les champs liés au Statut, eux, n'existent qu'à partir d'une étape du cycle (ADR-0002), et l'écran ne les montre pas avant.
+
+Les Notes ne sont ni l'un ni l'autre. Elles ne se comparent pas d'un Bien à l'autre — deux impressions de visite ne se trient pas —, donc elles n'ont rien à faire dans la définition des Critères, où le tableau et la comparaison vont chercher leurs colonnes. Et elles se prennent dès le repérage, à n'importe quelle étape, donc rien ne justifie de les rattacher à un Statut.
+
+Nous les traitons donc comme le Libellé et l'URL de l'Annonce : un champ propre du Bien, sans groupe, sans ordre et sans sens de comparaison, affiché dans son propre bloc de la fiche. C'est le troisième rangement, et nous l'assumons comme tel plutôt que de forcer les Notes dans l'une des deux familles existantes — un Critère de type texte les ferait apparaître en colonne du tableau et en question de l'assistant, deux endroits où elles n'ont rien à dire.
+
+Deux conséquences en découlent. Les Notes ne comptent pas parmi les Critères manquants que la fiche met en évidence : ce compte dit ce qu'il reste à demander à l'agence, et des Notes vides attendent une visite, pas un coup de téléphone. Et leur colonne est un `text` là où les autres champs de texte sont des `varchar(255)` : une adresse tient sur une ligne, une liste de travaux à prévoir non, et une borne courte ferait perdre en cours de frappe ce qu'on est précisément venu écrire. Une borne demeure au validateur, mais elle arrête la requête démesurée plutôt que de juger de la longueur d'une impression de visite.
