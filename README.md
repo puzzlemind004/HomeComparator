@@ -67,11 +67,20 @@ d'authentification déroutantes. Ajuster `POSTGRES_PORT` si besoin.
 ## Déployer
 
 Le déploiement se fait par Docker sur un VPS personnel doté d'un nom de
-domaine (ADR-0003, ADR-0007), et **suppose un pare-feu n'exposant que les
-ports 80 et 443**. Les publications sur la boucle locale ci-dessus ne
-dispensent pas de ce réglage : elles évitent d'en dépendre pour PostgreSQL et
-l'API, mais tout autre port ouvert sur la machine le reste. L'hypothèse est
-écrite ici pour être vérifiée au moment du déploiement, plutôt que supposée.
+domaine (ADR-0003, ADR-0007), et **suppose un pare-feu n'exposant que le
+port du front, et lui seul**. Les publications sur la boucle locale
+ci-dessus ne dispensent pas de ce réglage : elles évitent d'en dépendre pour
+PostgreSQL et l'API, mais tout autre port ouvert sur la machine le reste.
+L'hypothèse est écrite ici pour être vérifiée au moment du déploiement,
+plutôt que supposée.
+
+Ce port est **4200** en l'état, et non 80 : `WEB_PORT` publie le front sur
+la machine hôte, le `80` du `docker-compose.yml` étant celui où nginx écoute
+*dans* le conteneur. Un pare-feu réglé sur 80/443 fermerait donc la seule
+chose que ce déploiement expose délibérément. Le jour où le carnet répondra
+sur un nom de domaine, c'est `WEB_PORT=80` qu'il faudra poser — et une
+terminaison TLS pour le 443, qui n'existe nulle part dans ce dépôt à ce
+jour.
 
 ## Développer
 
