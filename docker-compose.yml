@@ -11,9 +11,15 @@ services:
       # Scripts joués une seule fois, à la création du volume.
       - ./docker/postgres:/docker-entrypoint-initdb.d:ro
     ports:
+      # Lié à la boucle locale : cette publication ne sert qu'au
+      # développement — lancer l'API hors conteneur, jouer les tests
+      # fonctionnels — et la notation courte se lierait à 0.0.0.0, ouvrant
+      # la base sur le réseau (#18). Le carnet est saisi à la main et
+      # irremplaçable (ADR-0001, ADR-0007).
+      #
       # Port hôte configurable : une instance PostgreSQL locale occupe
       # souvent 5432 et gagnerait la course à la liaison.
-      - '${POSTGRES_PORT:-5433}:5432'
+      - '127.0.0.1:${POSTGRES_PORT:-5433}:5432'
     healthcheck:
       # `docker compose up` ne doit demander aucune intervention manuelle :
       # l'API attend que la base réponde vraiment avant de migrer.
@@ -47,7 +53,14 @@ services:
       # s'arrête qu'un carnet déployé en accès libre (#4).
       APP_PASSWORD: ${APP_PASSWORD:?APP_PASSWORD est obligatoire}
     ports:
-      - '${API_PORT:-3333}:3333'
+      # Lié à la boucle locale, pour deux raisons (#18). En production nginx
+      # joint l'API par le réseau interne Compose et cette publication n'a
+      # aucun usage. Et la limitation des tentatives de connexion (ADR-0011)
+      # compte par adresse en faisant confiance au `X-Forwarded-For` posé par
+      # nginx : sur ce chemin direct, personne ne l'écrase, et tout appelant
+      # venu d'une adresse privée contournerait le quota en changeant
+      # l'en-tête à chaque tentative.
+      - '127.0.0.1:${API_PORT:-3333}:3333'
 
   web:
     build:

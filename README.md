@@ -19,8 +19,8 @@ Prérequis : Docker et Node 24.
 ```bash
 cp .env.example .env
 openssl rand -base64 24       # reporter dans APP_KEY= du .env
-                              # puis renseigner POSTGRES_PASSWORD
-                              # et APP_PASSWORD
+openssl rand -base64 24       # reporter dans POSTGRES_PASSWORD= du .env
+                              # puis choisir APP_PASSWORD
 docker compose up --build
 ```
 
@@ -38,12 +38,35 @@ Le front est sur http://localhost:4200, l'API sur http://localhost:3333.
 Les migrations sont jouées automatiquement au démarrage de l'API, et la
 base de test est créée à l'initialisation du volume PostgreSQL.
 
-### Port de PostgreSQL
+### Ce qui est exposé, et où
+
+Seul le front est publié sur toutes les interfaces de la machine : c'est le
+seul service qui ait vocation à être joint de l'extérieur, et nginx y relaie
+`/api` vers l'API par le réseau interne de Docker.
+
+PostgreSQL et l'API sont publiés sur la **boucle locale uniquement**
+(`127.0.0.1`). Ces deux publications ne servent qu'au développement — lancer
+l'API hors conteneur, jouer les tests fonctionnels contre la base — et n'ont
+aucun usage en production. Les lier ainsi évite deux choses : une base
+joignable depuis le réseau, alors que le carnet est saisi à la main et
+irremplaçable (ADR-0001, ADR-0007) ; et un accès direct à l'API qui
+court-circuiterait nginx, donc la limitation des tentatives de connexion, qui
+compte par adresse et suppose que l'en-tête `X-Forwarded-For` soit posé par le
+proxy (ADR-0011).
 
 Le conteneur expose PostgreSQL sur le port **5433** de la machine hôte,
 et non 5432 : une instance PostgreSQL installée localement occupe souvent
 ce port et gagnerait la course à la liaison, ce qui produit des erreurs
 d'authentification déroutantes. Ajuster `POSTGRES_PORT` si besoin.
+
+## Déployer
+
+Le déploiement se fait par Docker sur un VPS personnel doté d'un nom de
+domaine (ADR-0003, ADR-0007), et **suppose un pare-feu n'exposant que les
+ports 80 et 443**. Les publications sur la boucle locale ci-dessus ne
+dispensent pas de ce réglage : elles évitent d'en dépendre pour PostgreSQL et
+l'API, mais tout autre port ouvert sur la machine le reste. L'hypothèse est
+écrite ici pour être vérifiée au moment du déploiement, plutôt que supposée.
 
 ## Développer
 

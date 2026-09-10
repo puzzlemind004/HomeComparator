@@ -41,6 +41,8 @@ Cela ne suffit pourtant pas. `proxy-addr` remonte la chaîne de droite à gauche
 
 nginx **remplace** donc l'en-tête au lieu de l'allonger (`proxy_set_header X-Forwarded-For $remote_addr`). L'API ne reçoit plus qu'une adresse : celle que nginx a posée, la seule que le client ne choisisse pas. Le prix en est de perdre la chaîne d'un proxy en amont — il n'y en a pas, et le jour où il y en aurait un, c'est dans `nginx.conf` que cette confiance devrait se déclarer explicitement plutôt que de s'hériter.
 
+Tout cela repose sur une hypothèse qu'il faut énoncer : **l'API n'est jointe que par le proxy.** Une requête qui l'atteint directement arrive avec le `X-Forwarded-For` que son auteur a écrit, puisque nginx n'est pas là pour l'écraser ; venue d'une adresse privée — donc tenue pour fiable — elle s'attribue le compteur qu'elle veut, et la limitation ne compte plus rien. C'est ce qui rend la liaison du port de l'API à la boucle locale (`docker-compose.yml`, #18) constitutive de cette protection et non une simple hygiène de configuration : la fermeture du chemin direct est ce qui rend le comptage par adresse vrai.
+
 ### Ce que la limitation ne fait pas
 
 Elle ne journalise ni n'alerte : rien ne signale au propriétaire qu'on essaie d'entrer, ce qui reste un manque et mérite son propre ticket. Elle ne verrouille pas non plus au-delà de la fenêtre, et ne s'applique qu'à la connexion — les autres routes sont derrière la session, et la connexion est la seule serrure.
