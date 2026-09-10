@@ -40,11 +40,11 @@ describe('valeur d’une colonne de Critère', () => {
   const prix = colonneParId('prixDemande')!;
 
   it('lit la valeur du Critère sur le Bien', () => {
-    expect(prix.valeur(unBien({ criteres: { prixDemande: 250000 } }))).toBe(250000);
+    expect(prix.valeur(unBien({ criteres: { prixDemande: 250000 } }).criteres)).toBe(250000);
   });
 
   it('rend une valeur absente quand le Critère n’est pas renseigné', () => {
-    expect(prix.valeur(unBien())).toBeNull();
+    expect(prix.valeur(unBien().criteres)).toBeNull();
   });
 
   it('ramène une chaîne vide à une valeur absente', () => {
@@ -52,7 +52,7 @@ describe('valeur d’une colonne de Critère', () => {
     // un Critère à renseigner et non comme un texte à trier.
     const ville = colonneParId('villeQuartier')!;
 
-    expect(ville.valeur(unBien({ criteres: { villeQuartier: '' } }))).toBeNull();
+    expect(ville.valeur(unBien({ criteres: { villeQuartier: '' } }).criteres)).toBeNull();
   });
 });
 
@@ -62,21 +62,21 @@ describe('valeur de la colonne calculée', () => {
   it('divise le prix demandé par la surface habitable', () => {
     const bien = unBien({ criteres: { prixDemande: 250000, surfaceHabitable: 72.5 } });
 
-    expect(prixMetreCarre.valeur(bien)).toBeCloseTo(3448.2758, 3);
+    expect(prixMetreCarre.valeur(bien.criteres)).toBeCloseTo(3448.2758, 3);
   });
 
   it('reste vide quand le prix manque', () => {
-    expect(prixMetreCarre.valeur(unBien({ criteres: { surfaceHabitable: 72.5 } }))).toBeNull();
+    expect(prixMetreCarre.valeur(unBien({ criteres: { surfaceHabitable: 72.5 } }).criteres)).toBeNull();
   });
 
   it('reste vide quand la surface manque', () => {
-    expect(prixMetreCarre.valeur(unBien({ criteres: { prixDemande: 250000 } }))).toBeNull();
+    expect(prixMetreCarre.valeur(unBien({ criteres: { prixDemande: 250000 } }).criteres)).toBeNull();
   });
 
   it('reste vide quand la surface est une saisie erronée', () => {
     const bien = unBien({ criteres: { prixDemande: 250000, surfaceHabitable: 0 } });
 
-    expect(prixMetreCarre.valeur(bien)).toBeNull();
+    expect(prixMetreCarre.valeur(bien.criteres)).toBeNull();
   });
 });
 
@@ -84,17 +84,17 @@ describe('texte d’une colonne', () => {
   it('écrit la valeur d’un Critère selon son type et son unité', () => {
     const surface = colonneParId('surfaceHabitable')!;
 
-    expect(surface.texte(unBien({ criteres: { surfaceHabitable: 72.5 } }))).toBe('72,5 m²');
+    expect(surface.texte(unBien({ criteres: { surfaceHabitable: 72.5 } }).criteres)).toBe('72,5 m²');
   });
 
   it('écrit le libellé d’une énumération, pas la valeur stockée', () => {
     const dpe = colonneParId('dpe')!;
 
-    expect(dpe.texte(unBien({ criteres: { travauxAPrevoir: 'lourds', dpe: 'C' } }))).toBe('C');
+    expect(dpe.texte(unBien({ criteres: { travauxAPrevoir: 'lourds', dpe: 'C' } }).criteres)).toBe('C');
 
     const travaux = colonneParId('travauxAPrevoir')!;
 
-    expect(travaux.texte(unBien({ criteres: { travauxAPrevoir: 'lourds' } }))).toBe('Lourds');
+    expect(travaux.texte(unBien({ criteres: { travauxAPrevoir: 'lourds' } }).criteres)).toBe('Lourds');
   });
 
   it('écrit le prix au mètre carré arrondi à l’euro', () => {
@@ -103,12 +103,12 @@ describe('texte d’une colonne', () => {
 
     // 3448,27… €/m² : le centime au mètre carré n'apprend rien et allonge
     // une colonne répétée à chaque ligne.
-    expect(prixMetreCarre.texte(bien)).toBe('3 448 €/m²');
+    expect(prixMetreCarre.texte(bien.criteres)).toBe('3 448 €/m²');
   });
 
   it('rend la chaîne vide sur un Critère non renseigné', () => {
     // C'est à l'écran de marquer l'absence, pas au texte : le tableau doit
     // pouvoir la distinguer d'un zéro autrement que par ce qui est écrit.
-    expect(colonneParId('prixDemande')!.texte(unBien())).toBe('');
+    expect(colonneParId('prixDemande')!.texte(unBien().criteres)).toBe('');
   });
 });

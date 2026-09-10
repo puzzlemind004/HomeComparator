@@ -103,8 +103,8 @@ export class TableauBiens {
       libelleStatut: libelleStatut(bien.statut),
       cases: this.colonnes.map((colonne) => ({
         colonne,
-        texte: colonne.texte(bien),
-        renseigne: colonne.valeur(bien) !== null,
+        texte: colonne.texte(bien.criteres),
+        renseigne: colonne.valeur(bien.criteres) !== null,
       })),
     })),
   );

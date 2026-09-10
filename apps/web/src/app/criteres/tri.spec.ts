@@ -73,10 +73,7 @@ describe('trier', () => {
       bien('cher', { prixDemande: 310000 }),
     ];
 
-    expect(ordre(biens, { colonne: prix.id, sens: 'decroissant' })).toEqual([
-      'cher',
-      'abordable',
-    ]);
+    expect(ordre(biens, { colonne: prix.id, sens: 'decroissant' })).toEqual(['cher', 'abordable']);
   });
 
   it('groupe les Critères non renseignés en fin de tri croissant', () => {
@@ -119,10 +116,7 @@ describe('trier', () => {
     // se réarranger à chaque clic.
     const biens = [bien('zébulon'), bien('anatole')];
 
-    expect(ordre(biens, { colonne: prix.id, sens: 'croissant' })).toEqual([
-      'anatole',
-      'zébulon',
-    ]);
+    expect(ordre(biens, { colonne: prix.id, sens: 'croissant' })).toEqual(['anatole', 'zébulon']);
   });
 
   it("classe les textes dans l'ordre alphabétique français", () => {
@@ -211,10 +205,7 @@ describe('trier', () => {
       bien('anatole', { prixDemande: 250000 }),
     ];
 
-    expect(ordre(biens, { colonne: prix.id, sens: 'croissant' })).toEqual([
-      'anatole',
-      'zébulon',
-    ]);
+    expect(ordre(biens, { colonne: prix.id, sens: 'croissant' })).toEqual(['anatole', 'zébulon']);
   });
 
   it('garde le même ordre des ex æquo dans les deux sens', () => {
@@ -226,10 +217,7 @@ describe('trier', () => {
       bien('anatole', { prixDemande: 250000 }),
     ];
 
-    expect(ordre(biens, { colonne: prix.id, sens: 'decroissant' })).toEqual([
-      'anatole',
-      'zébulon',
-    ]);
+    expect(ordre(biens, { colonne: prix.id, sens: 'decroissant' })).toEqual(['anatole', 'zébulon']);
   });
 
   it('range un zéro comme une valeur, pas comme une absence', () => {
@@ -247,6 +235,34 @@ describe('trier', () => {
       'deux places',
       'sans réponse',
     ]);
+  });
+
+  it('reste stable et complet sur plusieurs dizaines de Biens', () => {
+    // Le tableau doit rester utilisable à cette taille (#10). Un Bien sur
+    // trois sans prix : le tri doit tous les rendre, les renseignés classés
+    // et les autres groupés à la fin.
+    const biens = Array.from({ length: 60 }, (_, index) =>
+      bien(
+        `bien-${String(index).padStart(2, '0')}`,
+        index % 3 === 0 ? {} : { prixDemande: 500000 - index * 1000 },
+      ),
+    );
+
+    const classes = trier(biens, { colonne: prix.id, sens: 'croissant' });
+    const renseignes = classes.filter((bien) => bien.criteres['prixDemande'] !== null);
+    const absents = classes.slice(renseignes.length);
+
+    expect(classes).toHaveLength(60);
+    // Aucun Bien sans prix ne s'est glissé parmi les renseignés.
+    expect(absents.every((bien) => bien.criteres['prixDemande'] === null)).toBe(true);
+    expect(
+      renseignes.every(
+        (bien, rang) =>
+          rang === 0 ||
+          Number(renseignes[rang - 1].criteres['prixDemande']) <=
+            Number(bien.criteres['prixDemande']),
+      ),
+    ).toBe(true);
   });
 
   it("range une valeur d'énumération hors définition avec les absents", () => {

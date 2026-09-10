@@ -1,6 +1,6 @@
 import type { Bien } from '../biens/bien';
 import { colonneParId, type Colonne } from './colonnes';
-import type { ValeurCritere } from './comparaison';
+import { rang as rangSurEchelle, type ValeurCritere } from './comparaison';
 
 /**
  * Le tri du tableau desktop (#10) : sur quelle colonne, dans quel sens, et
@@ -97,8 +97,8 @@ export function trier(biens: readonly Bien[], tri: Tri): Bien[] {
   const sens = tri.sens === 'croissant' ? 1 : -1;
 
   return [...biens].sort((gauche, droite) => {
-    const rangGauche = rang(colonne, colonne.valeur(gauche));
-    const rangDroite = rang(colonne, colonne.valeur(droite));
+    const rangGauche = rang(colonne, colonne.valeur(gauche.criteres));
+    const rangDroite = rang(colonne, colonne.valeur(droite.criteres));
 
     // Le non renseigné passe après, dans les deux sens : le `sens` n'est
     // appliqué qu'à la comparaison des valeurs, plus bas.
@@ -124,39 +124,32 @@ export function trier(biens: readonly Bien[], tri: Tri): Bien[] {
  * un nombre pour ce qui se classe sur une échelle, un texte pour ce qui se
  * classe alphabétiquement.
  *
- * Une énumération rend sa **position dans la définition** et non sa valeur :
- * c'est ce qui fait qu'un DPE se classe de A à G sans que le tri connaisse
- * les lettres du DPE, exactement comme le fait la comparaison (#12). Une
- * valeur absente de la définition n'a pas de rang, et se range donc avec les
- * non renseignés plutôt qu'au hasard entre deux DPE.
+ * L'échelle est celle de la comparaison (#12), appelée telle quelle plutôt
+ * que réécrite : une énumération rend sa position dans la définition — un
+ * DPE se classe de A à G sans que le tri connaisse ses lettres —, un oui/non
+ * rend 1 ou 0 selon le `type` déclaré, et ce qui ne se place pas rend `null`.
+ * Deux échelles qui divergeraient feraient désigner comme meilleur un Bien
+ * que le tri ne met pas en tête.
+ *
+ * Le tri y ajoute le seul cas dont la comparaison n'a pas besoin : les
+ * textes, qui ne se classent pas sur une échelle. Une adresse ou une ville
+ * ne se compare pas — aucune n'est meilleure qu'une autre —, mais elle se
+ * trie, et c'est toute la différence entre les deux écrans.
  */
 function rang(colonne: Colonne, valeur: ValeurCritere): number | string | null {
-  if (valeur === null) {
-    return null;
+  // Une colonne calculée n'a pas de Critère : son prix au m² est un nombre,
+  // qui se range comme tel.
+  if (!colonne.critere) {
+    return typeof valeur === 'number' && Number.isFinite(valeur) ? valeur : null;
   }
 
-  const admises = colonne.critere?.valeurs;
-
-  if (admises) {
-    const position = admises.findIndex((admise) => admise.valeur === valeur);
-
-    return position === -1 ? null : position;
+  // Un texte se trie alphabétiquement, là où l'échelle de la comparaison le
+  // rejetterait faute de savoir le classer.
+  if (colonne.critere.type === 'texte') {
+    return typeof valeur === 'string' && valeur !== '' ? valeur : null;
   }
 
-  // Un oui/non se classe comme 1 et 0, le sens du tri décidant lequel vient
-  // en premier.
-  if (typeof valeur === 'boolean') {
-    return valeur ? 1 : 0;
-  }
-
-  if (typeof valeur === 'number') {
-    // `NaN` et les infinis ne se placent nulle part : les laisser passer
-    // rendrait `NaN - x`, qui vaut `NaN`, et un comparateur qui rend `NaN`
-    // laisse l'ordre indéfini sur toute la liste.
-    return Number.isFinite(valeur) ? valeur : null;
-  }
-
-  return valeur;
+  return rangSurEchelle(colonne.critere, valeur);
 }
 
 /**

@@ -109,9 +109,12 @@
 // paraît, et non dans le composant, qui n'a pas à savoir sur quel écran il
 // est monté.
 //
-// Le seuil vaut ce qu'il faut pour que le tableau garde son intérêt : en
-// dessous, comparer d'un coup d'œil ne marche plus, et les cartes disent
-// mieux la même chose.
+// Le seuil est **provisoire**, et la liste ci-dessous n'est pas encore la
+// présentation mobile : ce ticket ne concerne que le desktop (#10), et les
+// cartes font l'objet d'un ticket distinct (ADR-0006). Ce qu'il faut ici,
+// c'est seulement ne pas livrer un tableau de seize colonnes sur un
+// téléphone en attendant. C'est ce ticket-là qui arrêtera le seuil et
+// dessinera les cartes.
 .vue-desktop {
   display: none;
 }

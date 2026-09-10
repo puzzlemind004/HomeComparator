@@ -1,9 +1,8 @@
-import type { Bien } from '../biens/bien';
 import type { Critere, SensComparaison, TypeCritere } from './critere';
 import { prixAuMetreCarre, type ValeurCritere } from './comparaison';
 import { CRITERES_ORDONNES } from './definition';
 import { formaterValeur } from './formatage';
-import { estRenseigne } from './valeurs';
+import { estRenseigne, type ValeursCriteres } from './valeurs';
 
 /**
  * Les colonnes du tableau desktop (#10) : ce que le tableau affiche, dans
@@ -22,8 +21,8 @@ import { estRenseigne } from './valeurs';
  */
 
 /**
- * Une colonne du tableau : de quoi écrire un en-tête, lire une valeur sur un
- * Bien et l'écrire.
+ * Une colonne du tableau : de quoi écrire un en-tête, lire une valeur dans
+ * les Critères d'un Bien et l'écrire.
  *
  * La colonne est un objet et non un simple identifiant parce que la valeur
  * ne se lit pas partout de la même façon : un Critère se lit dans la carte
@@ -31,6 +30,10 @@ import { estRenseigne } from './valeurs';
  * savoir laquelle des deux il tient, ce qui lui évite d'avoir un cas
  * particulier pour l'unique colonne calculée d'aujourd'hui — et un deuxième
  * le jour où une autre s'ajoute.
+ *
+ * Elle lit des `ValeursCriteres` et non un `Bien` : le module reste ainsi
+ * sans dépendance vers `biens/`, comme le sont ses voisins de `criteres/`,
+ * et une colonne n'a de toute façon rien à faire du Libellé ni du Statut.
  */
 export interface Colonne {
   /** L'identifiant, qui est celui du Critère quand la colonne en porte un. */
@@ -42,6 +45,11 @@ export interface Colonne {
   /** La nature de la valeur, dont l'alignement de la colonne se déduit. */
   type: TypeCritere;
 
+  /**
+   * Le sens dans lequel la colonne se compare, repris du Critère ou déclaré
+   * par la colonne calculée. La comparaison (#12) en tire sa mise en
+   * évidence sans avoir à savoir laquelle des deux elle tient.
+   */
   sensComparaison: SensComparaison;
 
   /**
@@ -59,10 +67,10 @@ export interface Colonne {
    * sur elle que porte le tri, jamais sur le texte affiché : trier « 1 000 »
    * et « 900 » comme des chaînes mettrait le plus cher en premier.
    */
-  valeur: (bien: Bien) => ValeurCritere;
+  valeur: (valeurs: ValeursCriteres) => ValeurCritere;
 
   /** La valeur telle qu'elle s'écrit, ou la chaîne vide si elle est absente. */
-  texte: (bien: Bien) => string;
+  texte: (valeurs: ValeursCriteres) => string;
 }
 
 /**
@@ -80,8 +88,8 @@ export const ID_COLONNE_PRIX_METRE_CARRE = 'prixAuMetreCarre';
  * renseignés plutôt que de la classer entre deux textes (#6).
  */
 function colonneDeCritere(critere: Critere): Colonne {
-  const valeur = (bien: Bien): ValeurCritere => {
-    const brute = bien.criteres[critere.id];
+  const valeur = (valeurs: ValeursCriteres): ValeurCritere => {
+    const brute = valeurs[critere.id];
 
     return estRenseigne(brute) ? brute : null;
   };
@@ -93,7 +101,7 @@ function colonneDeCritere(critere: Critere): Colonne {
     sensComparaison: critere.sensComparaison,
     critere,
     valeur,
-    texte: (bien) => formaterValeur(critere, valeur(bien)),
+    texte: (valeurs) => formaterValeur(critere, valeur(valeurs)),
   };
 }
 
@@ -113,8 +121,8 @@ const PRIX_METRE_CARRE = new Intl.NumberFormat('fr-FR', { maximumFractionDigits:
  * la valeur est absente : en fin de tri, jamais comme un zéro.
  */
 function colonnePrixAuMetreCarre(): Colonne {
-  const valeur = (bien: Bien): number | null =>
-    prixAuMetreCarre(nombre(bien, 'prixDemande'), nombre(bien, 'surfaceHabitable'));
+  const valeur = (valeurs: ValeursCriteres): number | null =>
+    prixAuMetreCarre(nombre(valeurs, 'prixDemande'), nombre(valeurs, 'surfaceHabitable'));
 
   return {
     id: ID_COLONNE_PRIX_METRE_CARRE,
@@ -126,8 +134,8 @@ function colonnePrixAuMetreCarre(): Colonne {
     sensComparaison: 'plusPetitEstMeilleur',
     critere: null,
     valeur,
-    texte: (bien) => {
-      const calcule = valeur(bien);
+    texte: (valeurs) => {
+      const calcule = valeur(valeurs);
 
       return calcule === null ? '' : `${PRIX_METRE_CARRE.format(calcule)} €/m²`;
     },
@@ -135,13 +143,13 @@ function colonnePrixAuMetreCarre(): Colonne {
 }
 
 /**
- * La valeur numérique d'un Critère d'un Bien, ou `null` si elle n'en est pas
- * une. Le garde n'est pas décoratif : le modèle d'affichage tient ce que
- * l'adapter y a mis, et un texte arrivé sur un Critère numérique doit rendre
- * une colonne vide plutôt qu'un calcul sur `NaN`.
+ * La valeur numérique d'un Critère, ou `null` si elle n'en est pas une. Le
+ * garde n'est pas décoratif : le modèle d'affichage tient ce que l'adapter y
+ * a mis, et un texte arrivé sur un Critère numérique doit rendre une colonne
+ * vide plutôt qu'un calcul sur `NaN`.
  */
-function nombre(bien: Bien, id: string): number | null {
-  const valeur = bien.criteres[id];
+function nombre(valeurs: ValeursCriteres, id: string): number | null {
+  const valeur = valeurs[id];
 
   return typeof valeur === 'number' ? valeur : null;
 }
