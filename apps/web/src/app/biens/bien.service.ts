@@ -12,6 +12,8 @@ const API_INJOIGNABLE = "L'API est injoignable. Le Bien n'a pas été enregistr�
 
 const MODIFICATION_INJOIGNABLE = "L'API est injoignable. La modification n'a pas été enregistrée.";
 
+const SUPPRESSION_INJOIGNABLE = "L'API est injoignable. Le Bien n'a pas été supprimé.";
+
 const LISTE_INJOIGNABLE: ListeBiens = { chargee: false };
 
 /**
@@ -29,6 +31,19 @@ export type CreationBienResultat =
 export type ModificationBienResultat =
   | { enregistre: true; bien: Bien }
   | { enregistre: false; erreurs: string[] };
+
+/**
+ * L'issue d'une suppression (#9).
+ *
+ * L'échec porte `disparu` parce que les deux façons d'échouer ne se
+ * ressemblent pas. Un 404 dit que le Bien n'est plus là — c'était le but, et
+ * l'écran peut refermer la fiche sans mentir. Tout le reste laisse le Bien
+ * en place, et il faut le dire : croire à une suppression qui n'a pas eu
+ * lieu ferait chercher un Bien qu'on retrouverait au rechargement suivant.
+ */
+export type SuppressionBienResultat =
+  | { supprime: true }
+  | { supprime: false; disparu: boolean; erreurs: string[] };
 
 /**
  * L'issue d'un chargement de la liste. Une API qui n'a pas répondu n'a par
@@ -121,6 +136,37 @@ export class BienService {
           }),
         ),
       );
+  }
+
+  /**
+   * La suppression définitive d'un Bien (#9).
+   *
+   * Rien n'est rendu en cas de succès : le Bien n'est plus là, et il n'y a
+   * rien à en dire. C'est l'écran qui décide de ce qu'il montre ensuite.
+   *
+   * La confirmation ne se joue pas ici. Elle est affaire d'écran — c'est là
+   * qu'un geste se déclenche par accident —, et un service qui la
+   * redemanderait ne ferait qu'ajouter un garde-fou que les tests
+   * devraient contourner.
+   */
+  supprimer(id: number): Observable<SuppressionBienResultat> {
+    return this.http.delete<void>(`${BIENS_URL}/${id}`).pipe(
+      map((): SuppressionBienResultat => ({ supprime: true })),
+      catchError((erreur: unknown) => {
+        // Le Bien n'existe déjà plus : l'état visé est atteint, mais ce
+        // n'est pas cet appel qui l'a obtenu, et l'écran mérite de le
+        // savoir plutôt que de l'apprendre par un succès inventé.
+        const disparu = erreur instanceof HttpErrorResponse && erreur.status === 404;
+
+        return of<SuppressionBienResultat>({
+          supprime: false,
+          disparu,
+          // Un Bien déjà disparu n'a rien à faire lire : la fiche se referme
+          // sur le même constat qu'une suppression réussie.
+          erreurs: disparu ? [] : messages(erreur, SUPPRESSION_INJOIGNABLE),
+        });
+      }),
+    );
   }
 }
 

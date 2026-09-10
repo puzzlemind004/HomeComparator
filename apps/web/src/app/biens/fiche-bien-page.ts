@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BienService, type FicheBien } from './bien.service';
 import type { ModificationBien } from './bien';
 import type { Critere, GroupeCritere } from '../criteres/critere';
@@ -79,6 +79,7 @@ export interface BlocCriteres {
 export class FicheBienPage {
   private readonly bienService = inject(BienService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   /** L'identifiant du Bien, tel que l'adresse le porte. */
   private readonly id = Number(this.route.snapshot.paramMap.get('id'));
@@ -91,6 +92,39 @@ export class FicheBienPage {
   readonly fiche = signal<FicheBien | null>(null);
   readonly erreurs = signal<string[]>([]);
   readonly enregistrement = signal(false);
+
+  /**
+   * Vrai quand la suppression a été demandée et attend d'être confirmée
+   * (#9).
+   *
+   * Le garde-fou vit ici plutôt que dans le seul gabarit : une confirmation
+   * qui ne serait qu'un bouton affiché sous condition disparaîtrait au
+   * premier remaniement du HTML sans qu'aucun test s'en aperçoive, et la
+   * suppression est précisément ce qui ne se rattrape pas.
+   */
+  readonly confirmationSuppression = signal(false);
+
+  /**
+   * Vrai le temps que l'API réponde à la suppression.
+   *
+   * La confirmation reste ouverte pendant ce temps : c'est elle qui porte
+   * le bouton, et la refermer aussitôt ferait revenir « Supprimer ce Bien »
+   * comme si rien n'avait été demandé. Sur une API lente, l'acheteur
+   * n'aurait plus rien à regarder.
+   */
+  readonly suppression = signal(false);
+
+  /**
+   * Ce qui a empêché la suppression, affiché dans le bloc où le geste a été
+   * fait plutôt qu'en tête de fiche (#9).
+   *
+   * Séparé d'`erreurs` parce que l'endroit compte : la suppression est en
+   * bas d'une fiche longue, et un message affiché tout en haut serait hors
+   * de l'écran au moment précis où il faut le lire. Sans lui, un échec ne
+   * se distinguerait pas d'une réussite — le bouton reprend son état
+   * initial dans les deux cas, et l'acheteur croirait le Bien supprimé.
+   */
+  readonly erreurSuppression = signal<string[]>([]);
 
   /**
    * L'assistant en cours, ou `null` quand il ne l'est pas — c'est-à-dire à
@@ -274,6 +308,86 @@ export class FicheBienPage {
       this.assistant.set(passer(assistant));
       this.reponse = '';
     }
+  }
+
+  /**
+   * Le premier des deux gestes de la suppression : il n'appelle pas l'API,
+   * il ouvre la confirmation (#9).
+   *
+   * Deux gestes et non un seul parce que la suppression est définitive :
+   * pas de corbeille, pas de restauration, et les sauvegardes quotidiennes
+   * pour seul recours (ADR-0007). Un bouton qui supprimerait au premier
+   * appui ferait de l'effleurement — celui qu'on ne remarque pas, sur une
+   * fiche qu'on fait défiler au pouce — une perte de données.
+   */
+  demanderSuppression(): void {
+    this.erreurSuppression.set([]);
+    this.confirmationSuppression.set(true);
+  }
+
+  /** La suppression abandonnée, sans que rien n'ait été appelé. */
+  renoncerSuppression(): void {
+    this.confirmationSuppression.set(false);
+    this.erreurSuppression.set([]);
+  }
+
+  /**
+   * Le second geste : la suppression, pour de bon.
+   *
+   * Elle ne fait rien tant que le premier n'a pas eu lieu. C'est ce qui
+   * rend le double appui inoffensif — le second trouve la confirmation
+   * refermée — et ce qui empêche qu'un remaniement du gabarit ne branche
+   * par mégarde la suppression sur un bouton toujours visible.
+   *
+   * Un Bien déjà disparu n'est pas traité comme un échec : l'état visé est
+   * atteint, et afficher une erreur ferait s'inquiéter d'un succès. Seul
+   * l'incident — l'API injoignable — retient sur la fiche, où le Bien est
+   * toujours là et doit continuer de se voir.
+   */
+  confirmerSuppression(): void {
+    /**
+     * Ni sans confirmation ouverte, ni deux fois — le second appui d'un
+     * double-clic trouve une suppression déjà en cours —, ni par-dessus un
+     * Critère en cours d'enregistrement.
+     *
+     * Ce dernier cas n'a rien de théorique : les Critères s'enregistrent au
+     * `blur`, donc quitter un champ pour venir supprimer lance les deux
+     * écritures coup sur coup. Le `PATCH` reviendrait sur un Bien qui
+     * n'existe plus, et son 404 — que le service ne sait pas distinguer
+     * d'une panne — s'afficherait comme « L'API est injoignable » sur une
+     * fiche qu'on a déjà quittée.
+     *
+     * Le garde vit ici et pas dans le seul `[disabled]` du gabarit, pour la
+     * même raison que la confirmation elle-même : un remaniement du HTML ne
+     * doit pas pouvoir le faire disparaître en silence.
+     */
+    if (!this.confirmationSuppression() || this.suppression() || this.enregistrement()) {
+      return;
+    }
+
+    this.suppression.set(true);
+    this.erreurSuppression.set([]);
+
+    this.bienService.supprimer(this.id).subscribe((resultat) => {
+      this.suppression.set(false);
+
+      if (resultat.supprime || resultat.disparu) {
+        // La fiche d'un Bien supprimé n'a plus rien à montrer : y rester
+        // laisserait à l'écran un Bien qui n'existe plus.
+        this.confirmationSuppression.set(false);
+        void this.router.navigate(['/']);
+        return;
+      }
+
+      /**
+       * L'échec laisse la confirmation ouverte, avec son message juste
+       * au-dessous. Le Bien est toujours là, l'acheteur voulait le
+       * supprimer, et le geste à refaire est celui-là même : refermer
+       * l'obligerait à repartir du premier appui pour retrouver un bouton
+       * qui ne dit pas ce qui a échoué.
+       */
+      this.erreurSuppression.set(resultat.erreurs);
+    });
   }
 
   /**

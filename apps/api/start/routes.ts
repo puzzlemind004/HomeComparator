@@ -46,6 +46,10 @@ router
     // Critère modifié, et le reste du Bien n'a pas à transiter pour rester
     // en place (#6).
     router.patch('/biens/:id', [BiensController, 'update'])
+    // La suppression définitive, que la confirmation de l'écran précède
+    // (#9). Elle ne se distingue de la modification que par son verbe :
+    // c'est le même Bien, désigné de la même façon.
+    router.delete('/biens/:id', [BiensController, 'destroy'])
   })
   .use(middleware.authentification())
 

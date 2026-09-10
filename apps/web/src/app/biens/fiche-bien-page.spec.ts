@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { Injector, runInInjectionContext } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
-import { of, type Observable } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Observable, of } from 'rxjs';
 import { FicheBienPage } from './fiche-bien-page';
-import { BienService, type FicheBien, type ModificationBienResultat } from './bien.service';
+import {
+  BienService,
+  type FicheBien,
+  type ModificationBienResultat,
+  type SuppressionBienResultat,
+} from './bien.service';
 import type { ModificationBien } from './bien';
 import { unBien } from './bien.test-helper';
 
@@ -15,8 +20,11 @@ function creerFiche(
   service: {
     consulter?: (id: number) => Observable<FicheBien>;
     modifier?: (id: number, modification: ModificationBien) => Observable<ModificationBienResultat>;
+    supprimer?: (id: number) => Observable<SuppressionBienResultat>;
   },
   id = '1',
+  /** Les adresses vers lesquelles la fiche a navigué, quand un test les lit. */
+  navigations: unknown[][] = [],
 ) {
   const injector = Injector.create({
     providers: [
@@ -25,10 +33,20 @@ function creerFiche(
         useValue: {
           consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien() }),
           modifier: () => of<ModificationBienResultat>({ enregistre: true, bien: unBien() }),
+          supprimer: () => of<SuppressionBienResultat>({ supprime: true }),
           ...service,
         },
       },
       { provide: ActivatedRoute, useValue: { snapshot: { paramMap: new Map([['id', id]]) } } },
+      {
+        provide: Router,
+        useValue: {
+          navigate: (adresse: unknown[]) => {
+            navigations.push(adresse);
+            return Promise.resolve(true);
+          },
+        },
+      },
     ],
   });
 
@@ -609,5 +627,336 @@ describe('l’assistant depuis la fiche', () => {
       expect(identifiants).not.toContain('dateVisite');
       expect(identifiants).not.toContain('montantDerniereOffre');
     });
+  });
+});
+
+/**
+ * La suppression définitive (#9).
+ *
+ * Elle ne fait pas double emploi avec le Statut Écarté : écarter garde le
+ * Bien et sa raison, supprimer corrige une saisie ou un doublon. Et comme
+ * elle ne se rattrape pas, tout ici tourne autour d'une seule question :
+ * combien de gestes distincts séparent la fiche d'un Bien qui n'existe plus.
+ */
+describe('la suppression d’un Bien', () => {
+  it('ne propose rien d’autre qu’un premier geste au départ', () => {
+    // La confirmation n'est pas ouverte à l'ouverture de la fiche : le
+    // bouton qui supprime pour de bon n'est nulle part à portée de doigt.
+    const fiche = creerFiche({});
+
+    expect(fiche.confirmationSuppression()).toBe(false);
+  });
+
+  it('demande confirmation au lieu de supprimer', () => {
+    // Le premier geste n'appelle pas l'API : c'est tout ce qui sépare un
+    // effleurement d'une perte de données.
+    const appels: number[] = [];
+    const fiche = creerFiche({
+      supprimer: (id) => {
+        appels.push(id);
+        return of<SuppressionBienResultat>({ supprime: true });
+      },
+    });
+
+    fiche.demanderSuppression();
+
+    expect(fiche.confirmationSuppression()).toBe(true);
+    expect(appels).toEqual([]);
+  });
+
+  it('renonce sans rien supprimer', () => {
+    const appels: number[] = [];
+    const fiche = creerFiche({
+      supprimer: (id) => {
+        appels.push(id);
+        return of<SuppressionBienResultat>({ supprime: true });
+      },
+    });
+
+    fiche.demanderSuppression();
+    fiche.renoncerSuppression();
+
+    expect(fiche.confirmationSuppression()).toBe(false);
+    expect(appels).toEqual([]);
+  });
+
+  it('supprime le Bien de l’adresse une fois confirmé', () => {
+    const appels: number[] = [];
+    const fiche = creerFiche(
+      {
+        supprimer: (id) => {
+          appels.push(id);
+          return of<SuppressionBienResultat>({ supprime: true });
+        },
+      },
+      '7',
+    );
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(appels).toEqual([7]);
+  });
+
+  it('ne supprime rien tant que la confirmation n’a pas été demandée', () => {
+    /**
+     * Le garde-fou tient dans le composant et non dans le seul gabarit :
+     * une confirmation qui ne serait qu'un bouton caché disparaîtrait au
+     * premier remaniement du HTML, sans qu'un test s'en aperçoive.
+     */
+    const appels: number[] = [];
+    const fiche = creerFiche({
+      supprimer: (id) => {
+        appels.push(id);
+        return of<SuppressionBienResultat>({ supprime: true });
+      },
+    });
+
+    fiche.confirmerSuppression();
+
+    expect(appels).toEqual([]);
+  });
+
+  it('ramène au carnet une fois le Bien supprimé', () => {
+    // La fiche d'un Bien supprimé n'a plus rien à montrer, et y rester
+    // laisserait à l'écran un Bien qui n'existe plus.
+    const navigations: unknown[][] = [];
+    const fiche = creerFiche({}, '1', navigations);
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(navigations).toEqual([['/']]);
+  });
+
+  it('ramène au carnet quand le Bien avait déjà disparu', () => {
+    // Supprimé depuis un autre onglet : l'état visé est atteint, et
+    // afficher une erreur pour un Bien absent ferait s'inquiéter d'un
+    // succès.
+    const navigations: unknown[][] = [];
+    const fiche = creerFiche(
+      { supprimer: () => of<SuppressionBienResultat>({ supprime: false, disparu: true, erreurs: [] }) },
+      '1',
+      navigations,
+    );
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(navigations).toEqual([['/']]);
+    expect(fiche.erreurs()).toEqual([]);
+  });
+
+  it('reste sur la fiche quand la suppression échoue', () => {
+    const navigations: unknown[][] = [];
+    const fiche = creerFiche(
+      {
+        supprimer: () =>
+          of<SuppressionBienResultat>({
+            supprime: false,
+            disparu: false,
+            erreurs: ["L'API est injoignable. Le Bien n'a pas été supprimé."],
+          }),
+      },
+      '1',
+      navigations,
+    );
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(navigations).toEqual([]);
+    // Le Bien est toujours là : la fiche continue de le montrer.
+    expect(bienAffiche(fiche)?.id).toBe(1);
+  });
+
+  it('dit dans le bloc de suppression ce qui l’a empêchée', () => {
+    /**
+     * Le message est porté par son propre signal, et non par celui de la
+     * fiche : le geste se fait en bas d'une page longue, et `erreurs`
+     * s'affiche tout en haut — hors de l'écran au moment précis où il
+     * faudrait le lire. Sans cela, l'échec ressemblerait à une réussite.
+     */
+    const fiche = creerFiche({
+      supprimer: () =>
+        of<SuppressionBienResultat>({
+          supprime: false,
+          disparu: false,
+          erreurs: ["L'API est injoignable. Le Bien n'a pas été supprimé."],
+        }),
+    });
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(fiche.erreurSuppression()).toEqual([
+      "L'API est injoignable. Le Bien n'a pas été supprimé.",
+    ]);
+  });
+
+  it('laisse la confirmation ouverte sur un échec', () => {
+    // Le Bien est toujours là et l'acheteur voulait le supprimer : le geste
+    // à refaire est celui-là même. Refermer l'obligerait à repartir du
+    // premier appui, sur un bouton qui ne dit pas ce qui a échoué.
+    const fiche = creerFiche({
+      supprimer: () =>
+        of<SuppressionBienResultat>({
+          supprime: false,
+          disparu: false,
+          erreurs: ['injoignable'],
+        }),
+    });
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(fiche.confirmationSuppression()).toBe(true);
+    expect(fiche.suppression()).toBe(false);
+  });
+
+  it('n’enchaîne pas deux suppressions sur un double appui', () => {
+    /**
+     * Deux appels d'affilée n'appellent l'API qu'une fois. Le premier laisse
+     * `suppression` armé le temps de la réponse, et c'est ce drapeau — et
+     * non la fermeture de la confirmation, qui n'a plus lieu sur un échec —
+     * qui arrête le second.
+     */
+    const appels: number[] = [];
+    const fiche = creerFiche({
+      supprimer: (id) => {
+        appels.push(id);
+        // Une réponse qui n'arrive jamais : la requête est encore en vol,
+        // comme pendant le double appui qu'on décrit.
+        return new Observable<SuppressionBienResultat>(() => undefined);
+      },
+    });
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+    fiche.confirmerSuppression();
+
+    expect(appels).toEqual([1]);
+    expect(fiche.suppression()).toBe(true);
+  });
+
+  it('signale la suppression en cours', () => {
+    // La confirmation reste montée le temps de la réponse : la refermer
+    // aussitôt ferait revenir « Supprimer ce Bien » comme si rien n'avait
+    // été demandé, et l'acheteur n'aurait plus rien à regarder.
+    const fiche = creerFiche({
+      supprimer: () => new Observable<SuppressionBienResultat>(() => undefined),
+    });
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(fiche.suppression()).toBe(true);
+    expect(fiche.confirmationSuppression()).toBe(true);
+  });
+
+  it('oublie le message d’un échec précédent en réessayant', () => {
+    let echoue = true;
+    const fiche = creerFiche({
+      supprimer: () =>
+        of<SuppressionBienResultat>(
+          echoue
+            ? { supprime: false, disparu: false, erreurs: ['injoignable'] }
+            : { supprime: true },
+        ),
+    });
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+    expect(fiche.erreurSuppression()).toEqual(['injoignable']);
+
+    echoue = false;
+    fiche.confirmerSuppression();
+
+    expect(fiche.erreurSuppression()).toEqual([]);
+  });
+
+  it('ne supprime pas par-dessus un Critère en cours d’enregistrement', () => {
+    /**
+     * Les Critères s'enregistrent au `blur` : quitter un champ pour venir
+     * supprimer lance les deux écritures coup sur coup. Sans ce garde, le
+     * `PATCH` reviendrait sur un Bien qui n'existe plus, et son 404 — que le
+     * service ne distingue pas d'une panne — s'afficherait comme « L'API est
+     * injoignable » sur une fiche déjà quittée.
+     */
+    const appels: number[] = [];
+    const fiche = creerFiche({
+      // Un enregistrement qui n'a pas encore répondu : la requête est en vol.
+      modifier: () => new Observable<ModificationBienResultat>(() => undefined),
+      supprimer: (id) => {
+        appels.push(id);
+        return of<SuppressionBienResultat>({ supprime: true });
+      },
+    });
+
+    fiche.enregistrer('prixDemande', 250_000);
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(fiche.enregistrement()).toBe(true);
+    expect(appels).toEqual([]);
+  });
+
+  it('supprime une fois le Critère enregistré', () => {
+    // Le garde retient, il ne condamne pas : l'enregistrement terminé, le
+    // même geste passe.
+    const appels: number[] = [];
+    const fiche = creerFiche({
+      supprimer: (id) => {
+        appels.push(id);
+        return of<SuppressionBienResultat>({ supprime: true });
+      },
+    });
+
+    fiche.enregistrer('prixDemande', 250_000);
+    expect(fiche.enregistrement()).toBe(false);
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(appels).toEqual([1]);
+  });
+
+  it('oublie le message d’un échec en renonçant', () => {
+    const fiche = creerFiche({
+      supprimer: () =>
+        of<SuppressionBienResultat>({ supprime: false, disparu: false, erreurs: ['injoignable'] }),
+    });
+
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+    fiche.renoncerSuppression();
+
+    expect(fiche.erreurSuppression()).toEqual([]);
+    expect(fiche.confirmationSuppression()).toBe(false);
+  });
+
+  it('ne touche pas aux erreurs d’un enregistrement en cours', () => {
+    /**
+     * Les deux messages ont leur propre signal : un Critère refusé reste
+     * affiché en tête de fiche pendant qu'une suppression échoue plus bas,
+     * et l'un n'efface pas l'autre. Ils disent des choses différentes, sur
+     * des gestes différents.
+     */
+    const fiche = creerFiche({
+      modifier: () =>
+        of<ModificationBienResultat>({
+          enregistre: false,
+          erreurs: ['Le Libellé est obligatoire'],
+        }),
+      supprimer: () =>
+        of<SuppressionBienResultat>({ supprime: false, disparu: false, erreurs: ['injoignable'] }),
+    });
+
+    fiche.enregistrer('libelle', '');
+    fiche.demanderSuppression();
+    fiche.confirmerSuppression();
+
+    expect(fiche.erreurs()).toEqual(['Le Libellé est obligatoire']);
+    expect(fiche.erreurSuppression()).toEqual(['injoignable']);
   });
 });

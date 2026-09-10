@@ -10,6 +10,10 @@ import { STATUT_INITIAL, STATUTS } from '#services/statut'
  * Critère. C'est la boucle de repérage — celle qui doit tenir en quelques
  * secondes le soir devant une annonce — puis la complétion, qui vient plus
  * tard, au téléphone ou pendant la visite (ADR-0008).
+ *
+ * Et la suppression, qui n'appartient à aucune des deux : elle sert à
+ * défaire une saisie, un doublon ou une erreur, là où le Statut Écarté sert
+ * à consigner une décision (#9).
  */
 export default class BiensController {
   /**
@@ -157,5 +161,44 @@ export default class BiensController {
     await bien.save()
 
     return response.ok(bien)
+  }
+
+  /**
+   * La suppression définitive d'un Bien (#9).
+   *
+   * Elle ne fait pas double emploi avec le Statut Écarté : écarter est une
+   * décision de l'acheteur, qu'il veut garder en mémoire et qu'il peut
+   * revenir sur ; supprimer corrige une erreur de saisie ou un doublon, et
+   * ne laisse rien.
+   *
+   * Pas de corbeille et pas de restauration : la ligne part pour de bon. Ce
+   * qui couvre la fausse manœuvre, c'est la sauvegarde quotidienne
+   * (ADR-0007), et côté écran la confirmation explicite — le seul
+   * garde-fou avant cet appel.
+   *
+   * Rien d'autre n'est à effacer : tout ce qui est noté d'un Bien vit dans
+   * sa ligne, les Critères en colonnes (ADR-0004) comme les Notes
+   * (ADR-0012), et aucune table ne s'y rattache. Le jour où le carnet
+   * stockera des photos (ADR-0007), c'est ici qu'il faudra les défaire.
+   */
+  async destroy({ params, response }: HttpContext) {
+    const bien = await Bien.find(params.id)
+
+    /**
+     * Un Bien déjà absent est un 404 et non un 204. La suppression n'est
+     * pas un état à atteindre mais un geste sur un Bien précis : l'écran a
+     * demandé la disparition de celui-là, et apprendre qu'il n'était déjà
+     * plus là — deuxième onglet, deuxième appareil — vaut mieux qu'un
+     * succès qui ne dit rien.
+     */
+    if (!bien) {
+      return response.notFound({ message: "Ce Bien n'existe pas" })
+    }
+
+    await bien.delete()
+
+    // Sans corps : rendre le Bien supprimé inviterait l'écran à l'afficher
+    // encore, alors qu'il n'y a plus rien à en dire.
+    return response.noContent()
   }
 }
