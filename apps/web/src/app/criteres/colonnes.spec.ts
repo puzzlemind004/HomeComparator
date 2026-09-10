@@ -183,6 +183,17 @@ describe('GROUPES_COLONNES', () => {
     expect(ids.indexOf(ID_COLONNE_PRIX_METRE_CARRE)).toBe(ids.indexOf('prixDemande') + 1);
   });
 
+  it('ne perd aucune colonne calculée faute de groupe', () => {
+    // `groupeDe` rend le groupe de `prixDemande` pour la Colonne calculée,
+    // qui n'en a pas (ADR-0013). Si ce Critère était renommé, la fonction
+    // rendrait `undefined` et le prix au m² disparaîtrait du tableau sans
+    // qu'aucune erreur ne soit levée : ce test est ce qui le ferait voir.
+    const groupees = GROUPES_COLONNES.flatMap(({ colonnes }) => colonnes);
+
+    expect(groupees).toHaveLength(COLONNES.length);
+    expect(groupees.some((colonne) => colonne.id === ID_COLONNE_PRIX_METRE_CARRE)).toBe(true);
+  });
+
   it('couvre toutes les colonnes, sans doublon ni oubli', () => {
     // Le tableau n'affiche que ce que les groupes portent : une colonne
     // tombée hors de tout groupe disparaîtrait de l'écran en silence.
@@ -233,9 +244,6 @@ function largeurGroupe(groupe: GroupeColonnes): number {
  */
 const LARGEUR_FIXE = largeurEntete('Bien') + largeurEntete('Statut');
 
-/** Ce qu'un groupe replié laisse : une colonne étroite, au titre vertical. */
-const LARGEUR_REPLI = 34;
-
 /**
  * À quelle largeur le tableau tient — la note vérifiable que demandait #49,
  * écrite en test pour qu'un Critère ajouté la remette en cause plutôt que de
@@ -248,7 +256,7 @@ describe('largeur du tableau', () => {
   const SEUIL_APPARITION = 1024;
   const PORTABLE_COURANT = 1280;
 
-  it('déborde largement si tous les groupes sont dépliés', () => {
+  it('déborde largement si tous les groupes sont affichés', () => {
     // C'est le constat de #49, et la raison d'être du pliage : le tableau
     // entier ne tient sur aucun écran de portable.
     const tout = LARGEUR_FIXE + GROUPES_COLONNES.reduce((t, g) => t + largeurGroupe(g), 0);
@@ -256,26 +264,37 @@ describe('largeur du tableau', () => {
     expect(tout).toBeGreaterThan(2 * SEUIL_APPARITION);
   });
 
-  it('tient au seuil d’apparition avec le seul groupe budget déplié', () => {
+  it('tient au seuil d’apparition avec le seul groupe budget affiché', () => {
     // C'est l'état dans lequel le tableau s'ouvre : il ne défile donc pas de
-    // côté sur l'écran le plus étroit où il paraît.
+    // côté sur l'écran le plus étroit où il paraît. Un groupe masqué ne
+    // laisse aucune colonne, et ne compte donc pour rien dans la largeur.
     const budget = GROUPES_COLONNES.find(({ groupe }) => groupe === 'budget')!;
-    const ouverture = LARGEUR_FIXE + largeurGroupe(budget) + 3 * LARGEUR_REPLI;
+    const ouverture = LARGEUR_FIXE + largeurGroupe(budget);
 
     expect(ouverture).toBeLessThan(SEUIL_APPARITION);
   });
 
-  it('tient sur un portable courant avec n’importe quel groupe déplié seul', () => {
-    // Le pliage n'est utile que si chaque groupe est consultable sans
-    // défilement. Le plus large — « Logement », cinq Critères — dépasse le
-    // seuil d'apparition d'une centaine de pixels, mais tient sur les 1280
-    // px d'un portable courant. C'est la borne que ce ticket tient : le
-    // tableau s'ouvre sans défilement partout où il paraît, et se consulte
-    // groupe par groupe sans défilement dès 1280.
+  it('tient au seuil d’apparition avec n’importe quel groupe affiché seul', () => {
+    // Le choix par groupe n'est utile que si chaque groupe est consultable
+    // sans défilement, et pas seulement celui de l'ouverture. Le plus large
+    // — « Logement », cinq Critères — réclame de l'ordre de 960 px : les
+    // quatre tiennent donc à 1024, et a fortiori sur les 1280 px d'un
+    // portable courant.
     for (const groupe of GROUPES_COLONNES) {
-      const seul = LARGEUR_FIXE + largeurGroupe(groupe) + 3 * LARGEUR_REPLI;
+      const seul = LARGEUR_FIXE + largeurGroupe(groupe);
 
-      expect(seul).toBeLessThan(PORTABLE_COURANT);
+      expect(seul).toBeLessThan(SEUIL_APPARITION);
     }
+  });
+
+  it('déborde dès que deux groupes larges sont affichés ensemble', () => {
+    // Le débordement n'a pas disparu, il est devenu un choix : c'est
+    // l'acheteur qui le demande en affichant un second groupe, et non le
+    // tableau qui l'impose à l'ouverture (#49, ADR-0006).
+    const budget = GROUPES_COLONNES.find(({ groupe }) => groupe === 'budget')!;
+    const logement = GROUPES_COLONNES.find(({ groupe }) => groupe === 'logement')!;
+    const deux = LARGEUR_FIXE + largeurGroupe(budget) + largeurGroupe(logement);
+
+    expect(deux).toBeGreaterThan(PORTABLE_COURANT);
   });
 });

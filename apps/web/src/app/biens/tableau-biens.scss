@@ -8,7 +8,7 @@
   // Le conteneur défile verticalement. Il peut défiler de côté, mais ce
   // n'est plus le régime ordinaire : les Critères s'affichent par groupe, et
   // « Budget » seul l'est à l'ouverture — trois colonnes plus le prix au m²,
-  // soit de l'ordre de 830 px avec le Libellé et le Statut, pour un seuil
+  // soit environ 850 px mesurés avec le Libellé et le Statut, pour un seuil
   // d'apparition à 1024 (#49). Le tableau tient donc sur un portable sans
   // faire défiler de côté, ce qu'ADR-0006 rejette pour ce que cela détruit :
   // la comparaison d'un coup d'œil.

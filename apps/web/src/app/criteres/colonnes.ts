@@ -203,8 +203,9 @@ export interface GroupeColonnes {
  * C'est ce qui rend le tableau pliable sans qu'il invente un rangement : les
  * quatre groupes et leurs titres viennent de la définition (ADR-0004), et un
  * Critère ajouté paraît dans le sien sans que le tableau soit retouché. Sans
- * ce pliage, dix-huit colonnes en `nowrap` réclament de l'ordre de 2400 px
- * pour un seuil d'apparition à 1024 : le tableau défilerait de côté, ce
+ * ce choix par groupe, seize Colonnes en `nowrap` — plus le Libellé et le
+ * Statut — réclament de l'ordre de 2400 px pour un seuil d'apparition à
+ * 1024 : le tableau défilerait de côté, ce
  * qu'ADR-0006 rejette pour ce que cela détruit — la comparaison d'un coup
  * d'œil.
  *

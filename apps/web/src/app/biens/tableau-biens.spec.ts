@@ -248,7 +248,7 @@ describe('TableauBiens, pliage des groupes', () => {
 
   it('ne calcule les cases que des colonnes visibles', () => {
     // Le tableau formate ses cases une fois par changement de Biens ou de
-    // tri (#10) : formater les quinze colonnes pour n'en montrer trois
+    // tri (#10) : formater les seize Colonnes pour n'en montrer quatre
     // paierait à chaque clic un travail qui ne s'affiche pas.
     const tableau = creerTableau([bien('anatole')]);
 
@@ -293,9 +293,10 @@ describe('TableauBiens, pliage des groupes', () => {
     expect(visibles(tableau).length).toBe(CRITERES_ORDONNES.length + 1);
   });
 
-  it('dit si un groupe est déplié pour l’annoncer au lecteur d’écran', () => {
-    // C'est ce dont le bouton de pliage tire son `aria-expanded` : le pliage
-    // s'atteint au clavier et annonce son état (ADR-0005).
+  it('dit si un groupe est affiché pour l’annoncer au lecteur d’écran', () => {
+    // C'est ce dont la bascule tire son `aria-pressed` : le bouton dit un
+    // état — ce groupe est affiché — et non une action, et il s'atteint au
+    // clavier (ADR-0005).
     const tableau = creerTableau([]);
 
     expect(tableau.estDeplie('budget')).toBe(true);

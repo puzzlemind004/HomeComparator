@@ -65,14 +65,15 @@ export interface LigneTableau {
  *
  * C'est la vue qui répond à « qu'est-ce que j'ai en stock » et qui fait voir
  * d'un coup d'œil le moins cher ou le plus grand. Elle ne sert que le
- * desktop : sur mobile, un tableau de dix-huit colonnes est illisible quelle
+ * desktop : sur mobile, un tableau de seize Colonnes est illisible quelle
  * que soit l'astuce employée, et les cartes font l'objet d'un ticket à part
  * (ADR-0006).
  *
  * Les Critères s'y choisissent par groupe — budget, logement, localisation,
  * confort. Seul « Budget » est affiché à l'ouverture : affichés tous les
- * quatre, dix-huit colonnes en `nowrap` réclament de l'ordre de 2400 px pour
- * un seuil d'apparition à 1024, et le tableau défilerait de côté — ce
+ * quatre, seize Colonnes en `nowrap` — plus le Libellé et le Statut —
+ * réclament de l'ordre de 2400 px pour un seuil d'apparition à 1024, et le
+ * tableau défilerait de côté — ce
  * qu'ADR-0006 rejette pour ce que cela détruit, la comparaison d'un coup
  * d'œil (#49). Au-delà, le débordement est demandé par l'acheteur, non subi.
  *
@@ -115,13 +116,14 @@ export class TableauBiens {
 
   /**
    * Les groupes affichés. « Budget » seul à l'ouverture : c'est ce sur quoi
-   * l'acheteur ouvre son carnet, et c'est le seul état qui tienne au seuil
-   * d'apparition du tableau — de l'ordre de 830 px, contre 1024 (#49).
+   * l'acheteur ouvre son carnet — environ 850 px mesurés au navigateur avec
+   * le Libellé et le Statut, contre un seuil d'apparition à 1024 (#49).
    *
-   * Les autres groupes se consultent un à un sans défilement dès 1280 px,
-   * la largeur d'un portable courant ; « Logement », le plus large avec ses
-   * cinq Critères, en réclame environ 1060 et dépasse donc le seul seuil
-   * d'apparition. `colonnes.spec.ts` tient ces largeurs à jour.
+   * N'importe lequel des quatre tient seul à cette largeur : « Logement », le
+   * plus large avec ses cinq Critères, en réclame environ 960. C'est en
+   * affichant deux groupes que l'acheteur fait déborder le tableau — un
+   * défilement qu'il demande, et non qu'on lui impose. `colonnes.spec.ts`
+   * tient ces largeurs à jour.
    *
    * Le choix est éphémère et ne se retient pas d'une visite à l'autre : le
    * carnet ne persiste aucune préférence, et en créer une première est une
