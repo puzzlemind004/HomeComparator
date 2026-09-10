@@ -86,7 +86,16 @@
   @if (liste(); as liste) {
     @if (liste.chargee) {
       @if (liste.biens.length) {
-        <ul class="liste">
+        <!--
+          Le tableau sur desktop, les cartes sur écran étroit : les deux
+          présentations montrent les mêmes Biens, et c'est la feuille de
+          style qui choisit laquelle paraît (ADR-0006). Un tableau de seize
+          colonnes est illisible sur un téléphone, et le défilement
+          horizontal a été explicitement écarté.
+        -->
+        <app-tableau-biens class="vue-desktop" [biensAAfficher]="liste.biens" />
+
+        <ul class="liste vue-mobile">
           @for (bien of liste.biens; track bien.id) {
             <li class="bien">
               <a class="bien__libelle" [routerLink]="['/biens', bien.id]">{{ bien.libelle }}</a>

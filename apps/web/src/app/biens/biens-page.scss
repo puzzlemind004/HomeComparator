@@ -104,6 +104,28 @@
   color: #fff;
 }
 
+// Le tableau sur desktop, les cartes sur écran étroit (ADR-0006). Les deux
+// présentations montrent les mêmes Biens : c'est ici qu'on choisit laquelle
+// paraît, et non dans le composant, qui n'a pas à savoir sur quel écran il
+// est monté.
+//
+// Le seuil vaut ce qu'il faut pour que le tableau garde son intérêt : en
+// dessous, comparer d'un coup d'œil ne marche plus, et les cartes disent
+// mieux la même chose.
+.vue-desktop {
+  display: none;
+}
+
+@media (min-width: 64rem) {
+  .vue-desktop {
+    display: block;
+  }
+
+  .vue-mobile {
+    display: none;
+  }
+}
+
 .liste {
   list-style: none;
   margin: 0;

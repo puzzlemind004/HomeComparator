@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { Subject, switchMap } from 'rxjs';
 import { BienService, type ListeBiens } from './bien.service';
 import { STATUTS, libelleStatut, type Statut } from '../criteres/statut';
+import { TableauBiens } from './tableau-biens';
 
 /**
  * L'écran de repérage : saisir un Libellé, et retrouver le Bien dans la
@@ -12,7 +13,7 @@ import { STATUTS, libelleStatut, type Statut } from '../criteres/statut';
  */
 @Component({
   selector: 'app-biens-page',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, TableauBiens],
   styleUrl: './biens-page.scss',
   templateUrl: './biens-page.html',
 })

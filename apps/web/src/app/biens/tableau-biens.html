@@ -1,0 +1,93 @@
+<!--
+  Le tableau desktop : une ligne par Bien, une colonne par Critère (#10).
+
+  Le conteneur défile verticalement et non horizontalement : le défilement
+  horizontal a été explicitement écarté (ADR-0006), il détruit ce qui fait
+  l'intérêt d'un tableau. C'est la présentation mobile — des cartes — qui
+  répond à l'écran étroit, dans un ticket à part.
+-->
+<div class="tableau">
+  <table>
+    <caption class="tableau__legende">
+      Les Biens du carnet, une ligne par Bien. Chaque en-tête de colonne trie
+      le tableau ; les Critères non renseignés se regroupent en fin de tri.
+    </caption>
+
+    <thead>
+      <tr>
+        <!--
+          Le Libellé et le Statut ne sont pas des colonnes de la définition :
+          le premier identifie la ligne, le second dit où en est le Bien sans
+          se comparer d'un Bien à l'autre (ADR-0002).
+        -->
+        <th scope="col" class="tableau__libelle">Bien</th>
+        <th scope="col">Statut</th>
+
+        @for (colonne of colonnes; track colonne.id) {
+          <th scope="col" [attr.aria-sort]="sensTriDe(colonne.id)">
+            <!--
+              Un bouton dans l'en-tête plutôt qu'un `click` sur la cellule :
+              le tri doit s'atteindre au clavier, et seul un bouton
+              l'annonce comme une action (ADR-0005).
+            -->
+            <button type="button" class="tableau__tri" (click)="basculerTri(colonne.id)">
+              <span>{{ colonne.libelle }}</span>
+
+              <!--
+                La flèche est décorative : `aria-sort` porte déjà
+                l'information, et la lire deux fois n'apprend rien.
+              -->
+              <span class="tableau__fleche" aria-hidden="true">
+                @switch (sensTriDe(colonne.id)) {
+                  @case ('ascending') {
+                    ↑
+                  }
+                  @case ('descending') {
+                    ↓
+                  }
+                  @default {
+                    ↕
+                  }
+                }
+              </span>
+            </button>
+          </th>
+        }
+      </tr>
+    </thead>
+
+    <tbody>
+      @for (ligne of lignes(); track ligne.bien.id) {
+        <tr>
+          <th scope="row" class="tableau__libelle">
+            <a [routerLink]="['/biens', ligne.bien.id]">{{ ligne.bien.libelle }}</a>
+          </th>
+
+          <td>
+            <span class="tableau__statut" [attr.data-statut]="ligne.statut">
+              {{ ligne.libelleStatut }}
+            </span>
+          </td>
+
+          @for (donnee of ligne.cases; track donnee.colonne.id) {
+            <!--
+              Une case non renseignée se distingue par sa classe et non par
+              son texte : c'est ce qu'il reste à demander à l'agence (#6), et
+              un zéro saisi ne doit pas s'y confondre.
+            -->
+            <td
+              [class.tableau__absent]="!donnee.renseigne"
+              [class.tableau__nombre]="donnee.colonne.type === 'entier' || donnee.colonne.type === 'decimal'"
+            >
+              @if (donnee.renseigne) {
+                {{ donnee.texte }}
+              } @else {
+                <span class="tableau__manquant" aria-label="non renseigné">—</span>
+              }
+            </td>
+          }
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>
