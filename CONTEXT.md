@@ -15,8 +15,18 @@ La publication d'un Bien sur un portail immobilier, conservée sous forme d'URL.
 _Avoid_: Listing, offre, publication
 
 **Critère** :
-Une caractéristique comparable d'un Bien, saisie dans un champ dédié et renseignée pour tous les Biens, ce qui la rend comparable. Se distingue des données liées au Statut, qui n'existent qu'à partir d'une étape du cycle de vie.
+Une caractéristique comparable d'un Bien, **saisie** dans un champ dédié et renseignée pour tous les Biens, ce qui la rend comparable. Se distingue des données liées au Statut, qui n'existent qu'à partir d'une étape du cycle de vie, et d'une Colonne calculée, qui se compare aussi mais ne se saisit pas.
 _Avoid_: Champ, attribut, caractéristique
+
+**Colonne** :
+Ce qui se compare et se trie à l'écran. Une Colonne présente soit un Critère, soit une valeur calculée à partir de plusieurs Critères — le Prix au mètre carré est aujourd'hui la seule de cette seconde sorte. Tout Critère a donc sa Colonne, mais toute Colonne n'est pas un Critère.
+
+La notion vit côté écran : l'API ne connaît que les Critères, chacun adossé à sa colonne SQL (ADR-0004), et ignore les Colonnes calculées, qui n'existent qu'une fois les Biens affichés. C'est ce qui permet au tri et à la mise en évidence de traiter le Prix au mètre carré sans savoir qu'il est calculé (ADR-0013).
+_Avoid_: Colonne SQL — le stockage d'un Critère est un détail de base, sans rapport avec ce que le mot désigne ici. Champ, cellule
+
+**Prix au mètre carré** :
+Le prix demandé rapporté à la surface habitable, la valeur qui permet de comparer des Biens de surfaces différentes. C'est une Colonne calculée : l'acheteur y pense comme à un chiffre du carnet, mais il ne se saisit nulle part et ne se stocke pas (ADR-0013).
+_Avoid_: Prix au m² (à l'écrit dans le code), prix unitaire
 
 **Libellé** :
 Le nom sous lequel un Bien apparaît dans les listes, saisi à la main et obligatoire à la création. C'est un support de mémoire avant tout : « celui avec la cuisine refaite » sert mieux la reconnaissance qu'une adresse. Un libellé composé automatiquement à partir des Critères a été écarté, ceux-ci n'étant pas encore renseignés au moment de la création.
