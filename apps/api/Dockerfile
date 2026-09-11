@@ -32,6 +32,12 @@ COPY --from=build /app/build ./
 # conventions aussi : `VERSION` désigne ce qu'on construit, tandis que les
 # variables lues par l'API portent toutes le préfixe `APP_` (`APP_KEY`,
 # `APP_PASSWORD`). Cette ligne est le seul endroit à connaître les deux.
+#
+# **La place de ces deux lignes compte** : après `npm ci` et après la copie
+# du build. Un `ARG` invalide le cache de tout ce qui le suit, et la version
+# change à chaque publication — la remonter avant l'installation des
+# dépendances ferait réinstaller `node_modules` à chaque numéro. Ici elle ne
+# refait que les deux dernières couches, qui ne pèsent rien.
 ARG VERSION=dev
 ENV APP_VERSION=$VERSION
 
@@ -76,8 +82,14 @@ EXPOSE 3333
 # pas n'est pas un carnet qui marche, et le déclarer sain ferait passer pour
 # réussi un déploiement qui ne sert rien à l'acheteur.
 #
-# La portée en est bornée : `condition: service_healthy` ne gouverne que le
-# démarrage, donc une panne passagère ne referme pas `web` derrière elle.
+# La portée en est bornée, et c'est ce qui rend le choix tenable. Docker ne
+# redémarre pas un conteneur parce qu'il est malade — `restart:
+# unless-stopped` répond à l'arrêt du processus, pas à l'état de santé —,
+# donc l'API n'entre pas en boucle de redémarrage pendant la panne : elle
+# reste debout, signalée malade, et repasse au vert d'elle-même au premier
+# intervalle qui suit le retour de la base. Et `condition: service_healthy`
+# ne gouverne que le démarrage, donc une panne passagère ne referme pas
+# `web` derrière elle.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD wget -q -O - http://127.0.0.1:3333/health || exit 1
 

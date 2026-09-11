@@ -83,10 +83,18 @@ services:
       # sont irremplaçables, on ne repasse pas les prendre.
       - photos-data:/app/stockage/photos
       # L'horodatage des sauvegardes, en lecture seule : l'API le lit, elle
-      # n'a aucune raison de pouvoir l'écrire. Un volume à part et non un
-      # coin de `photos-data` — celui-ci porte des données du carnet qu'on
-      # sauvegarde, celui-là porte ce que la sauvegarde dit d'elle-même, et
-      # les confondre ferait entrer le second dans le périmètre du premier.
+      # n'a aucune raison de pouvoir l'écrire.
+      #
+      # Un volume à part et non un coin de `photos-data`, et la raison n'est
+      # pas la nature de ce qui y vit — les archives que #71 y déposera sont
+      # des données du carnet autant que les Photos. C'est le sens de la
+      # lecture qui sépare : l'API doit pouvoir lire cet horodatage sans que
+      # le volume des Photos, qu'elle écrit, lui soit ouvert deux fois.
+      #
+      # Le montage porte sur le dossier alors qu'un seul fichier est lu, ce
+      # qui exposera les archives à l'API le jour où elles arriveront. Le
+      # resserrer est une décision ouverte (#75), à prendre avant que #71
+      # n'écrive le service, et non après.
       - sauvegardes-data:/app/sauvegardes:ro
     ports:
       # Lié à la boucle locale, pour deux raisons (#18). En production nginx
