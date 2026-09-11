@@ -71,6 +71,18 @@ export interface FichiersPhoto {
   fichierVignette: string
 }
 
+/**
+ * Le temporaire d'un envoi, effacé sans qu'on en tire quoi que ce soit.
+ *
+ * Sert le lot refusé : le bodyparser a déjà écrit chaque fichier sur le
+ * disque temporaire avant que le contrôleur ne décide de les refuser, et
+ * s'arrêter là les y laisserait. Un refus ne doit pas coûter plus cher au
+ * stockage qu'une acceptation.
+ */
+export async function abandonnerTemporaire(source: string): Promise<void> {
+  await effacerFichier(source)
+}
+
 /** La racine du stockage, telle que la configuration la donne. */
 export function racineStockage(): string {
   return env.get('STOCKAGE_PHOTOS')
@@ -85,8 +97,14 @@ export function cheminPhoto(fichier: string): string {
  * Un envoi ramené aux deux fichiers que la galerie affichera : la version
  * consultable et sa vignette.
  *
- * L'original n'est pas conservé. Il ne sert aucun écran, et le garder
- * ferait grossir le volume — donc les sauvegardes — d'un facteur dix pour
+ * L'original n'est pas conservé, et c'est vrai **jusqu'au temporaire**. Le
+ * bodyparser écrit chaque envoi dans `os.tmpdir()` et ne l'efface que si on
+ * le lui demande : sans ce nettoyage, l'original survivrait dans la couche
+ * inscriptible du conteneur — hors volume, donc hors sauvegarde, et hors de
+ * tout écran. Ce serait l'orphelin que tout le reste de ce module s'emploie
+ * à éviter, simplement déplacé sur un autre système de fichiers.
+ *
+ * Le garder ferait par ailleurs grossir le stockage d'un facteur dix pour
  * une image que personne n'ouvrirait jamais.
  *
  * Tout ressort en JPEG, quel que soit le type entré. C'est le format que
@@ -98,7 +116,23 @@ export function cheminPhoto(fichier: string): string {
  * envoyer. Un appel qui ne passerait pas par la page web produirait sinon
  * des photos que la connexion mobile ne supporte pas.
  */
-export async function enregistrerPhoto(source: string): Promise<FichiersPhoto> {
+export async function enregistrerPhoto(source: string): Promise<FichiersPhoto | null> {
+  /**
+   * L'image est ouverte avant toute écriture, et un fichier que `sharp` ne
+   * sait pas lire rend `null` plutôt que de lever.
+   *
+   * La validation de l'envoi ne suffit pas : elle reconnaît un JPEG à ses
+   * premiers octets, mais un fichier tronqué, corrompu, ou d'un format que
+   * `sharp` n'a pas compilé la passe sans être décodable pour autant. Sans
+   * ce garde, l'acheteur recevrait un 500 nu là où il attend qu'on lui dise
+   * laquelle de ses photos n'est pas passée.
+   */
+  try {
+    await sharp(source).metadata()
+  } catch {
+    return null
+  }
+
   await mkdir(racineStockage(), { recursive: true })
 
   /**
@@ -133,6 +167,22 @@ export async function enregistrerPhoto(source: string): Promise<FichiersPhoto> {
     .jpeg({ quality: QUALITE_VIGNETTE })
     .toFile(cheminPhoto(fichierVignette))
 
+  /**
+   * Le temporaire, une fois les deux versions tirées de lui.
+   *
+   * Après les écritures et non avant : c'est lui la source, et l'effacer
+   * plus tôt reviendrait à redimensionner un fichier qui n'est plus là.
+   *
+   * L'échec est avalé — journalisé, jamais propagé. L'envoi a réussi, les
+   * deux fichiers sont sur le volume, et refuser la photo pour un
+   * temporaire récalcitrant ferait perdre à l'acheteur un cliché qu'il ne
+   * repassera pas prendre. C'est l'inverse de l'arbitrage retenu pour la
+   * suppression (ADR-0014), et pour la raison inverse : là-bas l'échec
+   * laisse un orphelin sur le volume sauvegardé, ici il laisse un fichier
+   * que le prochain redémarrage du conteneur emporte.
+   */
+  await effacerFichier(source)
+
   return { fichier, fichierVignette }
 }
 
@@ -157,15 +207,23 @@ export async function enregistrerPhoto(source: string): Promise<FichiersPhoto> {
  * donc la ligne (#13).
  */
 export async function effacerPhoto({ fichier, fichierVignette }: FichiersPhoto): Promise<boolean> {
-  const effaces = await Promise.all([effacerFichier(fichier), effacerFichier(fichierVignette)])
+  const effaces = await Promise.all([
+    effacerFichier(cheminPhoto(fichier)),
+    effacerFichier(cheminPhoto(fichierVignette)),
+  ])
 
   return effaces.every(Boolean)
 }
 
-/** Vrai si le fichier n'est plus là — qu'on vienne de l'effacer ou non. */
-async function effacerFichier(fichier: string): Promise<boolean> {
+/**
+ * Vrai si le fichier n'est plus là — qu'on vienne de l'effacer ou non.
+ *
+ * Prend un **chemin** et non un nom : il sert aussi bien les fichiers du
+ * volume que le temporaire de l'envoi, qui vit ailleurs.
+ */
+async function effacerFichier(chemin: string): Promise<boolean> {
   try {
-    await unlink(cheminPhoto(fichier))
+    await unlink(chemin)
 
     return true
   } catch (erreur) {
@@ -174,7 +232,7 @@ async function effacerFichier(fichier: string): Promise<boolean> {
       return true
     }
 
-    logger.warn({ erreur, fichier }, "La photo n'a pas pu être effacée du stockage")
+    logger.warn({ erreur, chemin }, "Un fichier de photo n'a pas pu être effacé")
 
     return false
   }

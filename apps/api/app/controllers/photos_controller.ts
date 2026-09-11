@@ -1,9 +1,11 @@
+import { existsSync } from 'node:fs'
 import type { HttpContext } from '@adonisjs/core/http'
 import Bien from '#models/bien'
 import Photo from '#models/photo'
 import {
   TAILLE_MAX_MO,
   TYPES_ACCEPTES,
+  abandonnerTemporaire,
   cheminPhoto,
   effacerPhoto,
   enregistrerPhoto,
@@ -81,6 +83,15 @@ export default class PhotosController {
     const refuses = envois.filter((envoi) => !envoi.isValid)
 
     if (refuses.length > 0) {
+      /**
+       * Les temporaires du lot refusé, y compris ceux des fichiers
+       * valides : le bodyparser les a tous écrits avant qu'on ne décide, et
+       * s'arrêter au refus les laisserait grossir la couche du conteneur.
+       */
+      await Promise.all(
+        envois.filter(({ tmpPath }) => tmpPath).map(({ tmpPath }) => abandonnerTemporaire(tmpPath!))
+      )
+
       return response.unprocessableEntity({
         errors: refuses.map((envoi) => ({
           field: 'photos',
@@ -108,6 +119,35 @@ export default class PhotosController {
        * n'affiche.
        */
       const fichiers = await enregistrerPhoto(envoi.tmpPath!)
+
+      /**
+       * Illisible malgré une extension et des premiers octets plausibles :
+       * fichier tronqué, corrompu, ou format que `sharp` ne décode pas.
+       *
+       * Les photos déjà écrites du lot sont défaites avant de refuser :
+       * « tout ou rien » vaut ici comme au refus de validation, et s'en
+       * tenir à la moitié laisserait l'acheteur sans moyen de savoir ce qui
+       * est passé.
+       */
+      if (!fichiers) {
+        await Promise.all(ajoutees.map((photo) => effacerPhoto(photo)))
+        await Promise.all(ajoutees.map((photo) => photo.delete()))
+        await Promise.all(
+          envois
+            .filter(({ tmpPath }) => tmpPath)
+            .map(({ tmpPath }) => abandonnerTemporaire(tmpPath!))
+        )
+
+        return response.unprocessableEntity({
+          errors: [
+            {
+              field: 'photos',
+              rule: 'illisible',
+              message: `« ${envoi.clientName} » n'a pas pu être lue comme une image`,
+            },
+          ],
+        })
+      }
 
       ajoutees.push(
         await Photo.create({
@@ -140,16 +180,37 @@ export default class PhotosController {
     const vignette = request.input('taille') === 'vignette'
     const fichier = vignette ? photo.fichierVignette : photo.fichier
 
+    const chemin = cheminPhoto(fichier)
+
+    /**
+     * Le fichier manque alors que la ligne est là : volume restauré d'une
+     * sauvegarde plus ancienne, effacement manqué, envoi interrompu.
+     *
+     * Ce cas est **traité ici plutôt que laissé à `download`**, pour deux
+     * raisons. Sa réponse à lui est un texte brut anglais, là où tout le
+     * carnet rend du JSON français. Et surtout, l'en-tête de cache ci-
+     * dessous survivrait au 404 — `download` ne retire que l'`Etag` —, si
+     * bien que le navigateur mémoriserait l'absence un an sans revalider.
+     * C'est l'état qu'ADR-0014 dit réparable par nouvelle tentative : le
+     * mettre en cache le rendrait irréparable côté écran.
+     */
+    if (!existsSync(chemin)) {
+      return response.notFound({ message: 'Le fichier de cette photo est introuvable' })
+    }
+
     /**
      * Les photos sont **privées** : elles ne se mettent en cache que dans
      * le navigateur qui les a demandées, jamais dans un proxy partagé. Le
      * nom de fichier étant tiré au sort et le contenu ne changeant jamais,
      * l'immutabilité est acquise — un an de cache épargne autant d'allers-
      * retours sur une connexion mobile.
+     *
+     * Posé après le garde ci-dessus, et donc sur une réponse qui porte
+     * vraiment un fichier.
      */
     response.header('Cache-Control', 'private, max-age=31536000, immutable')
 
-    return response.download(cheminPhoto(fichier))
+    return response.download(chemin)
   }
 
   /**

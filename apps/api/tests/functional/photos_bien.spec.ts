@@ -1,6 +1,7 @@
 import { test } from '@japa/runner'
 import { mkdir, readdir, rm, stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import sharp from 'sharp'
 import db from '@adonisjs/lucid/services/db'
 import Bien from '#models/bien'
@@ -61,6 +62,20 @@ test.group('Photos d’un Bien', (group) => {
     })
       .jpeg()
       .toBuffer()
+  }
+
+  /**
+   * Les fichiers du dossier temporaire du système, à l'exclusion de ce qui
+   * ne vient pas des envois : on compare un avant et un après, et les
+   * dossiers voisins n'ont pas à entrer dans la comparaison.
+   */
+  async function temporaires(): Promise<string[]> {
+    const entrees = await readdir(tmpdir(), { withFileTypes: true })
+
+    return entrees
+      .filter((entree) => entree.isFile())
+      .map(({ name }) => name)
+      .sort()
   }
 
   /** Les fichiers présents sur le volume, quels qu'ils soient. */
@@ -268,6 +283,128 @@ test.group('Photos d’un Bien', (group) => {
     // Les deux tailles ne servent pas le même fichier, sans quoi la vignette
     // ne ferait rien gagner sur une connexion mobile.
     assert.isBelow(vignette.response.body.length, consultable.response.body.length)
+  })
+
+  test('refuse une image illisible sans rendre une erreur nue', async ({ client, assert }) => {
+    /**
+     * Des octets aléatoires sous un nom de photo : la validation de l'envoi
+     * les laisse passer — l'extension est bonne — mais `sharp` ne sait pas
+     * les décoder. Sans garde, l'acheteur recevrait un 500 nu là où il
+     * attend qu'on lui dise laquelle de ses photos n'est pas passée.
+     */
+    const bien = await unBien()
+
+    const illisible = Buffer.alloc(2048)
+    for (let octet = 0; octet < illisible.length; octet += 1) {
+      illisible[octet] = (octet * 37) % 256
+    }
+
+    const response = await avecSession(
+      client.post(`/biens/${bien.id}/photos`).file('photos', illisible, {
+        filename: 'corrompue.jpg',
+      }),
+      session
+    )
+
+    response.assertStatus(422)
+    assert.include(JSON.stringify(response.body()), 'corrompue.jpg')
+    assert.isEmpty(await Photo.query().where('bien_id', bien.id))
+    assert.isEmpty(await fichiersStockes())
+  })
+
+  test('ne garde rien du lot quand une photo se révèle illisible', async ({ client, assert }) => {
+    // « Tout ou rien » vaut aussi ici : s'en tenir à la moitié laisserait
+    // l'acheteur sans moyen de savoir ce qui est passé.
+    const bien = await unBien()
+    const avant = await temporaires()
+
+    const illisible = Buffer.alloc(2048, 0x5a)
+
+    const response = await avecSession(
+      client
+        .post(`/biens/${bien.id}/photos`)
+        .file('photos', await uneImage(), { filename: 'salon.jpg' })
+        .file('photos', illisible, { filename: 'corrompue.jpg' }),
+      session
+    )
+
+    response.assertStatus(422)
+    assert.isEmpty(await Photo.query().where('bien_id', bien.id))
+    assert.isEmpty(await fichiersStockes())
+    // Y compris le temporaire de la photo valide du lot.
+    assert.deepEqual(await temporaires(), avant)
+  })
+
+  test('ne laisse aucun fichier temporaire après un envoi', async ({ client, assert }) => {
+    /**
+     * L'original ne se garde nulle part, temporaire compris (ADR-0014). Le
+     * bodyparser écrit chaque envoi dans le dossier temporaire du système
+     * et ne l'efface pas de lui-même : sans nettoyage, l'original
+     * survivrait hors du volume — donc hors sauvegarde et hors écran, soit
+     * l'orphelin que l'ordre de suppression s'emploie à éviter, déplacé sur
+     * un autre système de fichiers.
+     */
+    const bien = await unBien()
+
+    const avant = await temporaires()
+
+    await avecSession(
+      client
+        .post(`/biens/${bien.id}/photos`)
+        .file('photos', await uneImage(), { filename: 'salon.jpg' })
+        .file('photos', await uneImage(), { filename: 'cuisine.jpg' }),
+      session
+    )
+
+    assert.deepEqual(await temporaires(), avant)
+  })
+
+  test('ne laisse aucun temporaire quand le lot est refusé', async ({ client, assert }) => {
+    // Le bodyparser a écrit tous les fichiers avant que le contrôleur ne
+    // décide de les refuser : un refus ne doit pas coûter plus cher au
+    // stockage qu'une acceptation.
+    const bien = await unBien()
+
+    const avant = await temporaires()
+
+    await avecSession(
+      client
+        .post(`/biens/${bien.id}/photos`)
+        .file('photos', await uneImage(), { filename: 'salon.jpg' })
+        .file('photos', Buffer.from('pas une image'), { filename: 'compromis.pdf' }),
+      session
+    )
+
+    assert.deepEqual(await temporaires(), avant)
+  })
+
+  test('ne met pas en cache l’absence d’un fichier', async ({ client, assert }) => {
+    /**
+     * Ligne présente, fichier disparu : l'état qu'ADR-0014 déclare réparable
+     * par nouvelle tentative. Le mettre en cache un an le rendrait
+     * irréparable côté écran — le navigateur mémoriserait le trou sans
+     * jamais revalider.
+     */
+    const bien = await unBien()
+
+    const ajout = await avecSession(
+      client
+        .post(`/biens/${bien.id}/photos`)
+        .file('photos', await uneImage(), { filename: 'salon.jpg' }),
+      session
+    )
+
+    const { id } = ajout.body()[0]
+    const photo = await Photo.findOrFail(id)
+
+    await rm(cheminPhoto(photo.fichier), { force: true })
+
+    const response = await avecSession(client.get(`/biens/${bien.id}/photos/${id}`), session)
+
+    response.assertStatus(404)
+    assert.notInclude(response.headers()['cache-control'] ?? '', 'max-age=31536000')
+    // Le carnet rend du JSON, jamais le texte brut anglais de `download`.
+    assert.property(response.body(), 'message')
   })
 
   test('supprime une photo, et son fichier disparaît du stockage', async ({ client, assert }) => {

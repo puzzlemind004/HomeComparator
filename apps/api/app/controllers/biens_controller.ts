@@ -61,13 +61,10 @@ export default class BiensController {
     /**
      * La photo représentative de chaque Bien, et elle seule (#13).
      *
-     * `preload` avec une limite plutôt que la galerie entière : la liste
-     * n'affiche qu'une vignette par Bien, et rapatrier vingt photos de
-     * chacun pour n'en montrer qu'une ferait voyager vingt fois trop — la
-     * raison même pour laquelle les Notes n'y sont pas (#8).
-     *
-     * `preload` et non une jointure : une jointure multiplierait les lignes
-     * de Biens par leurs photos, et il faudrait défaire ce produit ensuite.
+     * Une seule photo par Bien est rapatriée, et non la galerie filtrée
+     * après coup : la liste n'affiche qu'une vignette, et faire voyager
+     * vingt photos de chaque Bien pour n'en montrer qu'une serait la raison
+     * même pour laquelle les Notes n'y sont pas (#8).
      */
     await preloadPhotoRepresentative(biens)
 
@@ -208,10 +205,10 @@ export default class BiensController {
    * retrouver. Dans ce sens-ci, le pire qui arrive est une ligne qui
    * subsiste un instant, et c'est elle qui permet de réessayer.
    *
-   * Un fichier récalcitrant n'empêche pas la suppression : `effacerPhoto`
-   * journalise et rend la main. Garder dans le carnet un Bien dont
-   * l'acheteur a demandé la disparition, pour une raison de disque qui ne
-   * le concerne pas, serait le pire des deux résultats.
+   * Un fichier récalcitrant **arrête** la suppression : le Bien reste, et
+   * l'écran le dit. Le supprimer malgré tout laisserait sur le volume des
+   * fichiers que plus rien ne désigne, soit très exactement l'orphelin que
+   * cet ordre existe pour éviter (ADR-0014).
    *
    * C'est le même geste que la suppression d'une photo seule, écrit une
    * fois et appelé deux (`stockage_photos.ts`).
@@ -287,22 +284,29 @@ async function preloadPhotoRepresentative(biens: Bien[]): Promise<void> {
     return
   }
 
-  const photos = await Photo.ordreGalerie(
-    Photo.query().whereIn(
+  /**
+   * Une ligne par Bien, décidée en SQL.
+   *
+   * `DISTINCT ON` est propre à PostgreSQL, seule base du carnet (ADR-0003) :
+   * il garde la première ligne de chaque groupe selon le `ORDER BY`, soit
+   * la photo de rang le plus petit — la définition même de
+   * « représentative ». La galerie entière ne quitte donc jamais la base.
+   *
+   * L'`ORDER BY` doit commencer par l'expression du `DISTINCT ON`, ce
+   * qu'exige PostgreSQL ; le rang et l'`id` départagent ensuite, dans
+   * l'ordre de la galerie.
+   */
+  const photos = await Photo.query()
+    .distinctOn('bien_id')
+    .whereIn(
       'bien_id',
       biens.map(({ id }) => id)
     )
-  )
+    .orderBy('bien_id', 'asc')
+    .orderBy('rang', 'asc')
+    .orderBy('id', 'asc')
 
-  const representative = new Map<number, Photo>()
-
-  for (const photo of photos) {
-    // La première rencontrée gagne : la requête les rend déjà dans l'ordre
-    // du rang, et c'est la définition de « représentative ».
-    if (!representative.has(photo.bienId)) {
-      representative.set(photo.bienId, photo)
-    }
-  }
+  const representative = new Map(photos.map((photo) => [photo.bienId, photo]))
 
   for (const bien of biens) {
     const photo = representative.get(bien.id)

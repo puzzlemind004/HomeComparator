@@ -10,11 +10,19 @@ Un dossier exposé en statique serait lisible par qui en devine le nom. Les phot
 
 L'adresse porte l'identifiant du Bien **et** celui de la photo, et les deux sont vérifiés. Sans cela, connaître un identifiant de photo suffirait à la lire sous n'importe quel Bien.
 
+Les fichiers servis se mettent en cache un an, en `private` et `immutable` : leur nom est tiré au sort et leur contenu ne change jamais. Ce cache est posé **après** le constat que le fichier est là, jamais avant. Une réponse d'absence qui le porterait ferait mémoriser le trou un an au navigateur, sans revalidation — et l'état « ligne présente, fichier disparu », que la section suivante déclare réparable par nouvelle tentative, deviendrait irréparable côté écran.
+
 ## Le redimensionnement est fait à l'arrivée, côté API
 
 Deux versions sont écrites pour chaque envoi : une version consultable (1600px) et une vignette (400px) que portent la liste et les cartes. L'original n'est pas conservé — il ne sert aucun écran, et le garder ferait grossir le volume, donc les sauvegardes, d'un facteur dix pour une image que personne n'ouvrirait.
 
 Le faire au navigateur aurait épargné la connexion mobile à l'envoi, et c'était l'argument sérieux en face. Il a été écarté parce que le critère porte sur ce qui est **stocké et servi**, pas sur ce qu'un écran veut bien envoyer : une garantie qui ne tient que tant qu'on passe par la page web n'en est pas une. Le prix est une dépendance native (`sharp`) dans l'image Alpine.
+
+« L'original n'est pas conservé » vaut **jusqu'au fichier temporaire**. Le bodyparser écrit chaque envoi dans le dossier temporaire du système et ne l'efface pas de lui-même : sans nettoyage explicite, l'original survivrait dans la couche inscriptible du conteneur — hors volume, donc hors sauvegarde, et hors de tout écran. Ce serait l'orphelin que la section suivante s'emploie à éviter, simplement déplacé sur un autre système de fichiers. Le temporaire est donc effacé après les deux écritures, et aussi quand le lot est refusé : un refus ne doit pas coûter plus cher au stockage qu'une acceptation.
+
+Là, et seulement là, l'échec d'effacement est **avalé** : l'envoi a réussi, les deux fichiers sont sur le volume, et refuser la photo pour un temporaire récalcitrant ferait perdre un cliché qu'on ne repassera pas prendre. C'est l'arbitrage inverse de celui de la suppression, pour la raison inverse — ici le fichier resté derrière disparaît au prochain redémarrage du conteneur, là-bas il resterait sur le volume sauvegardé.
+
+Un fichier que `sharp` ne sait pas décoder est refusé en 422 comme un type non autorisé. La validation de l'envoi reconnaît une image à ses premiers octets, mais un fichier tronqué ou corrompu la passe sans être décodable pour autant : sans ce garde, l'acheteur recevrait une erreur nue là où il attend qu'on lui dise laquelle de ses photos n'est pas passée.
 
 L'orientation EXIF est appliquée aux pixels au passage. Sans cela, une photo prise en portrait — le cas courant d'une visite — s'afficherait couchée : le capteur écrit l'image dans son sens et note la rotation à côté, et la recompression perdrait cette note.
 

@@ -54,12 +54,13 @@
             au premier coup d'œil, les autres quand on fait défiler.
           -->
           <button type="button" class="photo__ouvrir" (click)="agrandir(photo)">
-            <img
-              class="photo__vignette"
-              [src]="photo.urlVignette"
-              alt="Photo du Bien"
-              loading="lazy"
-            />
+            <!--
+              Sans texte de remplacement : c'est le bouton qui porte
+              l'intitulé, juste en dessous, et décrire la photo ferait
+              annoncer deux fois la même chose. Les cartes et le tableau font
+              de même (ADR-0005).
+            -->
+            <img class="photo__vignette" [src]="photo.urlVignette" alt="" loading="lazy" />
             <span class="photo__lecture">Agrandir cette photo</span>
           </button>
 
@@ -129,6 +130,10 @@
         <span class="photo__lecture">Refermer la photo</span>
       </button>
 
+      <!--
+        Celle-ci porte un intitulé : elle est seule dans la fenêtre, et rien
+        d'autre n'y dit ce qu'on regarde.
+      -->
       <img class="agrandissement__image" [src]="photo.url" alt="Photo du Bien, agrandie" />
     </dialog>
   }
