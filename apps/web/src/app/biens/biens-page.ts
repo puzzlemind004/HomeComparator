@@ -1,9 +1,9 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { Subject, switchMap } from 'rxjs';
 import { BienService, type ListeBiens } from './bien.service';
 import { STATUTS, libelleStatut, type Statut } from '../criteres/statut';
+import { CartesBiens } from './cartes-biens';
 import { TableauBiens } from './tableau-biens';
 
 /**
@@ -13,7 +13,7 @@ import { TableauBiens } from './tableau-biens';
  */
 @Component({
   selector: 'app-biens-page',
-  imports: [FormsModule, RouterLink, TableauBiens],
+  imports: [CartesBiens, FormsModule, TableauBiens],
   styleUrl: './biens-page.scss',
   templateUrl: './biens-page.html',
 })
@@ -61,8 +61,12 @@ export class BiensPage {
   readonly message = signal<string | null>(null);
 
   /**
-   * Le libellé sous lequel un Statut s'affiche, pour la pastille de chaque
-   * Bien de la liste.
+   * Le libellé sous lequel un Statut s'affiche.
+   *
+   * L'écran ne s'en sert plus que pour nommer le filtre dans ses messages —
+   * « Aucun Bien à l'étape "Visité" », et le mot dit au Bien créé qu'un autre
+   * filtre le cache. Les pastilles des Biens sont désormais posées par le
+   * tableau et par les cartes, chacun sur sa présentation (#11).
    */
   readonly libelleStatut = libelleStatut;
 

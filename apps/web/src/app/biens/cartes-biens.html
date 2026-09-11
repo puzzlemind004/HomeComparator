@@ -1,0 +1,110 @@
+<!--
+  Les cartes mobiles : une carte par Bien, et non un tableau (ADR-0006).
+
+  Un tableau de seize Colonnes est illisible sur un téléphone quelle que soit
+  l'astuce employée, et le défilement horizontal détruit ce qui fait l'intérêt
+  d'un tableau. La carte est donc une présentation distincte — ce sous quoi on
+  reconnaît un Bien, et les trois Critères qui décident : prix, surface,
+  ville (#11).
+
+  La photo viendra ici, en tête de carte, quand #13 l'aura rendue disponible :
+  le modèle `Bien` n'en porte aucune aujourd'hui. La carte se lit sans elle,
+  ce que le ticket demande explicitement.
+-->
+<ul class="cartes">
+  @for (carte of cartes(); track carte.bien.id) {
+    <li class="carte">
+      <!--
+        Le Libellé en tête, et c'est lui qui mène à la fiche : c'est ce sous
+        quoi l'acheteur reconnaît un Bien, et la cible de clic la plus large
+        de la carte.
+      -->
+      <a class="carte__libelle" [routerLink]="['/biens', carte.bien.id]">
+        {{ carte.bien.libelle }}
+      </a>
+
+      <span class="carte__statut" [attr.data-statut]="carte.statut">
+        {{ carte.libelleStatut }}
+      </span>
+
+      <!--
+        Les Critères décisifs, chacun sous son nom : sur une carte, aucune
+        en-tête de colonne ne dit ce qu'un nombre représente, et « 72,5 m² »
+        seul se lirait sans qu'on sache de quelle surface il s'agit.
+
+        Une liste de définitions et non un tableau : c'est bien un couple
+        nom-valeur que la carte porte, et le dire ainsi le fait annoncer
+        comme tel au lecteur d'écran (ADR-0005).
+      -->
+      <dl class="carte__criteres">
+        @for (donnee of carte.cases; track donnee.colonne.id) {
+          <!--
+            Un Critère de texte prend la ligne entière : une ville ou un
+            quartier est de longueur libre, là où un prix et une surface
+            tiennent en quelques caractères. Partagé en deux, un nom de
+            commune un peu long se replie sur trois lignes et laisse la
+            moitié de la carte vide à côté.
+          -->
+          <div
+            class="carte__critere"
+            [class.carte__critere--large]="donnee.colonne.type === 'texte'"
+            [class.carte__critere--absent]="!donnee.renseigne"
+          >
+            <dt>{{ donnee.colonne.libelle }}</dt>
+
+            <!--
+              Une valeur non renseignée se distingue par sa classe et non par
+              son texte : c'est ce qu'il reste à demander à l'agence (#6), et
+              un zéro saisi ne doit pas s'y confondre.
+            -->
+            <dd
+              [class.carte__nombre]="
+                donnee.colonne.type === 'entier' || donnee.colonne.type === 'decimal'
+              "
+            >
+              @if (donnee.renseigne) {
+                {{ donnee.texte }}
+              } @else {
+                <!--
+                  Le tiret ne se lit pas : `aria-label` sur un `span` porte le
+                  rôle `generic`, que la spec ARIA interdit de nommer. Le mot
+                  est donc écrit, puis masqué à l'œil — comme le fait le
+                  tableau pour ses cases vides.
+                -->
+                <span class="carte__manquant">
+                  <span aria-hidden="true">—</span>
+                  <span class="carte__lecture">non renseigné</span>
+                </span>
+              }
+            </dd>
+          </div>
+        }
+      </dl>
+
+      <!--
+        Ce qu'il reste à demander, dit d'un mot. Les cases vides le montrent à
+        l'œil par leur fond, mais un fond ne s'entend pas et trois tirets
+        annoncés à la suite n'apprennent rien : le compte est donc écrit, et
+        masqué à l'écran qui le dit déjà (ADR-0005).
+      -->
+      @if (carte.manquants) {
+        <p class="carte__lecture">
+          {{ carte.manquants }} Critère{{ carte.manquants > 1 ? 's' : '' }} sur
+          {{ carte.cases.length }} reste{{ carte.manquants > 1 ? 'nt' : '' }} à renseigner.
+        </p>
+      }
+
+      @if (carte.bien.urlAnnonce; as url) {
+        <!--
+          L'Annonce reste joignable depuis la carte : la liste de repérage la
+          proposait (#7), et c'est elle que les cartes remplacent. Sans ce
+          lien, passer aux cartes retirerait l'accès d'un clic à la
+          publication du Bien — la régression qu'a relevée #51 sur le tableau.
+        -->
+        <a class="carte__annonce" [href]="url" target="_blank" rel="noopener noreferrer">
+          Voir l'Annonce
+        </a>
+      }
+    </li>
+  }
+</ul>

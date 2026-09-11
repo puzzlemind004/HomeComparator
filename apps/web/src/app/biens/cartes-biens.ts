@@ -1,0 +1,118 @@
+import { Component, Input, computed, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import type { Bien } from './bien';
+import { COLONNES_DECISIVES, caseDe, type CaseColonne } from '../criteres/colonnes';
+import { TRI_INITIAL, trier } from '../criteres/tri';
+import { libelleStatut, type Statut } from '../criteres/statut';
+
+/** Une carte : un Bien, tel qu'un écran étroit le montre. */
+export interface Carte {
+  bien: Bien;
+
+  /**
+   * Le Statut, porté par la carte et non par une case : il dit où en est le
+   * Bien, et ne se compare pas d'un Bien à l'autre (ADR-0002). C'est de lui
+   * que la pastille tire sa couleur.
+   */
+  statut: Statut;
+  libelleStatut: string;
+
+  /** Une case par Critère décisif, dans l'ordre où `COLONNES` les porte. */
+  cases: CaseColonne[];
+
+  /**
+   * Combien de ces Critères restent à renseigner.
+   *
+   * Trois cases vides le disent en creux à l'œil ; elles ne s'entendent pas.
+   * Le compte est ce que la carte annonce au lecteur d'écran (ADR-0005), et
+   * ce qui évite de faire lire trois tirets à la suite.
+   */
+  manquants: number;
+}
+
+/**
+ * Les cartes mobiles : une carte par Bien, sur les Critères qui permettent de
+ * le reconnaître d'un coup d'œil (#11, ADR-0006).
+ *
+ * C'est une présentation distincte du tableau, et non son adaptation. Un
+ * tableau de seize Colonnes est illisible sur un téléphone quelle que soit
+ * l'astuce employée, et le défilement horizontal détruit précisément ce qui
+ * fait l'intérêt d'un tableau — la comparaison d'un coup d'œil. Empiler les
+ * seize Colonnes à la verticale ne ferait que réécrire le même tableau.
+ *
+ * La carte porte donc ce sous quoi l'acheteur reconnaît un Bien — son
+ * Libellé, son Statut — et les trois Critères les plus décisifs : prix,
+ * surface, ville. Ils viennent de `COLONNES_DECISIVES` et non d'une liste
+ * écrite ici : les deux présentations montrent les mêmes Biens, et une valeur
+ * ne peut pas s'écrire autrement d'un écran à l'autre.
+ *
+ * **La photo n'y est pas encore.** Le ticket la demande « si elle existe »,
+ * et aucune n'existe : les photos sont l'objet de #13, qui n'est pas livré et
+ * dont le modèle `Bien` ne porte aucun champ. La carte est dessinée pour
+ * l'accueillir — c'est ce que demande le critère « les cartes restent
+ * lisibles sans photo », qui décrit exactement l'état livré ici.
+ *
+ * Le composant ne décide de rien qu'il puisse déléguer : les Critères
+ * décisifs viennent de `colonnes.ts`, l'ordre des cartes de `trier`, et
+ * l'écriture des valeurs de `formatage.ts` à travers la colonne. Il ne tient
+ * que le branchement au gabarit.
+ */
+@Component({
+  selector: 'app-cartes-biens',
+  imports: [RouterLink],
+  styleUrl: './cartes-biens.scss',
+  templateUrl: './cartes-biens.html',
+})
+export class CartesBiens {
+  /**
+   * Les Biens à afficher, tels que l'écran les a reçus de l'API.
+   *
+   * Un signal inscriptible alimenté par un `@Input`, plutôt qu'un `input()` :
+   * les cartes sont construites sans TestBed comme les autres écrans du
+   * projet, et un signal d'entrée ne se lit pas hors d'un environnement de
+   * test Angular complet. Le parent l'alimente par la liaison ci-dessous, les
+   * tests par `set`, et le composant ne voit qu'un signal dans les deux cas.
+   */
+  readonly biens = signal<readonly Bien[]>([]);
+
+  /**
+   * La liaison du parent, qui se contente d'alimenter le signal. Elle porte
+   * un nom distinct parce qu'un alias serait refusé par `no-input-rename`.
+   */
+  @Input()
+  set biensAAfficher(biens: readonly Bien[]) {
+    this.biens.set(biens);
+  }
+
+  /**
+   * Les Critères que porte une carte. Exposé pour le gabarit, qui écrit leur
+   * libellé à côté de la valeur : sur une carte, aucune en-tête de colonne ne
+   * dit ce qu'un nombre représente.
+   */
+  readonly colonnes = COLONNES_DECISIVES;
+
+  /**
+   * Les cartes, prêtes à s'afficher, classées par Libellé.
+   *
+   * C'est l'ordre du tableau à son ouverture (`TRI_INITIAL`), et non celui de
+   * l'API : passer du téléphone au bureau ne doit pas rebattre la liste. Les
+   * cartes ne se trient pas — le tri est le geste d'un tableau, où les valeurs
+   * d'une colonne s'alignent ; empilées, elles ne se comparent plus.
+   *
+   * Le calcul est fait une fois par changement de Biens et non à chaque
+   * lecture du gabarit, comme pour les lignes du tableau (#10).
+   */
+  readonly cartes = computed<Carte[]>(() =>
+    trier(this.biens(), TRI_INITIAL).map((bien) => {
+      const cases = this.colonnes.map((colonne) => caseDe(colonne, bien.criteres));
+
+      return {
+        bien,
+        statut: bien.statut,
+        libelleStatut: libelleStatut(bien.statut),
+        cases,
+        manquants: cases.filter((donnee) => !donnee.renseigne).length,
+      };
+    }),
+  );
+}

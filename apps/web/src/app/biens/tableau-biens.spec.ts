@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { TableauBiens, type CaseTableau } from './tableau-biens';
+import { TableauBiens } from './tableau-biens';
 import { unBien } from './bien.test-helper';
 import type { Bien } from './bien';
 import type { ValeursCriteres } from '../criteres/valeurs';
-import { ID_COLONNE_PRIX_METRE_CARRE } from '../criteres/colonnes';
+import { ID_COLONNE_PRIX_METRE_CARRE, type CaseColonne } from '../criteres/colonnes';
 import { CRITERES_ORDONNES, GROUPES, criteresDuGroupe } from '../criteres/definition';
 
 /**
@@ -40,7 +40,7 @@ function bien(libelle: string, criteres: ValeursCriteres = {}): Bien {
  * confort sans déplier son groupe ne rendrait rien, et le test échouerait
  * sur l'affichage plutôt que sur ce qu'il vérifie.
  */
-function caseDe(tableau: TableauBiens, id: string): CaseTableau {
+function caseDe(tableau: TableauBiens, id: string): CaseColonne {
   const groupe = tableau.groupes.find(({ colonnes }) =>
     colonnes.some((colonne) => colonne.id === id),
   )!;

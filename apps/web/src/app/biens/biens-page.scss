@@ -106,21 +106,34 @@
 
 // Le tableau sur desktop, les cartes sur écran étroit (ADR-0006). Les deux
 // présentations montrent les mêmes Biens : c'est ici qu'on choisit laquelle
-// paraît, et non dans le composant, qui n'a pas à savoir sur quel écran il
-// est monté.
+// paraît, et non dans les composants, dont aucun n'a à savoir sur quel écran
+// il est monté.
 //
-// Le seuil reste à 1024 px. Il n'est plus un cache-misère : le tableau
+// **C'est la seule chose qui décide de la bascule**, et elle ne dépend que de
+// la largeur : aucun réglage n'est offert à l'acheteur, et aucun n'est
+// retenu (#11). Une fenêtre redimensionnée change de présentation en cours de
+// route, sans rien recharger.
+//
+// Le seuil est de 1024 px, et il n'est plus un cache-misère : le tableau
 // s'ouvre sur le seul groupe « Budget » affiché — environ 850 px mesurés avec
 // le Libellé et le Statut (#49) —, et tient donc à cette largeur sans
-// défiler de côté. Le choix entre tableau et cartes est ainsi redevenu une
-// question de forme, et non de place.
+// défiler de côté. Le choix entre tableau et cartes est ainsi une question de
+// forme et non de place : au-dessus du seuil, un tableau compare d'un coup
+// d'œil ; en dessous, il ne le peut plus, quelle que soit l'astuce employée.
 //
-// La liste ci-dessous n'est pas encore la présentation mobile : les cartes
-// font l'objet d'un ticket distinct (ADR-0006), qui les dessinera. Ce qu'il
-// faut ici, c'est seulement ne pas livrer un tableau sur un téléphone en
-// attendant.
+// Les cartes sont écrites en premier et le tableau les remplace, plutôt que
+// l'inverse : c'est l'ordre qui laisse à l'écran le plus contraint la règle
+// la plus simple.
+//
+// Le `display` est posé sur les deux, et pas seulement sur celui qu'on
+// masque : un élément personnalisé vaut `inline` par défaut, et une marge
+// verticale ne s'applique pas à un élément en ligne.
 .vue-desktop {
   display: none;
+}
+
+.vue-mobile {
+  display: block;
 }
 
 @media (min-width: 64rem) {
@@ -149,68 +162,9 @@
   }
 }
 
-.liste {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.bien {
-  align-items: baseline;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.5rem;
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-
-  & + & {
-    margin-top: 0.5rem;
-  }
-}
-
-.bien__libelle {
-  font-weight: 600;
-}
-
-.bien__statut {
-  background: #f1f5f9;
-  border-radius: 999px;
-  color: #475569;
-  flex: none;
-  font-size: 0.75rem;
-  font-weight: 600;
-  margin-left: auto;
-  padding: 0.15rem 0.6rem;
-  white-space: nowrap;
-
-  // Les deux sorties se distinguent des étapes : Écarté est une décision
-  // de l'acheteur, Vendu un fait extérieur, et ni l'un ni l'autre n'attend
-  // plus rien.
-  &[data-statut='ecarte'] {
-    background: #fef2f2;
-    color: #991b1b;
-  }
-
-  &[data-statut='vendu'] {
-    background: #f5f3ff;
-    color: #5b21b6;
-  }
-
-  // « Offre faite » est l'étape où quelque chose se joue : elle se repère
-  // d'un coup d'œil dans la liste.
-  &[data-statut='offreFaite'] {
-    background: #ecfdf5;
-    color: #065f46;
-  }
-}
-
-.bien__annonce {
-  color: #1d4ed8;
-  flex: none;
-  font-size: 0.875rem;
-}
-
+// Ce que l'écran dit quand il n'a aucun Bien à montrer. Les Biens eux-mêmes
+// sont dessinés par le tableau ou par les cartes, chacun dans sa feuille :
+// rien de leur allure ne vit plus ici (#11).
 .liste--vide {
   color: #64748b;
 }

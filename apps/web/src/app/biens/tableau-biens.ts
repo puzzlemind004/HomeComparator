@@ -1,28 +1,16 @@
 import { Component, Input, computed, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Bien } from './bien';
-import { GROUPES_COLONNES, type Colonne, type GroupeColonnes } from '../criteres/colonnes';
+import {
+  GROUPES_COLONNES,
+  caseDe,
+  type CaseColonne,
+  type Colonne,
+  type GroupeColonnes,
+} from '../criteres/colonnes';
 import { TRI_INITIAL, basculer, trier, type Tri } from '../criteres/tri';
 import { libelleStatut, type Statut } from '../criteres/statut';
 import type { GroupeCritere } from '../criteres/critere';
-
-/** Une case du tableau : ce qui s'y écrit, et si le Critère est renseigné. */
-export interface CaseTableau {
-  colonne: Colonne;
-
-  /** La valeur écrite, ou la chaîne vide quand le Critère n'est pas renseigné. */
-  texte: string;
-
-  /**
-   * Vrai dès qu'une valeur est portée, zéro compris.
-   *
-   * C'est de là que la case tire sa mise en évidence : ce qui manque est ce
-   * qu'il reste à demander à l'agence (#6). La distinction ne se lit pas du
-   * texte — un zéro s'écrit « 0 » et un Critère absent s'écrit vide, mais un
-   * texte vide saisi s'écrirait pareil.
-   */
-  renseigne: boolean;
-}
 
 /**
  * Un groupe tel que les commandes le présentent : son titre, son état, et
@@ -56,7 +44,7 @@ export interface LigneTableau {
   libelleStatut: string;
 
   /** Une case par colonne visible, dans l'ordre où l'en-tête les pose. */
-  cases: CaseTableau[];
+  cases: CaseColonne[];
 }
 
 /**
@@ -177,11 +165,7 @@ export class TableauBiens {
       bien,
       statut: bien.statut,
       libelleStatut: libelleStatut(bien.statut),
-      cases: this.colonnesVisibles().map((colonne) => ({
-        colonne,
-        texte: colonne.texte(bien.criteres),
-        renseigne: colonne.valeur(bien.criteres) !== null,
-      })),
+      cases: this.colonnesVisibles().map((colonne) => caseDe(colonne, bien.criteres)),
     })),
   );
 
