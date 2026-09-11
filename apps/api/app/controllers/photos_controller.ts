@@ -31,9 +31,7 @@ export default class PhotosController {
       return response.notFound({ message: "Ce Bien n'existe pas" })
     }
 
-    const photos = await photosDuBien(bien.id)
-
-    return response.ok(photos)
+    return response.ok(await Photo.duBien(bien.id))
   }
 
   /**
@@ -171,21 +169,28 @@ export default class PhotosController {
       return response.notFound({ message: "Cette photo n'existe pas" })
     }
 
-    await effacerPhoto(photo)
+    /**
+     * La ligne n'est supprimée que si les fichiers le sont vraiment. La
+     * supprimer malgré un effacement manqué produirait l'orphelin que
+     * l'ordre choisi existe pour éviter, et retirerait du même coup la
+     * seule trace qui permet de réessayer.
+     */
+    if (!(await effacerPhoto(photo))) {
+      return response.serviceUnavailable({
+        errors: [
+          {
+            field: 'photo',
+            rule: 'stockage',
+            message: "La photo n'a pas pu être effacée du stockage. Elle est toujours là.",
+          },
+        ],
+      })
+    }
+
     await photo.delete()
 
     return response.noContent()
   }
-}
-
-/** Les photos d'un Bien, de la représentative à la dernière ajoutée. */
-export async function photosDuBien(bienId: number): Promise<Photo[]> {
-  /**
-   * Le rang, puis l'`id` : deux photos d'un même envoi peuvent porter le
-   * même rang si un lot a été interrompu, et l'ordre resterait sinon
-   * instable d'un chargement à l'autre.
-   */
-  return Photo.query().where('bien_id', bienId).orderBy('rang', 'asc').orderBy('id', 'asc')
 }
 
 /**

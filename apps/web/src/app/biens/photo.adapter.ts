@@ -1,17 +1,19 @@
 import type { Photo } from './photo';
 import type { PhotoApi } from './photo.api';
+import { urlPhoto } from './routes';
 
 /**
  * La traduction entre la forme que l'API rend et le modèle que l'écran
  * affiche (ADR-0010).
  *
- * C'est ici que se compose l'adresse du fichier, et nulle part ailleurs :
- * l'API ne rend que des noms de fichiers, et la route qui les sert est une
- * affaire de contrat HTTP. Un `<img>` qui la composerait lui-même ferait de
- * chaque écran un endroit de plus à corriger si elle changeait.
+ * L'adapter compose ici les adresses sous lesquelles la photo se charge, à
+ * partir de `routes.ts` qui est le seul endroit à connaître la forme des
+ * chemins. L'API ne rend que des noms de fichiers : un `<img>` qui
+ * composerait l'adresse lui-même ferait de chaque écran un endroit de plus à
+ * corriger le jour où elle changerait.
  */
 export function versPhoto(photoApi: PhotoApi): Photo {
-  const base = `/api/biens/${photoApi.bienId}/photos/${photoApi.id}`;
+  const base = urlPhoto(photoApi.bienId, photoApi.id);
 
   return {
     id: photoApi.id,

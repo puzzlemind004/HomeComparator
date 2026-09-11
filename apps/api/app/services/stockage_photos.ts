@@ -144,29 +144,38 @@ export async function enregistrerPhoto(source: string): Promise<FichiersPhoto> {
  * deux sens ont un coût différent — la ligne partie la première laisserait
  * un fichier que plus rien ne désigne, donc un orphelin qu'aucun écran ne
  * montre et qu'il faudrait un balayage pour retrouver. Dans l'autre sens,
- * le pire qui arrive est un fichier déjà effacé dont la ligne subsiste un
- * instant, et cette ligne est précisément ce qui permet de réessayer.
+ * le pire qui arrive est une ligne qui subsiste, et cette ligne est
+ * précisément ce qui permet de réessayer.
  *
  * Un fichier **déjà absent est un succès** : ce qui était demandé est
- * atteint. Tout autre échec — disque plein, volume démonté — est journalisé
- * puis **avalé**, sans interrompre l'appelant. Refuser de supprimer un Bien
- * parce qu'un fichier résiste serait le pire des deux résultats : l'acheteur
- * garderait dans son carnet un Bien qu'il a demandé à voir disparaître,
- * pour une raison qui ne le concerne pas.
+ * atteint.
+ *
+ * Le retour dit si le volume est bien net. `false` — disque plein, volume
+ * démonté — laisse à l'appelant le soin de décider, et c'est ce qui donne
+ * un sens à l'ordre choisi : supprimer la ligne malgré tout produirait
+ * l'orphelin que cet ordre existe pour éviter. Les deux appelants gardent
+ * donc la ligne (#13).
  */
-export async function effacerPhoto({ fichier, fichierVignette }: FichiersPhoto): Promise<void> {
-  await Promise.all([effacerFichier(fichier), effacerFichier(fichierVignette)])
+export async function effacerPhoto({ fichier, fichierVignette }: FichiersPhoto): Promise<boolean> {
+  const effaces = await Promise.all([effacerFichier(fichier), effacerFichier(fichierVignette)])
+
+  return effaces.every(Boolean)
 }
 
-async function effacerFichier(fichier: string): Promise<void> {
+/** Vrai si le fichier n'est plus là — qu'on vienne de l'effacer ou non. */
+async function effacerFichier(fichier: string): Promise<boolean> {
   try {
     await unlink(cheminPhoto(fichier))
+
+    return true
   } catch (erreur) {
     // Déjà absent : c'est l'état visé, et il n'y a rien à signaler.
     if (erreur instanceof Error && 'code' in erreur && erreur.code === 'ENOENT') {
-      return
+      return true
     }
 
     logger.warn({ erreur, fichier }, "La photo n'a pas pu être effacée du stockage")
+
+    return false
   }
 }

@@ -51,4 +51,24 @@ export default class Photo extends BaseModel {
 
   @belongsTo(() => Bien)
   declare bien: BelongsTo<typeof Bien>
+
+  /**
+   * L'ordre de la galerie : le rang, puis l'`id`.
+   *
+   * L'`id` départage à rang égal — deux photos d'un même envoi peuvent
+   * porter le même si un lot a été interrompu —, sans quoi l'ordre
+   * changerait d'un chargement à l'autre.
+   *
+   * Écrit ici plutôt que chez chaque appelant : c'est une propriété des
+   * photos, pas de l'écran qui les demande, et la liste comme la galerie
+   * doivent les rendre dans le même ordre.
+   */
+  static ordreGalerie<T extends { orderBy(colonne: string, sens: 'asc'): T }>(requete: T): T {
+    return requete.orderBy('rang', 'asc').orderBy('id', 'asc')
+  }
+
+  /** Les photos d'un Bien, de la représentative à la dernière ajoutée. */
+  static duBien(bienId: number) {
+    return this.ordreGalerie(this.query().where('bien_id', bienId))
+  }
 }

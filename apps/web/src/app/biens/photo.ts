@@ -1,9 +1,14 @@
 /**
  * Une photo d'un Bien, telle que l'écran l'affiche (#13).
  *
- * Le modèle ne porte **que ce qu'un écran montre** (ADR-0010) : deux
- * adresses et un texte de remplacement. Ni nom de fichier, ni rang, ni dates
- * — l'ordre est celui du tableau que l'API rend, et rien n'affiche le reste.
+ * Le modèle ne porte **que ce qu'un écran montre** (ADR-0010) : les deux
+ * adresses sous lesquelles la photo se charge. Ni nom de fichier, ni rang, ni
+ * dates — l'ordre est celui du tableau que l'API rend, et rien n'affiche le
+ * reste.
+ *
+ * Pas de texte de remplacement non plus : ce qu'une photo de visite montre
+ * ne se résume pas à l'avance, et le `<img>` tire son intitulé de son
+ * contexte — le Libellé du Bien sur une carte, la galerie sur la fiche.
  */
 export interface Photo {
   id: number;

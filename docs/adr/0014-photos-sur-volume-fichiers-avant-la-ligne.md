@@ -24,12 +24,16 @@ L'orientation EXIF est appliquée aux pixels au passage. Sans cela, une photo pr
 
 Les deux sens se défendaient, mais ils ne coûtent pas la même chose. La ligne partie la première laisserait sur le volume des fichiers que plus rien ne désigne : des orphelins qu'aucun écran ne montre, que seul un balayage périodique retrouverait, et qu'il aurait fallu écrire et planifier. Dans ce sens-ci, le pire qui arrive est une ligne qui subsiste un instant après un effacement manqué — et cette ligne est précisément ce qui permet de réessayer.
 
-Deux conséquences sont assumées :
+Deux conséquences en découlent :
 
 - **Un fichier déjà absent est un succès.** L'état visé est atteint, et il n'y a rien à signaler.
-- **Tout autre échec est journalisé, puis avalé.** La suppression aboutit quand même. Refuser de supprimer un Bien parce qu'un fichier résiste — disque plein, volume démonté — garderait dans le carnet un Bien dont l'acheteur a demandé la disparition, pour une raison qui ne le concerne pas. C'est le pire des deux résultats.
+- **Tout autre échec — disque plein, volume démonté — arrête la suppression.** La ligne reste, et l'écran le dit.
 
-Le geste est écrit une fois (`stockage_photos.ts`) et appelé deux : la suppression d'une photo et celle d'un Bien posent la même question à un cran d'écart.
+Ce second point mérite d'être défendu, parce que l'inverse était tentant : journaliser l'échec et supprimer la ligne quand même, pour ne pas retenir dans le carnet un Bien dont l'acheteur a demandé la disparition. C'est ce qui avait d'abord été écrit, et c'était incohérent — cela produisait très exactement l'orphelin que l'ordre choisi existe pour éviter, et retirait du même coup la seule trace permettant de réessayer. Un ordre choisi pour éviter les orphelins ne peut pas en fabriquer sur son chemin d'échec.
+
+L'échec est rare et il se répare : c'est un incident de disque, pas un refus. Le Bien encore présent est ce qui permet de recommencer une fois le disque libéré, là où un succès annoncé à tort ferait chercher plus tard des fichiers que plus rien ne désigne.
+
+Le geste est écrit une fois (`stockage_photos.ts`) et appelé deux : la suppression d'une photo et celle d'un Bien posent la même question à un cran d'écart, et répondent pareil.
 
 ### Ce que cela change pour le test-sentinelle de #9
 

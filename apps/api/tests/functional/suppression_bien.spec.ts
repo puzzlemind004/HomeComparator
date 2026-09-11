@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import { existsSync } from 'node:fs'
-import { rm } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
 import sharp from 'sharp'
 import db from '@adonisjs/lucid/services/db'
 import Bien from '#models/bien'
@@ -203,6 +203,39 @@ test.group('Suppression d’un Bien', (group) => {
     // La vignette, elle, est bien partie : un fichier absent n'interrompt
     // pas l'effacement des autres.
     assert.isFalse(existsSync(cheminPhoto(photo.fichierVignette)))
+  })
+
+  test('garde le Bien quand les fichiers de ses photos résistent', async ({ client, assert }) => {
+    /**
+     * Le chemin d'échec de l'ordre choisi (ADR-0014), un cran plus haut que
+     * pour une photo seule : un fichier récalcitrant arrête la suppression
+     * du Bien. La supprimer malgré tout laisserait sur le volume des
+     * fichiers que plus rien ne désigne — l'orphelin que cet ordre existe
+     * pour éviter.
+     *
+     * Le Bien reste au carnet, et c'est lui qui permet de réessayer une fois
+     * le disque libéré.
+     */
+    const bien = await unBien()
+
+    const ajout = await avecSession(
+      client.post(`/biens/${bien.id}/photos`).file('photos', await uneImage(), {
+        filename: 'salon.jpg',
+      }),
+      session
+    )
+
+    const photo = await Photo.findOrFail(ajout.body()[0].id)
+
+    // Un dossier à la place du fichier : `unlink` y échoue autrement que
+    // par `ENOENT`, qui serait le cas « déjà absent », lui un succès.
+    await rm(cheminPhoto(photo.fichier), { force: true })
+    await mkdir(cheminPhoto(photo.fichier), { recursive: true })
+
+    const response = await avecSession(client.delete(`/biens/${bien.id}`), session)
+
+    response.assertStatus(503)
+    assert.isNotNull(await Bien.find(bien.id))
   })
 
   test('exige la session pour supprimer', async ({ client, assert }) => {

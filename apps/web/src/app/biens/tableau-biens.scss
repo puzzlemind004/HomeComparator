@@ -227,3 +227,22 @@ tbody tr:hover {
     background: #f8fafc;
   }
 }
+
+// La photo représentative, à côté du Libellé (#13).
+//
+// Petite et de rapport fixe : elle sert à reconnaître, pas à regarder — la
+// fiche est là pour cela. `object-fit: cover` garde les lignes d'égale
+// hauteur quelle que soit l'orientation des photos, sans quoi le tableau se
+// lirait en accordéon.
+//
+// Alignée au milieu du texte plutôt que sur sa ligne de base : une image et
+// un mot ne partagent pas de ligne de base, et la seconde ferait dépasser la
+// photo sous le Libellé.
+.tableau__photo {
+  border-radius: 0.25rem;
+  height: 2.25rem;
+  margin-right: 0.5rem;
+  object-fit: cover;
+  vertical-align: middle;
+  width: 3rem;
+}

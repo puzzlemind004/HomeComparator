@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { readdir, rm, stat } from 'node:fs/promises'
+import { mkdir, readdir, rm, stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import sharp from 'sharp'
 import db from '@adonisjs/lucid/services/db'
@@ -294,6 +294,64 @@ test.group('Photos d’un Bien', (group) => {
     assert.isNull(await Photo.find(id))
     assert.isFalse(existsSync(cheminPhoto(photo.fichier)))
     assert.isFalse(existsSync(cheminPhoto(photo.fichierVignette)))
+  })
+
+  test('refuse un fichier maquillé en image', async ({ client, assert }) => {
+    /**
+     * L'extension ne fait pas l'image : un texte renommé `.jpg` doit être
+     * refusé comme le reste, et avec le même message clair — pas par une
+     * erreur 500 venue du redimensionnement.
+     */
+    const bien = await unBien()
+
+    const response = await avecSession(
+      client
+        .post(`/biens/${bien.id}/photos`)
+        .file('photos', Buffer.from('du texte, pas une image'), {
+          filename: 'maquille.jpg',
+        }),
+      session
+    )
+
+    response.assertStatus(422)
+    assert.include(JSON.stringify(response.body()), 'maquille.jpg')
+    assert.isEmpty(await fichiersStockes())
+  })
+
+  test('garde la photo quand ses fichiers n’ont pas pu être effacés', async ({
+    client,
+    assert,
+  }) => {
+    /**
+     * Le chemin d'échec de l'ordre choisi (ADR-0014). Supprimer la ligne
+     * malgré un effacement manqué produirait très exactement l'orphelin que
+     * cet ordre existe pour éviter, et retirerait la seule trace qui permet
+     * de réessayer.
+     *
+     * L'échec est provoqué en remplaçant le fichier par un dossier : `unlink`
+     * y répond `EPERM`/`EISDIR`, jamais `ENOENT` — ce n'est donc pas le cas
+     * « déjà absent », qui lui est un succès.
+     */
+    const bien = await unBien()
+
+    const ajout = await avecSession(
+      client
+        .post(`/biens/${bien.id}/photos`)
+        .file('photos', await uneImage(), { filename: 'salon.jpg' }),
+      session
+    )
+
+    const { id } = ajout.body()[0]
+    const photo = await Photo.findOrFail(id)
+
+    await rm(cheminPhoto(photo.fichier), { force: true })
+    await mkdir(cheminPhoto(photo.fichier), { recursive: true })
+
+    const response = await avecSession(client.delete(`/biens/${bien.id}/photos/${id}`), session)
+
+    response.assertStatus(503)
+    // La ligne est toujours là : c'est elle qui permet de réessayer.
+    assert.isNotNull(await Photo.find(id))
   })
 
   test('refuse un fichier qui n’est pas une image', async ({ client, assert }) => {

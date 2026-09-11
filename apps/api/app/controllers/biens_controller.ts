@@ -4,7 +4,6 @@ import { champInconnu, creerBienValidator, modifierBienValidator } from '#valida
 import { PROPRIETAIRE_UNIQUE } from '#services/proprietaire'
 import { STATUT_INITIAL, STATUTS } from '#services/statut'
 import Photo from '#models/photo'
-import { photosDuBien } from '#controllers/photos_controller'
 import { effacerPhoto } from '#services/stockage_photos'
 
 /**
@@ -236,8 +235,32 @@ export default class BiensController {
      * les uns des autres, et une visite bien photographiée en compte
      * facilement une vingtaine.
      */
-    const photos = await photosDuBien(bien.id)
-    await Promise.all(photos.map((photo) => effacerPhoto(photo)))
+    const photos = await Photo.duBien(bien.id)
+    const effacees = await Promise.all(photos.map((photo) => effacerPhoto(photo)))
+
+    /**
+     * Un fichier récalcitrant arrête la suppression du Bien, comme il
+     * arrête celle d'une photo seule : supprimer la ligne malgré tout
+     * laisserait sur le volume des fichiers que plus rien ne désigne, et
+     * c'est exactement ce que l'ordre choisi existe pour éviter (ADR-0014).
+     *
+     * C'est le cas rare — disque plein, volume démonté — et il se répare en
+     * réessayant, ce que le Bien encore présent permet. Le Bien reste donc
+     * au carnet, et l'écran le dit plutôt que d'annoncer une disparition
+     * qui n'a pas eu lieu.
+     */
+    if (!effacees.every(Boolean)) {
+      return response.serviceUnavailable({
+        errors: [
+          {
+            field: 'photos',
+            rule: 'stockage',
+            message:
+              "Les photos du Bien n'ont pas pu être effacées du stockage. Le Bien est toujours là.",
+          },
+        ],
+      })
+    }
 
     await bien.delete()
 
@@ -264,13 +287,12 @@ async function preloadPhotoRepresentative(biens: Bien[]): Promise<void> {
     return
   }
 
-  const photos = await Photo.query()
-    .whereIn(
+  const photos = await Photo.ordreGalerie(
+    Photo.query().whereIn(
       'bien_id',
       biens.map(({ id }) => id)
     )
-    .orderBy('rang', 'asc')
-    .orderBy('id', 'asc')
+  )
 
   const representative = new Map<number, Photo>()
 
