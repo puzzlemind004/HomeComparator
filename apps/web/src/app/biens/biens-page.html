@@ -89,33 +89,19 @@
         <!--
           Le tableau sur desktop, les cartes sur écran étroit : les deux
           présentations montrent les mêmes Biens, et c'est la feuille de
-          style qui choisit laquelle paraît (ADR-0006). Un tableau de seize
-          colonnes est illisible sur un téléphone, et le défilement
-          horizontal a été explicitement écarté.
+          style qui choisit laquelle paraît, à la seule taille de l'écran et
+          sans réglage à faire (#11, ADR-0006). Un tableau de seize colonnes
+          est illisible sur un téléphone, et le défilement horizontal a été
+          explicitement écarté.
+
+          Les deux composants sont montés ensemble, et l'un des deux est
+          masqué. Le coût est d'un calcul de liste en double, sur quelques
+          dizaines de Biens ; ce qu'il achète est qu'aucune des deux
+          présentations n'ait à savoir sur quel écran elle est montée, et
+          qu'une fenêtre redimensionnée bascule sans rien remonter.
         -->
         <app-tableau-biens class="vue-desktop" [biensAAfficher]="liste.biens" />
-
-        <ul class="liste vue-mobile">
-          @for (bien of liste.biens; track bien.id) {
-            <li class="bien">
-              <a class="bien__libelle" [routerLink]="['/biens', bien.id]">{{ bien.libelle }}</a>
-
-              <!--
-                Où en est le Bien, lisible sans ouvrir la fiche : c'est ce
-                qu'on vient chercher en parcourant la liste (#7).
-              -->
-              <span class="bien__statut" [attr.data-statut]="bien.statut">
-                {{ libelleStatut(bien.statut) }}
-              </span>
-
-              @if (bien.urlAnnonce; as url) {
-                <a class="bien__annonce" [href]="url" target="_blank" rel="noopener noreferrer">
-                  Voir l'Annonce
-                </a>
-              }
-            </li>
-          }
-        </ul>
+        <app-cartes-biens class="vue-mobile" [biensAAfficher]="liste.biens" />
       } @else if (filtre(); as statut) {
         <!--
           « Rien à ce stade » est une réponse, et elle se dit autrement que

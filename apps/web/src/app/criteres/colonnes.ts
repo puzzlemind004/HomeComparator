@@ -79,6 +79,42 @@ export interface Colonne {
 }
 
 /**
+ * Ce qu'un Bien porte sur une colonne : le texte à écrire, et si le Critère
+ * est renseigné.
+ *
+ * La forme vit ici et non dans l'un des écrans qui l'affichent. Le tableau
+ * (#10) et les cartes mobiles (#11) montrent les mêmes Biens (ADR-0006) et
+ * marquent l'absence de la même façon — ce qui manque est ce qu'il reste à
+ * demander à l'agence (#6). Écrite deux fois, la règle aurait divergé au
+ * premier Critère ajouté, et les deux écrans se seraient contredits sur ce
+ * que veut dire une case vide.
+ */
+export interface CaseColonne {
+  colonne: Colonne;
+
+  /** La valeur écrite, ou la chaîne vide quand le Critère n'est pas renseigné. */
+  texte: string;
+
+  /**
+   * Vrai dès qu'une valeur est portée, zéro compris.
+   *
+   * La distinction ne se lit pas du texte : un zéro s'écrit « 0 » et un
+   * Critère absent s'écrit vide, mais un texte vide saisi s'écrirait pareil.
+   * C'est de là que l'écran tire son marquage, jamais de ce qui est écrit.
+   */
+  renseigne: boolean;
+}
+
+/** Ce que ce Bien porte sur cette colonne, prêt à s'afficher. */
+export function caseDe(colonne: Colonne, valeurs: ValeursCriteres): CaseColonne {
+  return {
+    colonne,
+    texte: colonne.texte(valeurs),
+    renseigne: colonne.valeur(valeurs) !== null,
+  };
+}
+
+/**
  * L'identifiant de la Colonne calculée. Il ne peut désigner aucun Critère,
  * puisqu'aucun n'a de colonne en base à ce nom (ADR-0004) — c'est ce qui
  * permet de le mêler aux identifiants de Critères sans risque de collision.
@@ -224,3 +260,52 @@ export const GROUPES_COLONNES: readonly GroupeColonnes[] = GROUPES.map(({ groupe
 export function colonneParId(id: string): Colonne | undefined {
   return COLONNES.find((colonne) => colonne.id === id);
 }
+
+/**
+ * Les Colonnes les plus décisives : celles sur lesquelles un Bien se
+ * reconnaît d'un coup d'œil dans une liste, sans ouvrir sa fiche (#11).
+ *
+ * Le choix est éditorial et se cite en dur : aucune métadonnée de la
+ * définition ne dit qu'un prix décide plus qu'un type de chauffage, et
+ * `sensComparaison` ne le dit pas non plus — il dit dans quel sens comparer,
+ * pas si la comparaison compte. Les noms sont donc écrits, et
+ * `colonnes.spec.ts` vérifie qu'ils désignent toujours quelque chose : une
+ * Colonne renommée viderait autrement la carte en silence.
+ *
+ * C'est le seul endroit du carnet où l'exigence d'ADR-0004 — ajouter un
+ * Critère sans retoucher d'écran — ne s'applique pas, et c'est voulu : un
+ * Critère ajouté ne devient pas décisif du seul fait d'exister, et une carte
+ * qui accueillerait chaque nouveau venu redeviendrait le tableau qu'ADR-0006
+ * écarte sur mobile, réécrit à la verticale.
+ *
+ * **Le prix au mètre carré en est**, quoiqu'il ne soit pas un Critère
+ * (ADR-0013). C'est même sur la carte qu'il porte le plus : les Biens s'y
+ * lisent l'un après l'autre plutôt que côte à côte, et le prix ramené au
+ * mètre carré est ce qui permet de situer celui qu'on regarde sans avoir
+ * l'autre sous les yeux. ADR-0013 le dit et désigne ce ticket ; c'est
+ * pourquoi la liste porte des identifiants de Colonnes et non de Critères.
+ */
+export const ID_COLONNES_DECISIVES: readonly string[] = [
+  'prixDemande',
+  ID_COLONNE_PRIX_METRE_CARRE,
+  'surfaceHabitable',
+  'villeQuartier',
+];
+
+/**
+ * Ces Colonnes, dans l'ordre où `COLONNES` les porte et non dans celui de la
+ * liste ci-dessus.
+ *
+ * Elles sont celles du tableau, prises telles quelles : les deux
+ * présentations montrent les mêmes Biens (ADR-0006), et une valeur écrite
+ * « 250000 » sur la carte et « 250 000 € » dans le tableau se lirait comme
+ * deux données différentes. Le prix au mètre carré s'y trouve donc juste
+ * après le prix dont il sort, comme dans le tableau.
+ *
+ * Un identifiant qui ne désigne plus rien est ignoré plutôt que de faire
+ * tomber l'écran — la carte perd une Colonne, elle ne disparaît pas. C'est
+ * `colonnes.spec.ts` qui refuse cet état, là où il se voit.
+ */
+export const COLONNES_DECISIVES: readonly Colonne[] = COLONNES.filter((colonne) =>
+  ID_COLONNES_DECISIVES.includes(colonne.id),
+);

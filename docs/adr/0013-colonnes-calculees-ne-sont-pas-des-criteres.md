@@ -14,4 +14,6 @@ Deux conséquences en découlent.
 
 Le prix au mètre carré reste **codé en dur** comme le cas particulier qu'il est, et non comme la première entrée d'une liste de Colonnes calculées. Il est aujourd'hui la seule, et une liste générique inventerait l'abstraction avant d'en connaître la deuxième instance ; `Colonne` étant déjà l'interface commune, la généraliser le jour venu se fera à peu de frais.
 
-Et il vaut **pour toutes les formes du carnet**, cartes mobiles comprises (ADR-0006), non pour le seul tableau desktop. C'est précisément sur mobile, où les Biens se lisent l'un après l'autre plutôt que côte à côte, que le prix ramené au mètre carré porte le plus : il permet de situer un Bien sans avoir l'autre sous les yeux. Les cartes ne l'affichent pas encore (#11) ; l'intention est écrite ici pour que cette question n'ait pas à se retrancher à l'aveugle.
+Et il vaut **pour toutes les formes du carnet**, cartes mobiles comprises (ADR-0006), non pour le seul tableau desktop. C'est précisément sur mobile, où les Biens se lisent l'un après l'autre plutôt que côte à côte, que le prix ramené au mètre carré porte le plus : il permet de situer un Bien sans avoir l'autre sous les yeux. Les cartes l'affichent depuis #11, à la suite du prix dont il sort, comme le tableau le pose.
+
+C'est ce qui a fait nommer **Colonne décisive** ce que porte une carte, plutôt que Critère décisif : la liste tient des identifiants de Colonnes, faute de quoi le prix au m² n'aurait pas pu en être.

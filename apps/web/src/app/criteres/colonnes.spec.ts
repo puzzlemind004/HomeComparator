@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   COLONNES,
+  COLONNES_DECISIVES,
   GROUPES_COLONNES,
   type GroupeColonnes,
+  ID_COLONNES_DECISIVES,
   ID_COLONNE_PRIX_METRE_CARRE,
+  caseDe,
   colonneParId,
 } from './colonnes';
 import { CRITERES_ORDONNES, GROUPES, critereParId } from './definition';
@@ -209,6 +212,121 @@ describe('GROUPES_COLONNES', () => {
     );
 
     expect(budget.colonnes).toEqual(attendu);
+  });
+});
+
+/**
+ * La case d'un Bien sur une colonne — ce qui s'y écrit et si le Critère est
+ * renseigné — telle que les deux présentations la lisent.
+ *
+ * La forme vit ici et non dans le tableau qui l'a introduite : la carte
+ * mobile (#11) montre les mêmes Biens (ADR-0006) et marque l'absence de la
+ * même manière. Écrite deux fois, la règle « renseigné dès qu'une valeur est
+ * portée, zéro compris » aurait divergé au premier Critère ajouté.
+ */
+describe('caseDe', () => {
+  const prix = colonneParId('prixDemande')!;
+
+  it('écrit la valeur et la dit renseignée', () => {
+    const donnee = caseDe(prix, unBien({ criteres: { prixDemande: 250000 } }).criteres);
+
+    expect(normaliser(donnee.texte)).toBe('250 000 €');
+    expect(donnee.renseigne).toBe(true);
+  });
+
+  it('tient un zéro pour renseigné', () => {
+    // La distinction ne se lit pas du texte : un zéro s'écrit « 0 » et un
+    // Critère absent s'écrit vide, mais c'est de `renseigne` que les deux
+    // écrans tirent leur marquage (#6).
+    const stationnement = colonneParId('capaciteStationnement')!;
+    const donnee = caseDe(
+      stationnement,
+      unBien({ criteres: { capaciteStationnement: 0 } }).criteres,
+    );
+
+    expect(donnee.texte).toBe('0');
+    expect(donnee.renseigne).toBe(true);
+  });
+
+  it('rend une case vide quand le Critère n’est pas renseigné', () => {
+    const donnee = caseDe(prix, unBien().criteres);
+
+    expect(donnee.texte).toBe('');
+    expect(donnee.renseigne).toBe(false);
+  });
+
+  it('porte la colonne dont elle sort', () => {
+    // L'écran en tire l'alignement des nombres et le libellé qu'il place à
+    // côté de la valeur : sans elle, il faudrait la retrouver par son `id`.
+    expect(caseDe(prix, unBien().criteres).colonne).toBe(prix);
+  });
+});
+
+describe('COLONNES_DECISIVES', () => {
+  it('porte le prix, le prix au m², la surface et la ville, dans l’ordre du tableau', () => {
+    // Ce sur quoi un Bien se reconnaît d'un coup d'œil (#11). L'ordre est
+    // celui de `COLONNES`, comme partout ailleurs : les deux présentations
+    // montrent les mêmes Biens (ADR-0006), et une carte qui réordonnerait ce
+    // que le tableau ordonne se lirait contre lui.
+    expect(COLONNES_DECISIVES.map((colonne) => colonne.id)).toEqual([
+      'prixDemande',
+      ID_COLONNE_PRIX_METRE_CARRE,
+      'surfaceHabitable',
+      'villeQuartier',
+    ]);
+  });
+
+  it('nomme des Critères qui existent bel et bien', () => {
+    // La liste cite trois identifiants en dur — un choix éditorial, qui ne se
+    // déduit d'aucune métadonnée de la définition. Renommer l'un des trois
+    // viderait la carte en silence : elle n'afficherait plus que deux
+    // Critères, sans qu'aucune erreur ne soit levée.
+    expect(COLONNES_DECISIVES).toHaveLength(ID_COLONNES_DECISIVES.length);
+  });
+
+  it('ne montre qu’une part des Colonnes : la carte n’est pas le tableau', () => {
+    // Une carte qui porterait les seize Colonnes serait le tableau qu'ADR-0006
+    // écarte sur mobile, réécrit à la verticale — et aussi illisible.
+    expect(COLONNES_DECISIVES.length).toBeLessThan(COLONNES.length);
+  });
+
+  it('écrit ses valeurs comme le tableau les écrit', () => {
+    // Les colonnes sont celles du tableau, prises telles quelles : une même
+    // valeur ne peut donc pas s'écrire « 250000 » sur la carte et
+    // « 250 000 € » dans le tableau.
+    const criteres = unBien({
+      criteres: { prixDemande: 250000, surfaceHabitable: 72.5, villeQuartier: 'Nantes' },
+    }).criteres;
+
+    expect(COLONNES_DECISIVES.map((colonne) => normaliser(colonne.texte(criteres)))).toEqual([
+      '250 000 €',
+      '3 448 €/m²',
+      '72,5 m²',
+      'Nantes',
+    ]);
+  });
+
+  it('porte le prix au mètre carré, et le pose à la suite du prix', () => {
+    // ADR-0013 le veut sur toutes les formes du carnet, cartes comprises :
+    // c'est sur mobile, où les Biens se lisent l'un après l'autre plutôt que
+    // côte à côte, qu'il porte le plus — il situe un Bien sans qu'on ait
+    // l'autre sous les yeux.
+    const ids = COLONNES_DECISIVES.map((colonne) => colonne.id);
+
+    expect(ids.indexOf(ID_COLONNE_PRIX_METRE_CARRE)).toBe(ids.indexOf('prixDemande') + 1);
+  });
+
+  it('reste vide sur le prix au mètre carré quand une de ses sources manque', () => {
+    // La Colonne calculée se tait dès qu'il lui manque le prix ou la surface,
+    // et la carte la marque alors comme ce qu'il reste à demander — jamais
+    // comme un zéro.
+    const prixMetreCarre = COLONNES_DECISIVES.find(
+      (colonne) => colonne.id === ID_COLONNE_PRIX_METRE_CARRE,
+    )!;
+
+    expect(
+      prixMetreCarre.valeur(unBien({ criteres: { prixDemande: 250000 } }).criteres),
+    ).toBeNull();
   });
 });
 
