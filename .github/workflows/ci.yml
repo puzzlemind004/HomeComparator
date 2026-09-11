@@ -105,3 +105,44 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  docker:
+    name: Images Docker
+    runs-on: ubuntu-latest
+    # Aucun `needs` : la construction des images exerce une propriété
+    # distincte des lint/types/tests, et le signal est plus utile en
+    # parallèle qu'en aval.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Docker est le seul mécanisme de déploiement (ADR-0003, ADR-0007) :
+      # sans cette étape, la CI valide un artefact qui n'est pas celui qu'on
+      # déploie (#19). Une cible de production renommée ou disparue d'un
+      # `Dockerfile` fait échouer le job.
+      #
+      # Les contextes et les cibles recopient ceux que `docker-compose.yml`
+      # déclare par service ; les deux restent maintenus séparément, et rien
+      # ici ne rattraperait un renommage fait du seul côté de Compose.
+      - name: Construire l'image de l'API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/api
+          target: production
+          push: false
+          # Le cache GHA est cloisonné par clé : sans `scope`, les deux
+          # images se partageraient la même entrée et s'évinceraient l'une
+          # l'autre à chaque exécution.
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Construire l'image du front
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/web
+          target: production
+          push: false
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
