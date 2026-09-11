@@ -21,8 +21,18 @@ const PhotosController = () => import('#controllers/photos_controller')
  *
  * La santé du service reste joignable sans session : c'est ce qu'on
  * interroge quand plus rien ne répond, connexion comprise, et c'est ce que
- * lit le healthcheck Docker. C'est la plus discutable des quatre, la seule
- * qui apprenne quelque chose à un appelant anonyme.
+ * lit le healthcheck Docker du service `api` (#25, #67). C'est la plus
+ * discutable des quatre, la seule qui apprenne quelque chose à un appelant
+ * anonyme.
+ *
+ * Elle figure ici au titre de son seul niveau anonyme, qui rend l'état du
+ * service et celui de la base, et rien d'autre. Ce qu'elle dit de plus à un
+ * appelant muni d'une session — la version déployée, la date de la dernière
+ * sauvegarde réussie — ne relève pas de cette dispense : le contrôleur
+ * vérifie la session avant de l'ajouter (#67). C'est ce qui permet à cette
+ * liste de ne pas s'allonger de ces deux renseignements-là, qui n'ont rien
+ * à faire en accès libre — une date de sauvegarde ancienne annoncerait à
+ * qui la lit que les données ne sont plus protégées.
  */
 router.get('/health', [HealthController])
 

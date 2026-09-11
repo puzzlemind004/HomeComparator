@@ -34,7 +34,18 @@ services:
     build:
       context: ./apps/api
       target: production
+      args:
+        # La version déployée, que le `Dockerfile` fige dans l'image et que
+        # la route de santé rend à un appelant muni d'une session (#67).
+        # Laissée vide, l'image porte le `dev` que le `Dockerfile` donne par
+        # défaut : ici on construit, on ne déploie pas une version publiée.
+        VERSION: ${VERSION:-dev}
     restart: unless-stopped
+    # Aucun `healthcheck:` ici, et c'est délibéré : celui de l'API vit dans
+    # son `Dockerfile` (#25, #67). Il décrit l'image, et le VPS tirera des
+    # images publiées sans ce fichier — une image qui ne se surveille que
+    # depuis le Compose du dépôt ne se surveillerait pas en production.
+    # Compose reprend celui de l'image tel quel, et `web` s'en sert plus bas.
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,12 +69,33 @@ services:
       # (#13). Les fichiers ne vivent pas en base : `pg_dump` n'est pas fait
       # pour transporter des mégaoctets de binaire.
       STOCKAGE_PHOTOS: /app/stockage/photos
+      # L'horodatage que la sauvegarde quotidienne déposera et que la route
+      # de santé lit (#67, ADR-0007). L'API ne sauvegarde pas et n'observe
+      # pas qui sauvegarde : elle lit un fichier que l'autre écrit, sur le
+      # volume que les deux montent. Rien ne l'écrit encore — c'est le
+      # ticket de sauvegarde qui le fera —, et d'ici là la route rend
+      # l'absence, ce qui est exact.
+      HORODATAGE_SAUVEGARDE: /app/sauvegardes/derniere-sauvegarde
     volumes:
       # Les photos survivent au redémarrage et à la reconstruction des
       # conteneurs, comme la base. Ce volume entre dans le périmètre des
       # sauvegardes au même titre qu'elle (ADR-0007) : les photos de visite
       # sont irremplaçables, on ne repasse pas les prendre.
       - photos-data:/app/stockage/photos
+      # L'horodatage des sauvegardes, en lecture seule : l'API le lit, elle
+      # n'a aucune raison de pouvoir l'écrire.
+      #
+      # Un volume à part et non un coin de `photos-data`, et la raison n'est
+      # pas la nature de ce qui y vit — les archives que #71 y déposera sont
+      # des données du carnet autant que les Photos. C'est le sens de la
+      # lecture qui sépare : l'API doit pouvoir lire cet horodatage sans que
+      # le volume des Photos, qu'elle écrit, lui soit ouvert deux fois.
+      #
+      # Le montage porte sur le dossier alors qu'un seul fichier est lu, ce
+      # qui exposera les archives à l'API le jour où elles arriveront. Le
+      # resserrer est une décision ouverte (#75), à prendre avant que #71
+      # n'écrive le service, et non après.
+      - sauvegardes-data:/app/sauvegardes:ro
     ports:
       # Lié à la boucle locale, pour deux raisons (#18). En production nginx
       # joint l'API par le réseau interne Compose et cette publication n'a
@@ -82,10 +114,21 @@ services:
       target: production
     restart: unless-stopped
     depends_on:
-      - api
+      # `service_healthy` et non la forme courte : nginx démarrait jusqu'ici
+      # dès que le conteneur de l'API existait, donc pendant que celle-ci
+      # jouait encore ses migrations, et les premières requêtes tombaient sur
+      # un amont qui ne répondait pas (#25). Le healthcheck de l'image rend
+      # cette attente exprimable.
+      api:
+        condition: service_healthy
     ports:
       - '${WEB_PORT:-4200}:80'
 
 volumes:
   postgres-data:
   photos-data:
+  # Ce que la sauvegarde quotidienne dépose et que l'API lit (#67) : pour
+  # l'instant le seul horodatage de la dernière réussite, et demain les
+  # archives elles-mêmes, quand le ticket de sauvegarde montera ce volume
+  # dans le service qui les produit (ADR-0007).
+  sauvegardes-data:

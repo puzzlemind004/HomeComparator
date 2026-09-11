@@ -74,6 +74,36 @@ export default await Env.create(new URL('../', import.meta.url), {
       ? valeur
       : fileURLToPath(new URL('../stockage/photos', import.meta.url)),
 
+  /*
+  |----------------------------------------------------------
+  | Version déployée, et horodatage de la dernière sauvegarde
+  |----------------------------------------------------------
+  |
+  | Les deux renseignements que la route de santé ajoute à un appelant muni
+  | d'une session (#67). Ni l'un ni l'autre n'est requis : le carnet tourne
+  | sans, et refuser de démarrer faute de version arrêterait le
+  | développement pour un numéro qui n'a de sens qu'en production.
+  |
+  | `APP_VERSION` parvient à l'image par un argument de construction, que le
+  | `Dockerfile` fige en variable d'environnement : elle désigne l'image et
+  | non l'exécution, et une image qui pourrait se voir attribuer une autre
+  | version au démarrage ne dirait plus ce qu'elle contient. Hors conteneur,
+  | il n'y a rien à désigner, d'où le `dev` par défaut.
+  |
+  | `HORODATAGE_SAUVEGARDE` est le fichier que la sauvegarde quotidienne
+  | dépose sur le volume et que l'API lit (ADR-0007). Le défaut est résolu
+  | ici et non chez l'appelant, pour que le service lise un chemin et jamais
+  | un `undefined` à rattraper.
+  |
+  */
+  APP_VERSION: (_cle: string, valeur?: string) =>
+    valeur && valeur.trim() !== '' ? valeur.trim() : 'dev',
+
+  HORODATAGE_SAUVEGARDE: (_cle: string, valeur?: string) =>
+    valeur && valeur.trim() !== ''
+      ? valeur
+      : fileURLToPath(new URL('../stockage/derniere-sauvegarde', import.meta.url)),
+
   APP_PASSWORD: (cle: string, valeur?: string) => {
     if (!valeur || valeur.trim() === '') {
       throw new Error(`La variable ${cle} est obligatoire et ne peut pas être vide`)
