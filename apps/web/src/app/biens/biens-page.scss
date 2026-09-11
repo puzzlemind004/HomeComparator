@@ -109,19 +109,39 @@
 // paraît, et non dans le composant, qui n'a pas à savoir sur quel écran il
 // est monté.
 //
-// Le seuil est **provisoire**, et la liste ci-dessous n'est pas encore la
-// présentation mobile : ce ticket ne concerne que le desktop (#10), et les
-// cartes font l'objet d'un ticket distinct (ADR-0006). Ce qu'il faut ici,
-// c'est seulement ne pas livrer un tableau de seize colonnes sur un
-// téléphone en attendant. C'est ce ticket-là qui arrêtera le seuil et
-// dessinera les cartes.
+// Le seuil reste à 1024 px. Il n'est plus un cache-misère : le tableau
+// s'ouvre sur le seul groupe « Budget » affiché — environ 850 px mesurés avec
+// le Libellé et le Statut (#49) —, et tient donc à cette largeur sans
+// défiler de côté. Le choix entre tableau et cartes est ainsi redevenu une
+// question de forme, et non de place.
+//
+// La liste ci-dessous n'est pas encore la présentation mobile : les cartes
+// font l'objet d'un ticket distinct (ADR-0006), qui les dessinera. Ce qu'il
+// faut ici, c'est seulement ne pas livrer un tableau sur un téléphone en
+// attendant.
 .vue-desktop {
   display: none;
 }
 
 @media (min-width: 64rem) {
+  // Le tableau sort de la colonne de texte, au lieu que la coque s'élargisse
+  // pour tout le monde : le formulaire de connexion et la fiche d'un Bien
+  // partagent cette coque, et un champ de saisie d'un mètre de large ne se
+  // lit pas mieux qu'un champ de 40rem (#49).
+  //
+  // Les marges négatives sont bornées à ce que la fenêtre offre réellement :
+  // `50vw` moins la demi-colonne de chaque côté, moins la gouttière que la
+  // coque garde. Sans ce plafond, le tableau déborderait de la fenêtre au
+  // lieu de s'y étendre. `100vw` n'est pas employé — il compte la barre de
+  // défilement verticale, et ajouterait une quinzaine de pixels de trop.
+  // `max` sur des valeurs négatives : c'est le débord le plus petit en
+  // valeur absolue qui l'emporte, donc le plafond.
+  $debord: max(-18rem, calc(21rem - 50vw));
+
   .vue-desktop {
     display: block;
+    margin-left: $debord;
+    margin-right: $debord;
   }
 
   .vue-mobile {

@@ -1,6 +1,6 @@
-import type { Critere, SensComparaison, TypeCritere } from './critere';
+import type { Critere, GroupeCritere, SensComparaison, TypeCritere } from './critere';
 import { prixAuMetreCarre, type ValeurCritere } from './comparaison';
-import { CRITERES_ORDONNES } from './definition';
+import { CRITERES_ORDONNES, GROUPES, critereParId } from './definition';
 import { formaterPrixAuMetreCarre, formaterValeur } from './formatage';
 import { estRenseigne, type ValeursCriteres } from './valeurs';
 
@@ -168,6 +168,57 @@ export const COLONNES: readonly Colonne[] = CRITERES_ORDONNES.flatMap((critere) 
     ? [colonneDeCritere(critere), colonnePrixAuMetreCarre()]
     : [colonneDeCritere(critere)],
 );
+
+/**
+ * Le groupe auquel une colonne appartient.
+ *
+ * Une colonne de Critère tient le sien du Critère (ADR-0004). La Colonne
+ * calculée n'en a pas — ce n'est pas un Critère (ADR-0013) — et prend celui
+ * du Critère dont elle sort : un prix au m² sans son prix ne se compare pas,
+ * et replier « Budget » ne doit pas laisser l'un sans l'autre.
+ */
+function groupeDe(colonne: Colonne): GroupeCritere | undefined {
+  if (colonne.critere) {
+    return colonne.critere.groupe;
+  }
+
+  return critereParId('prixDemande')?.groupe;
+}
+
+/** Les colonnes d'un groupe, prêtes à se plier d'un bloc. */
+export interface GroupeColonnes {
+  groupe: GroupeCritere;
+
+  /** Le titre sous lequel le groupe s'annonce, repris de la définition. */
+  libelle: string;
+
+  /** Ses colonnes, dans l'ordre où `COLONNES` les porte. */
+  colonnes: readonly Colonne[];
+}
+
+/**
+ * Les colonnes réparties par groupe, dans l'ordre des groupes puis celui des
+ * colonnes.
+ *
+ * C'est ce qui rend le tableau pliable sans qu'il invente un rangement : les
+ * quatre groupes et leurs titres viennent de la définition (ADR-0004), et un
+ * Critère ajouté paraît dans le sien sans que le tableau soit retouché. Sans
+ * ce choix par groupe, seize Colonnes en `nowrap` — plus le Libellé et le
+ * Statut — réclament de l'ordre de 2400 px pour un seuil d'apparition à
+ * 1024 : le tableau défilerait de côté, ce
+ * qu'ADR-0006 rejette pour ce que cela détruit — la comparaison d'un coup
+ * d'œil.
+ *
+ * La répartition vit ici et non dans le composant, à côté de l'ordre des
+ * colonnes dont elle est le prolongement : « quelles colonnes, dans quel
+ * groupe, dans quel ordre » se vérifie ainsi sans monter d'écran. Le
+ * composant ne détient que ce qui est plié.
+ */
+export const GROUPES_COLONNES: readonly GroupeColonnes[] = GROUPES.map(({ groupe, libelle }) => ({
+  groupe,
+  libelle,
+  colonnes: COLONNES.filter((colonne) => groupeDe(colonne) === groupe),
+}));
 
 /** La colonne portant cet identifiant, ou `undefined` s'il n'en désigne aucune. */
 export function colonneParId(id: string): Colonne | undefined {

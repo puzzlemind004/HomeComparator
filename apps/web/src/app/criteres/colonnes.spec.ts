@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { COLONNES, ID_COLONNE_PRIX_METRE_CARRE, colonneParId } from './colonnes';
-import { CRITERES_ORDONNES, critereParId } from './definition';
+import {
+  COLONNES,
+  GROUPES_COLONNES,
+  type GroupeColonnes,
+  ID_COLONNE_PRIX_METRE_CARRE,
+  colonneParId,
+} from './colonnes';
+import { CRITERES_ORDONNES, GROUPES, critereParId } from './definition';
 import { unBien } from '../biens/bien.test-helper';
 
 /**
@@ -138,5 +144,157 @@ describe('texte d’une colonne', () => {
     // C'est à l'écran de marquer l'absence, pas au texte : le tableau doit
     // pouvoir la distinguer d'un zéro autrement que par ce qui est écrit.
     expect(colonneParId('prixDemande')!.texte(unBien().criteres)).toBe('');
+  });
+});
+
+describe('GROUPES_COLONNES', () => {
+  it('reprend les groupes de la définition, dans leur ordre', () => {
+    // Les groupes ne sont pas énumérés ici : un groupe ajouté à la
+    // définition doit traverser le tableau sans qu'on y revienne (ADR-0004).
+    expect(GROUPES_COLONNES.map((groupe) => groupe.groupe)).toEqual(
+      GROUPES.map(({ groupe }) => groupe),
+    );
+  });
+
+  it('nomme chaque groupe comme la définition le nomme', () => {
+    expect(GROUPES_COLONNES.map((groupe) => groupe.libelle)).toEqual(
+      GROUPES.map(({ libelle }) => libelle),
+    );
+  });
+
+  it('range chaque colonne de Critère dans le groupe de son Critère', () => {
+    for (const { groupe, colonnes } of GROUPES_COLONNES) {
+      for (const colonne of colonnes) {
+        // La colonne calculée n'a pas de Critère : elle est vérifiée à part.
+        if (colonne.critere) {
+          expect(colonne.critere.groupe).toBe(groupe);
+        }
+      }
+    }
+  });
+
+  it('range le prix au mètre carré avec le prix demandé', () => {
+    // La Colonne calculée n'est pas un Critère et n'a donc pas de groupe
+    // (ADR-0013) : elle suit celui dont elle sort, faute de quoi replier
+    // « Budget » laisserait à l'écran un prix au m² sans son prix.
+    const budget = GROUPES_COLONNES.find((groupe) => groupe.groupe === 'budget')!;
+    const ids = budget.colonnes.map((colonne) => colonne.id);
+
+    expect(ids.indexOf(ID_COLONNE_PRIX_METRE_CARRE)).toBe(ids.indexOf('prixDemande') + 1);
+  });
+
+  it('ne perd aucune colonne calculée faute de groupe', () => {
+    // `groupeDe` rend le groupe de `prixDemande` pour la Colonne calculée,
+    // qui n'en a pas (ADR-0013). Si ce Critère était renommé, la fonction
+    // rendrait `undefined` et le prix au m² disparaîtrait du tableau sans
+    // qu'aucune erreur ne soit levée : ce test est ce qui le ferait voir.
+    const groupees = GROUPES_COLONNES.flatMap(({ colonnes }) => colonnes);
+
+    expect(groupees).toHaveLength(COLONNES.length);
+    expect(groupees.some((colonne) => colonne.id === ID_COLONNE_PRIX_METRE_CARRE)).toBe(true);
+  });
+
+  it('couvre toutes les colonnes, sans doublon ni oubli', () => {
+    // Le tableau n'affiche que ce que les groupes portent : une colonne
+    // tombée hors de tout groupe disparaîtrait de l'écran en silence.
+    const groupees = GROUPES_COLONNES.flatMap(({ colonnes }) => colonnes.map((c) => c.id));
+
+    expect(groupees).toEqual(COLONNES.map((colonne) => colonne.id));
+  });
+
+  it('garde l’ordre des colonnes à l’intérieur d’un groupe', () => {
+    const budget = GROUPES_COLONNES.find((groupe) => groupe.groupe === 'budget')!;
+    const attendu = COLONNES.filter((colonne) =>
+      budget.colonnes.some((autre) => autre.id === colonne.id),
+    );
+
+    expect(budget.colonnes).toEqual(attendu);
+  });
+});
+
+/**
+ * La largeur qu'un en-tête réclame, aux métriques du tableau : police
+ * 0.8125rem — 13 px —, padding de 0.75rem de chaque côté, écart de 0.35rem
+ * et flèche de tri de 0.75rem.
+ *
+ * Le facteur 0,55 em par caractère est la largeur moyenne d'une lettre dans
+ * une police système à cette taille. C'est une estimation, et elle ne
+ * prétend pas au pixel : ce qu'elle sert à établir, c'est un ordre de
+ * grandeur — savoir si un groupe déplié tient dans 1024 px ou en réclame le
+ * double. Les cellules ne sont pas comptées : un en-tête est presque
+ * toujours plus long que ses valeurs, l'adresse mise à part.
+ */
+function largeurEntete(libelle: string): number {
+  const TEXTE = libelle.length * 13 * 0.55;
+  const PADDING = 24;
+  const ECART = 5.6;
+  const FLECHE = 12;
+
+  return TEXTE + PADDING + ECART + FLECHE;
+}
+
+/** La largeur du groupe, en-têtes seuls. */
+function largeurGroupe(groupe: GroupeColonnes): number {
+  return groupe.colonnes.reduce((total, { libelle }) => total + largeurEntete(libelle), 0);
+}
+
+/**
+ * Ce que le Libellé et le Statut occupent : ils ne sont d'aucun groupe et
+ * restent visibles quel que soit le pliage.
+ */
+const LARGEUR_FIXE = largeurEntete('Bien') + largeurEntete('Statut');
+
+/**
+ * À quelle largeur le tableau tient — la note vérifiable que demandait #49,
+ * écrite en test pour qu'un Critère ajouté la remette en cause plutôt que de
+ * la laisser vieillir dans un commentaire.
+ *
+ * Les seuils sont ceux des écrans réels : 1024 px est le seuil d'apparition
+ * du tableau (`biens-page.scss`), 1280 celui d'un portable courant.
+ */
+describe('largeur du tableau', () => {
+  const SEUIL_APPARITION = 1024;
+  const PORTABLE_COURANT = 1280;
+
+  it('déborde largement si tous les groupes sont affichés', () => {
+    // C'est le constat de #49, et la raison d'être du pliage : le tableau
+    // entier ne tient sur aucun écran de portable.
+    const tout = LARGEUR_FIXE + GROUPES_COLONNES.reduce((t, g) => t + largeurGroupe(g), 0);
+
+    expect(tout).toBeGreaterThan(2 * SEUIL_APPARITION);
+  });
+
+  it('tient au seuil d’apparition avec le seul groupe budget affiché', () => {
+    // C'est l'état dans lequel le tableau s'ouvre : il ne défile donc pas de
+    // côté sur l'écran le plus étroit où il paraît. Un groupe masqué ne
+    // laisse aucune colonne, et ne compte donc pour rien dans la largeur.
+    const budget = GROUPES_COLONNES.find(({ groupe }) => groupe === 'budget')!;
+    const ouverture = LARGEUR_FIXE + largeurGroupe(budget);
+
+    expect(ouverture).toBeLessThan(SEUIL_APPARITION);
+  });
+
+  it('tient au seuil d’apparition avec n’importe quel groupe affiché seul', () => {
+    // Le choix par groupe n'est utile que si chaque groupe est consultable
+    // sans défilement, et pas seulement celui de l'ouverture. Le plus large
+    // — « Logement », cinq Critères — réclame de l'ordre de 960 px : les
+    // quatre tiennent donc à 1024, et a fortiori sur les 1280 px d'un
+    // portable courant.
+    for (const groupe of GROUPES_COLONNES) {
+      const seul = LARGEUR_FIXE + largeurGroupe(groupe);
+
+      expect(seul).toBeLessThan(SEUIL_APPARITION);
+    }
+  });
+
+  it('déborde dès que deux groupes larges sont affichés ensemble', () => {
+    // Le débordement n'a pas disparu, il est devenu un choix : c'est
+    // l'acheteur qui le demande en affichant un second groupe, et non le
+    // tableau qui l'impose à l'ouverture (#49, ADR-0006).
+    const budget = GROUPES_COLONNES.find(({ groupe }) => groupe === 'budget')!;
+    const logement = GROUPES_COLONNES.find(({ groupe }) => groupe === 'logement')!;
+    const deux = LARGEUR_FIXE + largeurGroupe(budget) + largeurGroupe(logement);
+
+    expect(deux).toBeGreaterThan(PORTABLE_COURANT);
   });
 });

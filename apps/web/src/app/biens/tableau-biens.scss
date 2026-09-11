@@ -5,18 +5,17 @@
   border: 1px solid #cbd5e1;
   border-radius: 0.5rem;
   max-height: 70vh;
-  // Le conteneur défile dans les deux sens, et le défilement horizontal
-  // n'est pas un cas limite : dix-huit colonnes en `nowrap` réclament de
-  // l'ordre de 2400 px, contre un seuil d'apparition à 1024. Sur un portable,
-  // l'acheteur voit donc une partie du tableau et fait défiler pour le reste.
+  // Le conteneur défile verticalement. Il peut défiler de côté, mais ce
+  // n'est plus le régime ordinaire : les Critères s'affichent par groupe, et
+  // « Budget » seul l'est à l'ouverture — trois colonnes plus le prix au m²,
+  // soit environ 850 px mesurés avec le Libellé et le Statut, pour un seuil
+  // d'apparition à 1024 (#49). Le tableau tient donc sur un portable sans
+  // faire défiler de côté, ce qu'ADR-0006 rejette pour ce que cela détruit :
+  // la comparaison d'un coup d'œil.
   //
-  // C'est en tension avec ADR-0006, qui rejette le défilement horizontal pour
-  // ce qu'il détruit — la comparaison d'un coup d'œil — et non pour la taille
-  // de l'appareil. Le constat est ouvert en #49, avec les pistes : colonnes
-  // sélectionnables, groupes repliables, largeurs par type, ou amendement
-  // assumé de l'ADR. Ce ticket-ci (#10) n'avait pas à trancher seul une
-  // décision de cette portée ; ce commentaire est là pour qu'elle ne se
-  // prenne pas par omission.
+  // `auto` plutôt que `hidden` : afficher plusieurs groupes à la fois peut
+  // dépasser un écran étroit, et c'est alors un débordement demandé, non
+  // subi. Couper les colonnes les rendrait inatteignables.
   overflow: auto;
 
   table {
@@ -137,6 +136,64 @@ th[aria-sort='descending'] {
   }
 }
 
+// Les commandes de pliage, au-dessus du tableau : quatre bascules nommées
+// en permanence. Dans l'en-tête du tableau, un groupe masqué n'aurait laissé
+// qu'une bande trop étroite pour son nom (#49).
+.groupes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+// Une bascule, et non une action : le bouton dit un état — ce groupe est
+// affiché — et le porte dans `aria-pressed` (ADR-0005). C'est la même
+// allure que les filtres de la liste, qui sont des bascules eux aussi.
+.groupes__bouton {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  color: #475569;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+
+  &:hover {
+    border-color: #94a3b8;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #1d4ed8;
+    outline-offset: 2px;
+  }
+}
+
+.groupes__bouton--actif {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+
+  .groupes__compte {
+    background: #ffffff2e;
+    color: #fff;
+  }
+}
+
+// Le nombre de colonnes que le groupe ajoute : ce que le clic coûte en
+// largeur, visible avant de cliquer.
+.groupes__compte {
+  background: #f1f5f9;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  padding: 0.05rem 0.35rem;
+}
+
 // Les nombres se lisent alignés à droite : c'est ce qui permet de comparer
 // des ordres de grandeur d'un coup d'œil, sans lire les chiffres.
 .tableau__nombre {
@@ -182,8 +239,8 @@ th[aria-sort='descending'] {
 }
 
 tbody tr:hover {
-  // La ligne survolée se suit du regard jusqu'au bout : avec seize colonnes,
-  // c'est ce qui évite de lire la valeur du voisin.
+  // La ligne survolée se suit du regard jusqu'au bout : c'est ce qui évite
+  // de lire la valeur du voisin.
   td:not(.tableau__absent),
   .tableau__libelle {
     background: #f8fafc;
