@@ -211,7 +211,10 @@ describe('TableauBiens, pliage des groupes', () => {
     }
   });
 
-  it('fait disparaître les colonnes du groupe replié', () => {
+  it('fait disparaître les colonnes du groupe masqué', () => {
+    // Le tableau peut ainsi se retrouver sans aucune Colonne, tous les
+    // groupes retirés : c'est voulu, et `basculerGroupe` dit pourquoi. Le
+    // Libellé et le Statut restent, mais ils ne comparent rien.
     const tableau = creerTableau([]);
 
     tableau.basculerGroupe('budget');

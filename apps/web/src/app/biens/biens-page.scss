@@ -124,8 +124,24 @@
 }
 
 @media (min-width: 64rem) {
+  // Le tableau sort de la colonne de texte, au lieu que la coque s'élargisse
+  // pour tout le monde : le formulaire de connexion et la fiche d'un Bien
+  // partagent cette coque, et un champ de saisie d'un mètre de large ne se
+  // lit pas mieux qu'un champ de 40rem (#49).
+  //
+  // Les marges négatives sont bornées à ce que la fenêtre offre réellement :
+  // `50vw` moins la demi-colonne de chaque côté, moins la gouttière que la
+  // coque garde. Sans ce plafond, le tableau déborderait de la fenêtre au
+  // lieu de s'y étendre. `100vw` n'est pas employé — il compte la barre de
+  // défilement verticale, et ajouterait une quinzaine de pixels de trop.
+  // `max` sur des valeurs négatives : c'est le débord le plus petit en
+  // valeur absolue qui l'emporte, donc le plafond.
+  $debord: max(-18rem, calc(21rem - 50vw));
+
   .vue-desktop {
     display: block;
+    margin-left: $debord;
+    margin-right: $debord;
   }
 
   .vue-mobile {

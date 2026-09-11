@@ -201,6 +201,14 @@ export class TableauBiens {
    * donc les lignes dans l'ordre demandé, et la colonne reparaît triée telle
    * qu'on l'avait laissée : masquer est un geste d'affichage, et défaire un
    * classement au passage ferait sauter les lignes sans qu'on l'ait demandé.
+   *
+   * **Retirer les quatre groupes est permis**, et laisse un tableau réduit au
+   * Libellé et au Statut — qui ne sont pas des Colonnes et ne comparent donc
+   * rien. L'état est voulu : l'acheteur l'a demandé, les quatre bascules
+   * restent nommées au-dessus du tableau, et un clic l'en sort. Interdire le
+   * retrait du dernier groupe coûterait un bouton qui ne répond pas, qu'il
+   * faudrait alors expliquer au lecteur d'écran (ADR-0005) — soit un défaut
+   * échangé contre un autre.
    */
   basculerGroupe(groupe: GroupeCritere): void {
     this.deplies.update((deplies) => {
