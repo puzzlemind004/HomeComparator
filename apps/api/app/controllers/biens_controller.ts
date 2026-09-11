@@ -3,6 +3,9 @@ import Bien from '#models/bien'
 import { champInconnu, creerBienValidator, modifierBienValidator } from '#validators/bien'
 import { PROPRIETAIRE_UNIQUE } from '#services/proprietaire'
 import { STATUT_INITIAL, STATUTS } from '#services/statut'
+import Photo from '#models/photo'
+import { photosDuBien } from '#controllers/photos_controller'
+import { effacerPhoto } from '#services/stockage_photos'
 
 /**
  * Les Biens : les créer avec leur seul Libellé, les retrouver dans une
@@ -56,6 +59,19 @@ export default class BiensController {
 
     const biens = await requete
 
+    /**
+     * La photo représentative de chaque Bien, et elle seule (#13).
+     *
+     * `preload` avec une limite plutôt que la galerie entière : la liste
+     * n'affiche qu'une vignette par Bien, et rapatrier vingt photos de
+     * chacun pour n'en montrer qu'une ferait voyager vingt fois trop — la
+     * raison même pour laquelle les Notes n'y sont pas (#8).
+     *
+     * `preload` et non une jointure : une jointure multiplierait les lignes
+     * de Biens par leurs photos, et il faudrait défaire ce produit ensuite.
+     */
+    await preloadPhotoRepresentative(biens)
+
     return response.ok(biens)
   }
 
@@ -66,6 +82,10 @@ export default class BiensController {
     if (!bien) {
       return response.notFound({ message: "Ce Bien n'existe pas" })
     }
+
+    // La fiche porte la représentative comme la liste : elle sert le retour
+    // vers la liste, où la vignette est déjà attendue.
+    await preloadPhotoRepresentative([bien])
 
     return response.ok(bien)
   }
@@ -176,10 +196,26 @@ export default class BiensController {
    * (ADR-0007), et côté écran la confirmation explicite — le seul
    * garde-fou avant cet appel.
    *
-   * Rien d'autre n'est à effacer : tout ce qui est noté d'un Bien vit dans
-   * sa ligne, les Critères en colonnes (ADR-0004) comme les Notes
-   * (ADR-0012), et aucune table ne s'y rattache. Le jour où le carnet
-   * stockera des photos (ADR-0007), c'est ici qu'il faudra les défaire.
+   * Les photos, elles, sont à défaire ici (#13). Leurs **lignes** partent
+   * seules — la clé étrangère porte `ON DELETE CASCADE` —, mais leurs
+   * **fichiers** n'ont pas d'équivalent en base : aucune contrainte ne
+   * balaie un volume Docker, et c'est ce geste-là qui doit être écrit.
+   *
+   * **Les fichiers d'abord, la ligne ensuite.** L'ordre est choisi et non
+   * subi : il n'y a ni corbeille ni restauration (ADR-0007), et les deux
+   * sens ne coûtent pas la même chose. La ligne partie la première
+   * laisserait sur le volume des fichiers que plus rien ne désigne — des
+   * orphelins qu'aucun écran ne montre et qu'il faudrait un balayage pour
+   * retrouver. Dans ce sens-ci, le pire qui arrive est une ligne qui
+   * subsiste un instant, et c'est elle qui permet de réessayer.
+   *
+   * Un fichier récalcitrant n'empêche pas la suppression : `effacerPhoto`
+   * journalise et rend la main. Garder dans le carnet un Bien dont
+   * l'acheteur a demandé la disparition, pour une raison de disque qui ne
+   * le concerne pas, serait le pire des deux résultats.
+   *
+   * C'est le même geste que la suppression d'une photo seule, écrit une
+   * fois et appelé deux (`stockage_photos.ts`).
    */
   async destroy({ params, response }: HttpContext) {
     const bien = await Bien.find(params.id)
@@ -195,10 +231,60 @@ export default class BiensController {
       return response.notFound({ message: "Ce Bien n'existe pas" })
     }
 
+    /**
+     * Les fichiers avant la ligne, et en parallèle : ils ne dépendent pas
+     * les uns des autres, et une visite bien photographiée en compte
+     * facilement une vingtaine.
+     */
+    const photos = await photosDuBien(bien.id)
+    await Promise.all(photos.map((photo) => effacerPhoto(photo)))
+
     await bien.delete()
 
     // Sans corps : rendre le Bien supprimé inviterait l'écran à l'afficher
     // encore, alors qu'il n'y a plus rien à en dire.
     return response.noContent()
+  }
+}
+
+/**
+ * Attache à chaque Bien sa photo représentative — la première, rang le plus
+ * petit — et rien de plus (#13).
+ *
+ * Une seule requête pour toute la liste, et non une par Bien : la liste
+ * comptera quelques dizaines de Biens, et autant d'allers-retours à la base
+ * coûteraient plus que tout le reste de la requête réuni.
+ *
+ * Un Bien sans photo porte un tableau vide, jamais une clé absente : c'est
+ * ce que l'adapter du front lit comme « pas de photo », et une clé manquante
+ * arriverait `undefined` là où il attend un tableau (ADR-0010).
+ */
+async function preloadPhotoRepresentative(biens: Bien[]): Promise<void> {
+  if (biens.length === 0) {
+    return
+  }
+
+  const photos = await Photo.query()
+    .whereIn(
+      'bien_id',
+      biens.map(({ id }) => id)
+    )
+    .orderBy('rang', 'asc')
+    .orderBy('id', 'asc')
+
+  const representative = new Map<number, Photo>()
+
+  for (const photo of photos) {
+    // La première rencontrée gagne : la requête les rend déjà dans l'ordre
+    // du rang, et c'est la définition de « représentative ».
+    if (!representative.has(photo.bienId)) {
+      representative.set(photo.bienId, photo)
+    }
+  }
+
+  for (const bien of biens) {
+    const photo = representative.get(bien.id)
+
+    bien.$setRelated('photos', photo ? [photo] : [])
   }
 }

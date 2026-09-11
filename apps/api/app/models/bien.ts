@@ -1,5 +1,7 @@
 import { DateTime } from 'luxon'
-import { BaseModel, column } from '@adonisjs/lucid/orm'
+import { BaseModel, column, hasMany } from '@adonisjs/lucid/orm'
+import type { HasMany } from '@adonisjs/lucid/types/relations'
+import Photo from '#models/photo'
 import type { Statut } from '#services/statut'
 
 /**
@@ -201,6 +203,18 @@ export default class Bien extends BaseModel {
 
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
+
+  /**
+   * Les photos du Bien (#13). La première — rang le plus petit — est la
+   * représentative, celle que portent la liste et les cartes.
+   *
+   * La relation n'est **pas chargée par défaut** : la fiche la demande par
+   * sa propre route, et la liste n'en rapatrie que la représentative
+   * (`photoRepresentative`). Charger la galerie entière de chaque Bien pour
+   * en afficher une vignette ferait voyager vingt fois trop.
+   */
+  @hasMany(() => Photo)
+  declare photos: HasMany<typeof Photo>
 
   /**
    * Les colonnes que la liste rapatrie : toutes, sauf les Notes (#8).

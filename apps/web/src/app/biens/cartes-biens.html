@@ -10,9 +10,9 @@
   l'un après l'autre, et il situe celui qu'on regarde sans l'autre sous les
   yeux.
 
-  La photo viendra ici, en tête de carte, quand #13 l'aura rendue disponible :
-  le modèle `Bien` n'en porte aucune aujourd'hui. La carte se lit sans elle,
-  ce que le ticket demande explicitement.
+  La photo est là depuis #13, en tête de carte — et seulement si le Bien en
+  porte une. La carte se lit sans elle, ce qu'#11 demandait explicitement :
+  c'est le Libellé qui fait reconnaître un Bien, la photo qui le confirme.
 -->
 <ul class="cartes">
   @for (carte of cartes(); track carte.bien.id) {
@@ -28,6 +28,24 @@
         lecteur d'écran, et le doigt a toute la carte pour cible — ce que
         demande « une carte mène à la fiche du Bien » (#11).
       -->
+      @if (carte.bien.photoRepresentative; as photo) {
+        <!--
+          La photo représentative : la première prise, celle qui fait
+          reconnaître le Bien d'un coup d'œil (#13). C'est très exactement ce
+          que la carte cherche à faire, et ce qu'aucune colonne de chiffres
+          ne fait.
+
+          La vignette et non la version consultable : une liste de vingt
+          Biens en pleine taille serait inutilisable sur la connexion mobile
+          où les cartes servent.
+
+          Aucun texte de remplacement : la photo n'ajoute rien à ce que le
+          Libellé juste en dessous dit déjà, et la décrire ferait annoncer
+          deux fois le même Bien au lecteur d'écran (ADR-0005).
+        -->
+        <img class="carte__photo" [src]="photo.urlVignette" alt="" loading="lazy" />
+      }
+
       <a class="carte__libelle" [routerLink]="['/biens', carte.bien.id]">
         {{ carte.bien.libelle }}
       </a>

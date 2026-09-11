@@ -13,6 +13,7 @@ import { middleware } from '#start/kernel'
 const HealthController = () => import('#controllers/health_controller')
 const BiensController = () => import('#controllers/biens_controller')
 const AuthController = () => import('#controllers/auth_controller')
+const PhotosController = () => import('#controllers/photos_controller')
 
 /**
  * Les quatre routes qui se passent d'authentification, et la raison de
@@ -50,6 +51,20 @@ router
     // (#9). Elle ne se distingue de la modification que par son verbe :
     // c'est le même Bien, désigné de la même façon.
     router.delete('/biens/:id', [BiensController, 'destroy'])
+
+    /**
+     * Les photos d'un Bien (#13). Elles sont dans le groupe authentifié
+     * comme le reste : les fichiers eux-mêmes sont servis par `show`, et
+     * non par nginx en statique, précisément pour qu'ils soient derrière
+     * la session (ADR-0011). Un dossier exposé en statique le serait pour
+     * qui en devine le nom.
+     */
+    router.get('/biens/:bienId/photos', [PhotosController, 'index'])
+    // Le pluriel jusque dans le corps : on ajoute une série, pas une photo
+    // à la fois, parce que c'est ainsi qu'on photographie une visite.
+    router.post('/biens/:bienId/photos', [PhotosController, 'store'])
+    router.get('/biens/:bienId/photos/:id', [PhotosController, 'show'])
+    router.delete('/biens/:bienId/photos/:id', [PhotosController, 'destroy'])
   })
   .use(middleware.authentification())
 
@@ -65,3 +80,10 @@ router
  * désigne un Bien, et une route ajoutée en hérite sans qu'on y pense.
  */
 router.where('id', router.matchers.number())
+
+/**
+ * `:bienId` désigne un Bien au même titre que `:id`, et suit donc la même
+ * règle : une adresse qui n'en porte pas un ne désigne aucun Bien, et rend
+ * le 404 des Biens absents plutôt que le 500 de PostgreSQL.
+ */
+router.where('bienId', router.matchers.number())

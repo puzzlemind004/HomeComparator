@@ -238,7 +238,33 @@ test.group('Biens', (group) => {
       'statut',
       'dateVisite',
       'montantDerniereOffre',
+      /**
+       * La photo représentative, et elle seule (#13). Ce n'est pas un
+       * Critère — elle ne se compare pas, elle fait reconnaître — mais elle
+       * entre au contrat parce que la liste et les cartes l'affichent.
+       *
+       * Un tableau, d'au plus un élément : la forme reste celle d'une
+       * collection parce que c'en est une, et un Bien sans photo y arrive
+       * vide plutôt qu'à `null`. L'écran n'a ainsi qu'un cas à écrire.
+       */
+      'photos',
     ])
+  })
+
+  test('rend la photo représentative sous forme de tableau, vide sans photo', async ({
+    client,
+    assert,
+  }) => {
+    // La forme du champ tient le contrat autant que sa présence : l'adapter
+    // du front lit un tableau, et un `null` le prendrait au dépourvu
+    // (ADR-0010).
+    await avecSession(client.post('/biens'), session).json({ libelle: 'le T3 avec la terrasse' })
+
+    const response = await avecSession(client.get('/biens'), session)
+
+    const [bien] = response.body()
+    assert.isArray(bien.photos)
+    assert.isEmpty(bien.photos)
   })
 
   test('ne fait pas voyager les Notes avec la liste', async ({ client, assert }) => {

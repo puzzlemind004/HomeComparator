@@ -54,6 +54,16 @@ services:
       # Sans valeur, l'API refuse de démarrer : mieux vaut un conteneur qui
       # s'arrête qu'un carnet déployé en accès libre (#4).
       APP_PASSWORD: ${APP_PASSWORD:?APP_PASSWORD est obligatoire}
+      # La racine du stockage des photos, point de montage du volume ci-dessous
+      # (#13). Les fichiers ne vivent pas en base : `pg_dump` n'est pas fait
+      # pour transporter des mégaoctets de binaire.
+      STOCKAGE_PHOTOS: /app/stockage/photos
+    volumes:
+      # Les photos survivent au redémarrage et à la reconstruction des
+      # conteneurs, comme la base. Ce volume entre dans le périmètre des
+      # sauvegardes au même titre qu'elle (ADR-0007) : les photos de visite
+      # sont irremplaçables, on ne repasse pas les prendre.
+      - photos-data:/app/stockage/photos
     ports:
       # Lié à la boucle locale, pour deux raisons (#18). En production nginx
       # joint l'API par le réseau interne Compose et cette publication n'a
@@ -78,3 +88,4 @@ services:
 
 volumes:
   postgres-data:
+  photos-data:

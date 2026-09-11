@@ -28,6 +28,9 @@ export function unBien({ criteres, champsStatut, ...surcharges }: Partial<Bien> 
     // Un Bien qu'on vient de repérer : c'est là que la création le met, et
     // le cas ordinaire des tests qui portent sur autre chose (#7).
     statut: STATUT_INITIAL,
+    // Aucune photo : le cas ordinaire des tests qui portent sur autre chose,
+    // et celui qu'un Bien qu'on vient de repérer présente (#13).
+    photoRepresentative: null,
     ...surcharges,
     champsStatut: { ...champsStatutVides(), ...champsStatut },
     criteres: { ...criteresVides(), ...criteres },

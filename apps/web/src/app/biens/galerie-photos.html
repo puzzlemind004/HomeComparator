@@ -1,0 +1,135 @@
+<!--
+  La galerie de photos d'un Bien (#13).
+
+  L'ajout vient en premier, avant même les photos : pendant une visite, c'est
+  le seul geste qu'on vient faire, et le chercher sous une grille de vingt
+  vignettes coûterait le défilement qu'on n'a pas le temps de faire debout
+  dans un couloir.
+-->
+<section class="galerie" aria-label="Photos du Bien">
+  <header class="galerie__entete">
+    <h3>Photos</h3>
+
+    <!--
+      Un `label` habillé en bouton, et l'`input` masqué derrière : c'est le
+      couple que les navigateurs mobiles reconnaissent pour proposer
+      « Appareil photo » et « Photothèque ». Un bouton qui déclencherait
+      l'`input` par script perdrait ce menu sur une partie d'entre eux.
+
+      `capture` n'est délibérément pas posé : il forcerait l'appareil photo
+      et retirerait l'accès à la galerie, alors que le ticket demande les
+      deux. Le laisser libre est ce qui fait apparaître le choix.
+    -->
+    <label class="galerie__ajout" [class.galerie__ajout--occupe]="envoi()">
+      {{ envoi() ? 'Envoi…' : 'Ajouter des photos' }}
+      <input
+        type="file"
+        class="galerie__champ"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        [disabled]="envoi()"
+        (change)="choisir($event)"
+      />
+    </label>
+  </header>
+
+  @if (erreurs().length) {
+    <ul class="galerie__erreurs" role="alert">
+      @for (erreur of erreurs(); track erreur) {
+        <li>{{ erreur }}</li>
+      }
+    </ul>
+  }
+
+  @if (photos().length) {
+    <ul class="galerie__grille">
+      @for (photo of photos(); track photo.id) {
+        <li class="photo">
+          <!--
+            La vignette et non la version consultable : vingt photos de
+            visite en pleine taille rendraient la fiche inutilisable sur la
+            connexion mobile où elle sert (#13).
+
+            `loading="lazy"` : seules les premières vignettes sont chargées
+            au premier coup d'œil, les autres quand on fait défiler.
+          -->
+          <button type="button" class="photo__ouvrir" (click)="agrandir(photo)">
+            <img
+              class="photo__vignette"
+              [src]="photo.urlVignette"
+              alt="Photo du Bien"
+              loading="lazy"
+            />
+            <span class="photo__lecture">Agrandir cette photo</span>
+          </button>
+
+          <button
+            type="button"
+            class="photo__supprimer"
+            [disabled]="envoi()"
+            (click)="demanderSuppression(photo)"
+          >
+            <span aria-hidden="true">×</span>
+            <span class="photo__lecture">Supprimer cette photo</span>
+          </button>
+        </li>
+      }
+    </ul>
+  } @else if (chargee()) {
+    <p class="galerie__vide">
+      Aucune photo. Celles prises pendant la visite montrent ce que l'annonce tait.
+    </p>
+  } @else {
+    <!--
+      Une API qui n'a pas répondu n'est pas un Bien sans photo : le dire
+      autrement se lirait comme des fichiers perdus, qu'on ne repassera pas
+      prendre.
+    -->
+    <p class="galerie__vide" role="alert">
+      Les photos n'ont pas pu être chargées. Elles sont toujours là.
+    </p>
+  }
+
+  @if (confirmation(); as photo) {
+    <!--
+      La confirmation, comme pour la suppression d'un Bien : il n'y a ni
+      corbeille ni restauration (ADR-0007), et une photo de visite ne se
+      reprend pas.
+    -->
+    <div class="galerie__confirmation" role="alert">
+      <p>Supprimer cette photo définitivement ?</p>
+
+      <div class="galerie__actions">
+        <button type="button" [disabled]="envoi()" (click)="supprimer()">
+          {{ envoi() ? 'Suppression…' : 'Supprimer' }}
+        </button>
+        <button type="button" [disabled]="envoi()" (click)="annulerSuppression()">Annuler</button>
+      </div>
+    </div>
+  }
+
+  @if (agrandie(); as photo) {
+    <!--
+      La photo en grand. C'est ici que sert la version consultable : la
+      vignette ne montre pas le défaut du mur qui justifie qu'on l'ait prise.
+
+      Un `dialog` plutôt qu'un `div` habillé en fenêtre : le rôle, le piège
+      au clavier et la fermeture par Échap viennent alors du navigateur, là
+      où les recréer à la main revient à réécrire ce qu'il fait déjà mieux
+      (ADR-0005).
+
+      Le fond ne ferme pas au clic. C'était tentant, mais un fond cliquable
+      ne s'atteint pas au clavier : il aurait fallu lui coller un gestionnaire
+      de touches pour compenser un geste que le bouton et Échap couvrent
+      déjà tous les deux.
+    -->
+    <dialog #fenetre class="agrandissement" (close)="refermer()">
+      <button type="button" class="agrandissement__fermer" (click)="refermer()">
+        <span aria-hidden="true">×</span>
+        <span class="photo__lecture">Refermer la photo</span>
+      </button>
+
+      <img class="agrandissement__image" [src]="photo.url" alt="Photo du Bien, agrandie" />
+    </dialog>
+  }
+</section>
