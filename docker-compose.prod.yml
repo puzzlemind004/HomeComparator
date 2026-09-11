@@ -61,7 +61,7 @@ services:
     # sans `VERSION` ne doit pas silencieusement repartir sur un `latest` ou
     # un `dev` dont personne ne sait ce qu'il contient. Elle refuse de
     # démarrer, sur un message qui nomme la variable manquante.
-    image: ghcr.io/${GHCR_PROPRIETAIRE:?GHCR_PROPRIETAIRE est obligatoire (le compte GitHub qui porte les images)}/homecomparator-api:${VERSION:?VERSION est obligatoire (le tag des images a deployer, ex. 0.1.0)}
+    image: ghcr.io/${GHCR_COMPTE:?GHCR_COMPTE est obligatoire (le compte GitHub qui porte les images)}/homecomparator-api:${VERSION:?VERSION est obligatoire (le tag des images a deployer, ex. 0.1.0)}
     restart: unless-stopped
     # Pas de `healthcheck:` ici non plus : il vit dans l'image (#25, #67), et
     # c'est très exactement ce qui le rend utile sur un serveur qui n'a pas ce
@@ -105,6 +105,13 @@ services:
       # tirée (#67) ; au-dessus, la variable ne sert qu'à choisir le tag.
     volumes:
       - photos-data:/app/stockage/photos
+      # En lecture seule, et **personne n'écrit encore dans ce volume** : la
+      # sauvegarde quotidienne d'ADR-0007 est le ticket #71, et aucun service
+      # de cette pile ne la joue. La route de santé rendra donc une date de
+      # dernière sauvegarde absente en production, ce qui est exact (#67) et
+      # non une panne — mais il vaut mieux l'écrire que de le laisser
+      # découvrir. Le volume est déclaré dès maintenant pour que #71 n'ait
+      # qu'un service à ajouter, et non à retoucher le montage de l'API.
       - sauvegardes-data:/app/sauvegardes:ro
     # Aucun `ports:`. En développement la publication sur la boucle locale
     # sert à jouer les tests contre l'API ; ici elle n'aurait aucun usage et
@@ -116,7 +123,7 @@ services:
     # la boucle locale du développement ne fait pas.
 
   web:
-    image: ghcr.io/${GHCR_PROPRIETAIRE}/homecomparator-web:${VERSION}
+    image: ghcr.io/${GHCR_COMPTE}/homecomparator-web:${VERSION}
     restart: unless-stopped
     depends_on:
       api:

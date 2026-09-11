@@ -21,7 +21,7 @@ qui compte est la dernière colonne : **ce qui ne quitte jamais le serveur**.
 | `POSTGRES_USER`, `POSTGRES_DB` | `.env` du VPS | avant le premier démarrage | sans objet — ce ne sont pas des secrets |
 | `DOMAINE` | `.env` du VPS | avant le premier démarrage | sans objet |
 | `COURRIEL_ACME` | `.env` du VPS | avant le premier démarrage | sans objet |
-| `GHCR_PROPRIETAIRE` | `.env` du VPS | avant le premier démarrage | sans objet |
+| `GHCR_COMPTE` | `.env` du VPS | avant le premier démarrage | sans objet |
 | `VERSION` | `.env` du VPS | à chaque déploiement | sans objet |
 | Enregistrement DNS `A` | zone du domaine | **avant** le premier démarrage de Caddy | sans objet |
 | Clé SSH de déploiement | secrets GitHub | à l'automatisation (#70) | la clé **privée** ne quitte pas GitHub ; la publique va sur le VPS |
@@ -89,17 +89,17 @@ par l'OOM killer (ADR-0017).
 ```bash
 # Depuis un clone du dépôt, sur une machine de développement.
 VERSION=0.1.0
-PROPRIETAIRE=puzzlemind004
+COMPTE=puzzlemind004
 
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$PROPRIETAIRE" --password-stdin
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$COMPTE" --password-stdin
 
-docker build -t "ghcr.io/$PROPRIETAIRE/homecomparator-api:$VERSION" \
+docker build -t "ghcr.io/$COMPTE/homecomparator-api:$VERSION" \
   --target production --build-arg "VERSION=$VERSION" ./apps/api
-docker build -t "ghcr.io/$PROPRIETAIRE/homecomparator-web:$VERSION" \
+docker build -t "ghcr.io/$COMPTE/homecomparator-web:$VERSION" \
   --target production ./apps/web
 
-docker push "ghcr.io/$PROPRIETAIRE/homecomparator-api:$VERSION"
-docker push "ghcr.io/$PROPRIETAIRE/homecomparator-web:$VERSION"
+docker push "ghcr.io/$COMPTE/homecomparator-api:$VERSION"
+docker push "ghcr.io/$COMPTE/homecomparator-web:$VERSION"
 
 docker logout ghcr.io
 ```
@@ -153,7 +153,7 @@ Tirer les images tout de suite, toujours sans démarrer : c'est long, et autant
 que ce le soit pendant que l'ancien site répond encore.
 
 ```bash
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$PROPRIETAIRE" --password-stdin
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$COMPTE" --password-stdin
 docker compose -f docker-compose.prod.yml pull
 docker logout ghcr.io
 ```
@@ -176,8 +176,16 @@ systemctl stop nginx && systemctl disable nginx
 # qui n'existent plus.
 systemctl stop certbot.timer && systemctl disable certbot.timer
 
+# PM2 et son application fantôme, relevés par l'inventaire (#68) : un
+# gestionnaire de processus qui relance au démarrage une application dont
+# plus rien ne dépend. Le détail du démontage relève de #72 ; ce qui
+# compte ici est qu'il ne reprenne rien au redémarrage.
+pm2 delete all && pm2 unstartup && pm2 kill
+
 # La sauvegarde de 3 h 00 de l'ancienne base devient sans objet. Sans ce
-# retrait elle échouerait chaque nuit, en silence.
+# retrait elle échouerait chaque nuit, en silence. Lister avant de
+# modifier : on retire une ligne nommément, on ne vide pas un crontab.
+crontab -l
 crontab -e   # retirer la ligne de sauvegarde de cooking-prod
 ```
 
@@ -186,6 +194,25 @@ Vérifier que plus rien ne tient les deux ports avant de continuer :
 ```bash
 ss -lntp | grep -E ':(80|443)\s'   # ne doit rien rendre
 ```
+
+Puis vérifier qu'**aucun second mécanisme de certificats ne subsiste**. Le
+timer arrêté plus haut est celui qu'on connaissait ; le critère porte sur une
+absence, et une absence se constate plutôt qu'elle ne se déduit. certbot
+s'installe selon les distributions en timer systemd, en service, ou en entrée
+de `cron.d` — désactiver l'un laisse les autres :
+
+```bash
+systemctl list-timers --all | grep -i 'certbot\|acme'   # ne doit rien rendre
+systemctl is-enabled certbot.service 2>/dev/null        # disabled, ou absent
+ls /etc/cron.d/ | grep -i 'certbot\|letsencrypt'        # ne doit rien rendre
+grep -ri 'certbot\|letsencrypt' /etc/crontab /etc/cron.*/ 2>/dev/null
+```
+
+`/etc/letsencrypt` n'est pas supprimé pour autant : les certificats qui s'y
+trouvent ne gênent personne une fois que plus rien ne les renouvelle ni ne les
+sert, et les effacer n'apporte rien qu'un risque de se tromper de dossier
+pendant la fenêtre où le carnet ne répond pas. C'est du ménage, et il se fait
+à froid.
 
 ### 3. Démarrer
 
@@ -218,9 +245,15 @@ Puis, dans un navigateur :
    quelques mégaoctets passe, et une série aussi.
 
 Le plafond mérite d'être éprouvé à travers la chaîne et pas seulement sur le
-principe : deux plafonds se suivent désormais, celui de Caddy et celui de
-nginx (60 Mo, #13). Un refus doit venir de l'API en nommant le fichier en
-cause, et non d'un proxy sur une réponse muette.
+principe, car **trois** plafonds se suivent désormais : l'API refuse au-delà
+de 10 Mo par fichier en nommant le fichier en cause (#13), nginx refuse un
+corps entier au-delà de 62,9 Mo (`client_max_body_size 60m`, la notation étant
+binaire), et Caddy au-delà de 64 Mo.
+
+Ce qui se vérifie est donc l'ordre autant que les valeurs : un envoi trop
+lourd d'un seul fichier doit recevoir le message de l'API, qui nomme le
+fichier, et non le 413 muet d'un proxy. Mesuré à la mise au point : 20 Mo
+atteignent l'API et reçoivent son message, 182 Mo sont arrêtés avant.
 
 ### 5. Ce qui reste ouvert
 
@@ -236,7 +269,7 @@ Une fois la bascule faite, une mise à jour tient en deux gestes : changer
 `VERSION` dans le `.env` du serveur, puis
 
 ```bash
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$PROPRIETAIRE" --password-stdin
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$COMPTE" --password-stdin
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 docker logout ghcr.io
