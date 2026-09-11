@@ -45,6 +45,10 @@ jobs:
       # Mot de passe des tests : les tests de connexion s'y réfèrent par
       # `env.get('APP_PASSWORD')` plutôt que de le recopier.
       APP_PASSWORD: mot-de-passe-de-test
+      # Horodatage de la dernière sauvegarde pendant les tests : un fichier à
+      # part, écrit et effacé par les tests eux-mêmes (#67). Nommé ici comme
+      # dans `.env.test`, qui n'est pas versionné et donc absent de la CI.
+      HORODATAGE_SAUVEGARDE: ./tmp/derniere-sauvegarde-test
 
     defaults:
       run:
@@ -132,6 +136,12 @@ jobs:
           context: ./apps/api
           target: production
           push: false
+          # La CI construit et ne déploie pas : l'image porte le `dev` que
+          # le `Dockerfile` donne par défaut (#67). Le déploiement, lui,
+          # passera le numéro du tag. L'argument est nommé ici pour que sa
+          # disparition du `Dockerfile` se voie.
+          build-args: |
+            VERSION=dev
           # Le cache GHA est cloisonné par clé : sans `scope`, les deux
           # images se partageraient la même entrée et s'évinceraient l'une
           # l'autre à chaque exécution.

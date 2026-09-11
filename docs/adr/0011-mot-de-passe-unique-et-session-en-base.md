@@ -15,6 +15,24 @@ Quatre routes s'en dispensent, et chacune doit se justifier :
 
 `GET /health` est la plus discutable des quatre : elle divulgue à un appelant anonyme que la base répond ou non. C'est un arbitrage assumé et non une nécessité — le healthcheck Docker tourne dans le réseau du conteneur et se passerait d'une exposition publique. Elle reste ouverte parce que c'est précisément la route qu'on interroge quand plus rien ne répond, y compris la connexion ; la refermer la rendrait inutile au moment où elle sert. Si le carnet sortait un jour d'un usage strictement personnel, c'est la première à reconsidérer.
 
+Ce healthcheck Docker a longtemps été invoqué sans exister : `docker-compose.yml` n'en déclarait que sur `postgres`, et aucun `Dockerfile` ne portait de directive `HEALTHCHECK`. La moitié de la justification ci-dessus était donc fausse, ce qui est le pire état pour une décision de sécurité — la prochaine relecture serait partie d'une contrainte imaginaire. L'image de l'API en porte un depuis (#25, #67) : il interroge `GET /health` par `wget` sur la boucle locale du conteneur, et `web` attend désormais que l'API soit saine au lieu de démarrer pendant ses migrations.
+
+### La dispense ne couvre que le niveau anonyme
+
+La route répond à deux niveaux (#67). Sans session, l'état du service et celui de la base — ce que le healthcheck a besoin de savoir, et tout ce que cette dispense autorise. Avec une session valide, elle ajoute la version déployée et la date de la dernière sauvegarde réussie.
+
+Ces deux renseignements-là ne sont pas dispensés d'authentification : le contrôleur vérifie la session avant de les ajouter, et un appelant anonyme ne les obtient pas. La distinction est celle que cette liste impose — toute addition est à justifier, et ces deux-là ne se justifieraient pas. La version apprend à qui la lit quelles failles connues visent l'exemplaire qu'il a devant lui. La date de sauvegarde est pire : ancienne, elle annonce que les données ne sont plus protégées, ce qui est très exactement le renseignement dont on n'a pas besoin qu'un tiers dispose.
+
+L'absence de sauvegarde se dit explicitement plutôt que par une clé absente. Une clé qui manque ne distingue pas un carnet jamais sauvegardé d'une version de l'API qui ne saurait pas répondre à la question ; la valeur nulle, elle, est une réponse.
+
+### La route n'est pas encore joignable quand la base tombe
+
+L'argument qui maintient cette dispense — « c'est précisément la route qu'on interroge quand plus rien ne répond » — n'est pas vrai aujourd'hui, et il vaut mieux l'écrire que de répéter l'erreur du healthcheck invoqué sans exister.
+
+Le middleware de session est enregistré dans la pile du routeur et tourne donc pour toute requête routée, `/health` comprise. Le magasin de session étant PostgreSQL, il interroge la base avant que le contrôleur ne soit atteint : base réellement éteinte, la route rend un 500 et non l'état qu'elle est censée rendre. Le contrôleur, lui, rattrape déjà sa propre sonde et répondrait ; c'est ce qui le précède qui tombe.
+
+Relevé pendant #67 et traité à part (#73), le choix touchant à la session sur toutes les routes et non à cette seule dispense. D'ici là, la dispense se justifie par ce que la route est destinée à faire, et non par ce qu'elle fait déjà.
+
 Tous les refus de connexion rendent la même réponse, même statut et même message, que le mot de passe soit erroné, le champ absent, ou le corps de requête d'un autre type. Un écart de statut entre ces cas renseignerait déjà celui qui cherche à entrer. La comparaison du mot de passe est à temps constant, une comparaison ordinaire s'arrêtant au premier caractère différent et trahissant par sa durée le préfixe correct.
 
 ## Le nombre de tentatives est limité, et le refus reste le même
