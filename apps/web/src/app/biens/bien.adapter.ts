@@ -2,6 +2,8 @@ import { CRITERES } from '../criteres/definition';
 import { CHAMPS_STATUT, STATUT_INITIAL, statutParValeur } from '../criteres/statut';
 import type { Bien, CreationBien, ModificationBien } from './bien';
 import type { BienApi, CreationBienApi, ModificationBienApi } from './bien.api';
+import { versPhoto } from './photo.adapter';
+import type { ValeurCritere } from '../criteres/comparaison';
 
 /**
  * La traduction entre les formes échangées avec l'API et les modèles que
@@ -22,7 +24,7 @@ import type { BienApi, CreationBienApi, ModificationBienApi } from './bien.api';
  * « pas encore renseigné » est ce qu'elle doit y lire.
  */
 export function versBien(bienApi: BienApi): Bien {
-  const { id, libelle, urlAnnonce, notes, statut } = bienApi;
+  const { id, libelle, urlAnnonce, notes, statut, photos } = bienApi;
 
   return {
     id,
@@ -48,11 +50,17 @@ export function versBien(bienApi: BienApi): Bien {
      */
     statut: statutParValeur(statut)?.valeur ?? STATUT_INITIAL,
     champsStatut: Object.fromEntries(
-      CHAMPS_STATUT.map((champ) => [champ.id, bienApi[champ.id] ?? null]),
+      CHAMPS_STATUT.map((champ) => [champ.id, valeurCritere(bienApi[champ.id])]),
     ),
     criteres: Object.fromEntries(
-      CRITERES.map((critere) => [critere.id, bienApi[critere.id] ?? null]),
+      CRITERES.map((critere) => [critere.id, valeurCritere(bienApi[critere.id])]),
     ),
+    /**
+     * La première photo, ou aucune. L'API n'en rend qu'une avec la liste,
+     * mais l'adapter ne s'y fie pas : il prend la première de ce qu'il
+     * reçoit, et une galerie entière n'y changerait rien (ADR-0010).
+     */
+    photoRepresentative: photos?.length ? versPhoto(photos[0]) : null,
   };
 }
 
@@ -94,4 +102,16 @@ export function versModificationBienApi(modification: ModificationBien): Modific
       return [champ, saisie === '' ? null : saisie];
     }),
   );
+}
+
+/**
+ * Une valeur lue par identifiant, ramenée à ce qu'un Critère peut porter.
+ *
+ * L'index de `BienApi` admet aussi le tableau de photos, que la charge utile
+ * porte sous une clé propre : aucun Critère ne s'appelle `photos`, et cette
+ * branche n'est donc jamais prise. Elle est écrite parce que le compilateur
+ * ne peut pas le savoir, et qu'un `as` le lui ferait croire sans le vérifier.
+ */
+function valeurCritere(valeur: BienApi[string]): ValeurCritere {
+  return valeur === undefined || Array.isArray(valeur) ? null : valeur;
 }

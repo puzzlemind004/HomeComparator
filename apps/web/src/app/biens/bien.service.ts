@@ -5,8 +5,7 @@ import type { Bien, CreationBien, ModificationBien } from './bien';
 import type { BienApi, ReponseErreurValidationApi } from './bien.api';
 import { versBien, versCreationBienApi, versModificationBienApi } from './bien.adapter';
 import type { Statut } from '../criteres/statut';
-
-const BIENS_URL = '/api/biens';
+import { urlBien, urlBiens } from './routes';
 
 const API_INJOIGNABLE = "L'API est injoignable. Le Bien n'a pas été enregistré.";
 
@@ -20,17 +19,14 @@ const LISTE_INJOIGNABLE: ListeBiens = { chargee: false };
  * L'issue d'une création. Un refus porte ses messages, une réussite porte
  * le Bien créé : le type interdit d'avoir les deux, ou aucun des deux.
  */
-export type CreationBienResultat =
-  | { cree: true; bien: Bien }
-  | { cree: false; erreurs: string[] };
+export type CreationBienResultat = { cree: true; bien: Bien } | { cree: false; erreurs: string[] };
 
 /**
  * L'issue d'une modification, sur le même principe : le Bien tel qu'il est
  * après enregistrement, ou les messages qui disent pourquoi il ne l'est pas.
  */
 export type ModificationBienResultat =
-  | { enregistre: true; bien: Bien }
-  | { enregistre: false; erreurs: string[] };
+  { enregistre: true; bien: Bien } | { enregistre: false; erreurs: string[] };
 
 /**
  * L'issue d'une suppression (#9).
@@ -42,8 +38,7 @@ export type ModificationBienResultat =
  * lieu ferait chercher un Bien qu'on retrouverait au rechargement suivant.
  */
 export type SuppressionBienResultat =
-  | { supprime: true }
-  | { supprime: false; disparu: boolean; erreurs: string[] };
+  { supprime: true } | { supprime: false; disparu: boolean; erreurs: string[] };
 
 /**
  * L'issue d'un chargement de la liste. Une API qui n'a pas répondu n'a par
@@ -59,9 +54,7 @@ export type ListeBiens = { chargee: true; biens: Bien[] } | { chargee: false };
  * l'écran n'a pas la même chose à dire dans les deux cas.
  */
 export type FicheBien =
-  | { etat: 'chargee'; bien: Bien }
-  | { etat: 'introuvable' }
-  | { etat: 'injoignable' };
+  { etat: 'chargee'; bien: Bien } | { etat: 'introuvable' } | { etat: 'injoignable' };
 
 @Injectable({ providedIn: 'root' })
 export class BienService {
@@ -84,7 +77,7 @@ export class BienService {
      */
     const params = statut ? new HttpParams().set('statut', statut) : undefined;
 
-    return this.http.get<BienApi[]>(BIENS_URL, { params }).pipe(
+    return this.http.get<BienApi[]>(urlBiens(), { params }).pipe(
       map((biens): ListeBiens => ({ chargee: true, biens: biens.map(versBien) })),
       catchError(() => of(LISTE_INJOIGNABLE)),
     );
@@ -92,7 +85,7 @@ export class BienService {
 
   /** La fiche d'un Bien : tout ce qui a été noté à son sujet (#6). */
   consulter(id: number): Observable<FicheBien> {
-    return this.http.get<BienApi>(`${BIENS_URL}/${id}`).pipe(
+    return this.http.get<BienApi>(urlBien(id)).pipe(
       map((bien): FicheBien => ({ etat: 'chargee', bien: versBien(bien) })),
       catchError((erreur: unknown) =>
         of<FicheBien>(
@@ -110,7 +103,7 @@ export class BienService {
    * rédige pour être lus tels quels.
    */
   creer(saisie: CreationBien): Observable<CreationBienResultat> {
-    return this.http.post<BienApi>(BIENS_URL, versCreationBienApi(saisie)).pipe(
+    return this.http.post<BienApi>(urlBiens(), versCreationBienApi(saisie)).pipe(
       map((bien): CreationBienResultat => ({ cree: true, bien: versBien(bien) })),
       catchError((erreur: unknown) => of({ cree: false as const, erreurs: messages(erreur) })),
     );
@@ -125,17 +118,15 @@ export class BienService {
    * l'assistant que la réponse à sa question.
    */
   modifier(id: number, modification: ModificationBien): Observable<ModificationBienResultat> {
-    return this.http
-      .patch<BienApi>(`${BIENS_URL}/${id}`, versModificationBienApi(modification))
-      .pipe(
-        map((bien): ModificationBienResultat => ({ enregistre: true, bien: versBien(bien) })),
-        catchError((erreur: unknown) =>
-          of({
-            enregistre: false as const,
-            erreurs: messages(erreur, MODIFICATION_INJOIGNABLE),
-          }),
-        ),
-      );
+    return this.http.patch<BienApi>(urlBien(id), versModificationBienApi(modification)).pipe(
+      map((bien): ModificationBienResultat => ({ enregistre: true, bien: versBien(bien) })),
+      catchError((erreur: unknown) =>
+        of({
+          enregistre: false as const,
+          erreurs: messages(erreur, MODIFICATION_INJOIGNABLE),
+        }),
+      ),
+    );
   }
 
   /**
@@ -150,7 +141,7 @@ export class BienService {
    * devraient contourner.
    */
   supprimer(id: number): Observable<SuppressionBienResultat> {
-    return this.http.delete<void>(`${BIENS_URL}/${id}`).pipe(
+    return this.http.delete<void>(urlBien(id)).pipe(
       map((): SuppressionBienResultat => ({ supprime: true })),
       catchError((erreur: unknown) => {
         // Le Bien n'existe déjà plus : l'état visé est atteint, mais ce

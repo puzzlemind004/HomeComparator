@@ -42,6 +42,18 @@ _Avoid_: Prix au m² (à l'écrit dans le code), prix unitaire
 Le nom sous lequel un Bien apparaît dans les listes, saisi à la main et obligatoire à la création. C'est un support de mémoire avant tout : « celui avec la cuisine refaite » sert mieux la reconnaissance qu'une adresse. Un libellé composé automatiquement à partir des Critères a été écarté, ceux-ci n'étant pas encore renseignés au moment de la création.
 _Avoid_: Titre, nom, surnom
 
+**Photo** :
+Une image d'un Bien : celle de l'annonce, ou celle prise pendant la visite. Rien ne les distingue en base — elles s'affichent dans la même galerie —, mais ce sont les secondes qui portent l'essentiel : elles montrent ce que l'annonce tait, le défaut du mur ou la vue réelle depuis le balcon.
+
+C'est ce qui fait reconnaître un Bien un mois plus tard, quand « le T3 rue Victor Hugo » n'évoque plus rien. À ce titre elle sert la même fonction que le Libellé, et pas celle d'un Critère : elle ne se compare pas d'un Bien à l'autre, et n'a donc pas de Colonne.
+
+Les fichiers vivent sur un volume Docker et non en base ; la base n'en porte que le nom (ADR-0014).
+_Avoid_: Image, cliché, visuel, pièce jointe
+
+**Photo représentative** :
+Celle qui figure dans la liste et sur les Cartes, où une seule a la place de s'afficher. C'est la première ajoutée, et cela ne se choisit pas : un drapeau à cocher serait un geste de plus pendant la visite, là où le geste doit rester rapide (ADR-0014).
+_Avoid_: Photo principale, photo de couverture, miniature — la vignette est le fichier, la représentative est le rôle.
+
 **Notes** :
 Le texte libre attaché à un Bien, pour tout ce qui compte mais ne se compare pas en colonne : impressions de visite, travaux à prévoir, remarques sur le voisinage.
 _Avoid_: Commentaire, description, mémo

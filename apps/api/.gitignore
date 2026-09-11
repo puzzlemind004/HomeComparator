@@ -3,6 +3,11 @@ node_modules
 build
 tmp
 
+# Les fichiers de photos du développement hors conteneur (#13). En production
+# ils vivent sur un volume Docker, jamais dans le dépôt : git versionnerait
+# chaque binaire éternellement, sans purge possible (ADR-0007).
+stockage
+
 # Secrets : tous les fichiers d'environnement sauf l'exemple documenté
 .env
 .env.*

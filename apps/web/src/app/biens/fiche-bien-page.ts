@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BienService, type FicheBien } from './bien.service';
+import { GaleriePhotos } from './galerie-photos';
 import type { ModificationBien } from './bien';
 import type { Critere, GroupeCritere } from '../criteres/critere';
 import { GROUPES, criteresDuGroupe } from '../criteres/definition';
@@ -72,7 +73,7 @@ export interface BlocCriteres {
  */
 @Component({
   selector: 'app-fiche-bien-page',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, GaleriePhotos],
   styleUrl: './fiche-bien-page.scss',
   templateUrl: './fiche-bien-page.html',
 })
@@ -81,8 +82,14 @@ export class FicheBienPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
-  /** L'identifiant du Bien, tel que l'adresse le porte. */
-  private readonly id = Number(this.route.snapshot.paramMap.get('id'));
+  /**
+   * L'identifiant du Bien, tel que l'adresse le porte.
+   *
+   * Lisible depuis le gabarit, qui le passe à la galerie de photos : celle-ci
+   * charge et envoie pour son propre compte (#13), les photos n'étant pas un
+   * champ du Bien mais une collection à côté.
+   */
+  readonly id = Number(this.route.snapshot.paramMap.get('id'));
 
   /**
    * La fiche, ou l'aveu qu'on n'a pas pu la charger. `null` tant que l'API

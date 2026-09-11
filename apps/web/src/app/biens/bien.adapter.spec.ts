@@ -267,4 +267,45 @@ describe('versModificationBienApi', () => {
     // redevenir « non fixé » plutôt que de rester fausse.
     expect(versModificationBienApi({ dateVisite: '' })).toEqual({ dateVisite: null });
   });
+
+  describe('photo représentative', () => {
+    it('traduit la première photo en adresses prêtes à s’afficher', () => {
+      // La liste et les cartes ont besoin d'une photo pour reconnaître un
+      // Bien d'un coup d'œil, et d'une seule (#13).
+      const bien = versBien({
+        ...bienApi,
+        photos: [
+          {
+            id: 7,
+            bienId: 1,
+            fichier: 'abc.jpg',
+            fichierVignette: 'abc.vignette.jpg',
+            rang: 0,
+            createdAt: '2026-09-11T10:00:00.000+00:00',
+            updatedAt: '2026-09-11T10:00:00.000+00:00',
+          },
+        ],
+      });
+
+      expect(bien.photoRepresentative?.urlVignette).toBe('/api/biens/1/photos/7?taille=vignette');
+    });
+
+    it('rend `null` pour un Bien sans photo', () => {
+      expect(versBien({ ...bienApi, photos: [] }).photoRepresentative).toBeNull();
+    });
+
+    it('rend `null` quand l’API omet la clé', () => {
+      // Les deux côtés ne partagent aucune source (ADR-0010) : c'est ici que
+      // la divergence s'arrête, plutôt qu'à l'écran.
+      expect(versBien(bienApi).photoRepresentative).toBeNull();
+    });
+
+    it('ne prend pas les photos pour un Critère', () => {
+      // L'index de `BienApi` admet le tableau de photos ; aucun Critère ne
+      // s'appelle `photos`, et aucune valeur de Critère ne doit en porter.
+      const bien = versBien({ ...bienApi, photos: [] });
+
+      expect(Object.values(bien.criteres).every((valeur) => !Array.isArray(valeur))).toBe(true);
+    });
+  });
 });

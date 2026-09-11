@@ -9,6 +9,7 @@
 |
 */
 
+import { fileURLToPath } from 'node:url'
 import { Env } from '@adonisjs/core/env'
 
 export default await Env.create(new URL('../', import.meta.url), {
@@ -51,6 +52,28 @@ export default await Env.create(new URL('../', import.meta.url), {
   | réelle et sans le dire.
   |
   */
+  /*
+  |----------------------------------------------------------
+  | Racine du stockage des photos
+  |----------------------------------------------------------
+  |
+  | Les fichiers de photos vivent sur un volume Docker et non en base (#13) :
+  | `pg_dump` n'est pas fait pour transporter des mégaoctets de binaire. Ce
+  | chemin est le point de montage de ce volume, et il entre dans le
+  | périmètre des sauvegardes au même titre que la base (ADR-0007).
+  |
+  | Une valeur par défaut plutôt qu'une variable obligatoire : contrairement
+  | au mot de passe, une racine oubliée ne laisse rien d'ouvert — elle écrit
+  | à côté, ce que le volume de `docker-compose.yml` corrige en le montant
+  | précisément là. Le défaut est résolu ici et non chez l'appelant, pour que
+  | le stockage lise un chemin et jamais un `undefined` à rattraper.
+  |
+  */
+  STOCKAGE_PHOTOS: (_cle: string, valeur?: string) =>
+    valeur && valeur.trim() !== ''
+      ? valeur
+      : fileURLToPath(new URL('../stockage/photos', import.meta.url)),
+
   APP_PASSWORD: (cle: string, valeur?: string) => {
     if (!valeur || valeur.trim() === '') {
       throw new Error(`La variable ${cle} est obligatoire et ne peut pas être vide`)

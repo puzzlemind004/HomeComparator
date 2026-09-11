@@ -1,6 +1,7 @@
 import type { ValeurCritere } from '../criteres/comparaison';
 import type { ValeursCriteres } from '../criteres/valeurs';
 import type { Statut, ValeursChampsStatut } from '../criteres/statut';
+import type { Photo } from './photo';
 
 /**
  * Un logement que l'acheteur envisage d'acheter : l'objet que l'on compare.
@@ -69,6 +70,20 @@ export interface Bien {
    * Un Critère non renseigné y vaut `null`, jamais zéro ni la chaîne vide.
    */
   criteres: ValeursCriteres;
+
+  /**
+   * La photo qui fait reconnaître le Bien dans la liste et sur les cartes,
+   * ou `null` s'il n'en porte aucune (#13).
+   *
+   * Ce n'est pas un Critère : elle ne se compare pas d'un Bien à l'autre,
+   * elle sert la reconnaissance — très exactement ce à quoi sert le Libellé,
+   * et ce que les portails immobiliers font déjà bien. Elle ne figure donc
+   * pas dans `criteres`, et n'a pas de Colonne.
+   *
+   * Une seule, et non la galerie : la fiche demande celle-ci à part, par le
+   * composant qui l'affiche.
+   */
+  photoRepresentative: Photo | null;
 }
 
 /** Ce que l'acheteur saisit pour créer un Bien : un Libellé, et rien d'autre. */

@@ -45,8 +45,8 @@
   <table>
     <caption class="tableau__legende">
       Les Biens du carnet, une ligne par Bien. Les Critères affichés se choisissent par groupe,
-      au-dessus du tableau. Chaque en-tête de colonne trie le tableau ; les Critères non
-      renseignés se regroupent en fin de tri.
+      au-dessus du tableau. Chaque en-tête de colonne trie le tableau ; les Critères non renseignés
+      se regroupent en fin de tri.
     </caption>
 
     <thead>
@@ -91,6 +91,24 @@
       @for (ligne of lignes(); track ligne.bien.id) {
         <tr>
           <th scope="row" class="tableau__libelle">
+            @if (ligne.bien.photoRepresentative; as photo) {
+              <!--
+                La photo représentative, à côté du Libellé (#13). C'est là
+                qu'elle sert sur un écran large : les lignes se lisent l'une
+                sous l'autre, et reconnaître un Bien à sa photo va plus vite
+                que de relire quinze libellés.
+
+                La vignette, jamais la version consultable : une liste de
+                vingt Biens en pleine taille pèserait quatre mégaoctets pour
+                des images larges de trois centimètres.
+
+                Sans texte de remplacement : le Libellé est juste à côté, et
+                décrire la photo ferait annoncer deux fois le même Bien au
+                lecteur d'écran (ADR-0005).
+              -->
+              <img class="tableau__photo" [src]="photo.urlVignette" alt="" loading="lazy" />
+            }
+
             <a [routerLink]="['/biens', ligne.bien.id]">{{ ligne.bien.libelle }}</a>
 
             <!--
@@ -100,16 +118,9 @@
               l'acheteur l'accès d'un clic à la publication du Bien.
             -->
             @if (ligne.bien.urlAnnonce; as url) {
-              <a
-                class="tableau__annonce"
-                [href]="url"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <a class="tableau__annonce" [href]="url" target="_blank" rel="noopener noreferrer">
                 <span aria-hidden="true">↗</span>
-                <span class="tableau__lecture">
-                  Voir l'Annonce de {{ ligne.bien.libelle }}
-                </span>
+                <span class="tableau__lecture"> Voir l'Annonce de {{ ligne.bien.libelle }} </span>
               </a>
             }
           </th>

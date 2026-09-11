@@ -1,4 +1,5 @@
 import type { ValeurCritere } from '../criteres/comparaison';
+import type { PhotoApi } from './photo.api';
 
 /**
  * Les formes échangées avec l'API, telles qu'elle les envoie et les attend.
@@ -58,7 +59,25 @@ export interface BienApi {
 
   createdAt: string;
   updatedAt: string;
-  [critere: string]: ValeurCritere | undefined;
+
+  /**
+   * La photo représentative, seule, dans un tableau d'au plus un élément
+   * (#13). L'API ne rapatrie pas la galerie avec la liste : une vignette
+   * suffit à reconnaître un Bien, et vingt photos par Bien feraient voyager
+   * vingt fois trop.
+   *
+   * La galerie complète se demande à part, par `GET /biens/:id/photos`.
+   */
+  photos?: PhotoApi[];
+
+  /**
+   * L'index reste borné aux valeurs de Critères : c'est ce qu'il décrit —
+   * tout ce qui n'est pas un champ propre est une valeur de Critère, ou
+   * rien. `photos` est déclaré au-dessus et **exclu** de l'index, faute de
+   * quoi chaque valeur lue par identifiant de Critère traînerait derrière
+   * elle le type d'un tableau de photos, jusque dans les cartes du front.
+   */
+  [critere: string]: ValeurCritere | PhotoApi[] | undefined;
 }
 
 /** Les données acceptées par l'API pour créer un Bien. */

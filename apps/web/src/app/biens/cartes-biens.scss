@@ -182,3 +182,22 @@
   white-space: nowrap;
   width: 1px;
 }
+
+// La photo représentative, en tête de carte (#13).
+//
+// Elle occupe les deux colonnes de la grille : c'est une image de bandeau et
+// non une vignette posée à côté du Libellé, et c'est ce qui la rend lisible
+// sur un téléphone, où la largeur est la seule ressource abondante.
+//
+// `aspect-ratio` et `object-fit: cover` : les photos d'une visite n'ont pas
+// toutes la même orientation, et des cartes de hauteurs inégales se
+// compareraient mal en défilant. Le cadrage est un choix d'affichage, la
+// photo entière restant visible depuis la fiche.
+.carte__photo {
+  aspect-ratio: 16 / 9;
+  border-radius: 0.375rem;
+  display: block;
+  grid-column: 1 / -1;
+  object-fit: cover;
+  width: 100%;
+}

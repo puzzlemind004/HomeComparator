@@ -44,10 +44,25 @@ const bodyParserConfig = defineConfig({
     processManually: [],
 
     /**
-     * Maximum limit of data to parse including all files
-     * and fields
+     * La taille totale d'un envoi, toutes photos confondues (#13).
+     *
+     * Elle est distincte de la limite **par photo** (`TAILLE_MAX_MO`, 10 Mo),
+     * que le contrôleur applique et dont il rend un message nommant le
+     * fichier en cause. Celle-ci ne borne que ce que l'API accepte de lire
+     * d'un coup : trop basse, elle couperait un envoi multiple — la série
+     * qu'on prend pendant une visite — avant que le contrôleur n'ait de quoi
+     * dire pourquoi.
+     *
+     * Elle ne touche que le `multipart/form-data`, donc la seule route qui
+     * reçoit des fichiers : le JSON du reste du carnet garde sa propre
+     * limite, plus basse, juste au-dessus.
+     *
+     * `client_max_body_size` de nginx est réglé en conséquence, et **sur la
+     * seule route des photos** (`apps/web/nginx.conf`) : le plus bas des deux
+     * décide, et un 413 de nginx arriverait sans le message de l'API nommant
+     * le fichier en cause.
      */
-    limit: '20mb',
+    limit: '60mb',
     types: ['multipart/form-data'],
   },
 })
