@@ -53,9 +53,14 @@ const bodyParserConfig = defineConfig({
      * qu'on prend pendant une visite — avant que le contrôleur n'ait de quoi
      * dire pourquoi.
      *
-     * `client_max_body_size` de nginx est réglé en conséquence
-     * (`apps/web/nginx.conf`) : le plus bas des deux décide, et un 413 de
-     * nginx arriverait sans le message de l'API.
+     * Elle ne touche que le `multipart/form-data`, donc la seule route qui
+     * reçoit des fichiers : le JSON du reste du carnet garde sa propre
+     * limite, plus basse, juste au-dessus.
+     *
+     * `client_max_body_size` de nginx est réglé en conséquence, et **sur la
+     * seule route des photos** (`apps/web/nginx.conf`) : le plus bas des deux
+     * décide, et un 413 de nginx arriverait sans le message de l'API nommant
+     * le fichier en cause.
      */
     limit: '60mb',
     types: ['multipart/form-data'],
