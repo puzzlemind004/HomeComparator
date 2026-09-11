@@ -149,6 +149,26 @@ docker compose -f docker-compose.prod.yml config -q && echo "configuration lisib
 Cette commande échoue en nommant la variable manquante si le `.env` est
 incomplet. C'est le moment de le découvrir, pas après avoir coupé nginx.
 
+**Elle ne vérifie pourtant pas tout, et l'angle mort est piégeux** : Compose ne
+regarde pas les fichiers montés. Sans `Caddyfile` dans le dossier,
+`config -q` sort en 0 comme si tout allait bien — puis Docker crée un
+**dossier** vide à sa place au démarrage, et Caddy refuse de partir. La panne
+est franche, mais elle tombe après la coupure, dans la fenêtre où plus rien ne
+répond, sur une machine où Let's Encrypt ne tolère que cinq échecs par nom et
+par heure.
+
+Vérifier donc le fichier lui-même, et pas seulement le Compose :
+
+```bash
+test -f Caddyfile && echo "Caddyfile présent" || echo "MANQUANT"
+docker run --rm -e DOMAINE -e COURRIEL_ACME --env-file .env \
+  -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
+  caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+```
+
+Cette seconde commande couvre le cas voisin — le `Caddyfile` présent mais
+fautif —, qui se paierait au même moment et au même prix.
+
 Tirer les images tout de suite, toujours sans démarrer : c'est long, et autant
 que ce le soit pendant que l'ancien site répond encore.
 
