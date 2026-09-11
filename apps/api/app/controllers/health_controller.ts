@@ -32,7 +32,9 @@ import { derniereSauvegardeReussie } from '#services/derniere_sauvegarde'
 export default class HealthController {
   async handle(ctx: HttpContext) {
     const { response } = ctx
-    const database = await this.checkDatabase()
+    // `database` porte le nom de la clé rendue et non celui du code : c'est
+    // le contrat que le front lit, et le renommer ici le romprait.
+    const database = await this.etatBase()
     const sain = database === 'ok'
 
     const sante = {
@@ -60,7 +62,14 @@ export default class HealthController {
     })
   }
 
-  private async checkDatabase(): Promise<'ok' | 'unreachable'> {
+  /**
+   * La base répond-elle ?
+   *
+   * L'échec est rattrapé et rendu comme une valeur : c'est ce qui permet à
+   * la route de signaler la panne au lieu de la subir, et donc de servir au
+   * moment où elle sert. Les deux valeurs sont celles que la réponse porte.
+   */
+  private async etatBase(): Promise<'ok' | 'unreachable'> {
     try {
       await db.connection().rawQuery('select 1')
       return 'ok'

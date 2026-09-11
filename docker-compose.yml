@@ -41,13 +41,14 @@ services:
         # défaut : ici on construit, on ne déploie pas une version publiée.
         VERSION: ${VERSION:-dev}
     restart: unless-stopped
+    # Aucun `healthcheck:` ici, et c'est délibéré : celui de l'API vit dans
+    # son `Dockerfile` (#25, #67). Il décrit l'image, et le VPS tirera des
+    # images publiées sans ce fichier — une image qui ne se surveille que
+    # depuis le Compose du dépôt ne se surveillerait pas en production.
+    # Compose reprend celui de l'image tel quel, et `web` s'en sert plus bas.
     depends_on:
       postgres:
         condition: service_healthy
-    # Le healthcheck vit dans le `Dockerfile` et non ici (#25, #67) : il
-    # décrit l'image, et une image déployée sans ce fichier — ce que fait le
-    # VPS, qui tire les images publiées — doit se surveiller elle-même.
-    # Compose le reprend tel quel, et `web` s'en sert ci-dessous.
     environment:
       TZ: UTC
       NODE_ENV: production
