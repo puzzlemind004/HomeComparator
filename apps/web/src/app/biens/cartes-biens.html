@@ -109,9 +109,15 @@
           proposait (#7), et c'est elle que les cartes remplacent. Sans ce
           lien, passer aux cartes retirerait l'accès d'un clic à la
           publication du Bien — la régression qu'a relevée #51 sur le tableau.
+
+          Le Libellé complète l'intitulé sans s'afficher : un lecteur d'écran
+          qui liste les liens d'une page en annoncerait sinon autant
+          d'identiques qu'il y a de Biens, sans dire lequel mène où
+          (ADR-0005). Le tableau nomme le sien de la même façon, et c'est lui
+          qu'on remplace ici.
         -->
         <a class="carte__annonce" [href]="url" target="_blank" rel="noopener noreferrer">
-          Voir l'Annonce
+          Voir l'Annonce<span class="carte__lecture"> de {{ carte.bien.libelle }}</span>
         </a>
       }
     </li>
