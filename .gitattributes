@@ -7,3 +7,8 @@
 *.sh text eol=lf
 Dockerfile text eol=lf
 *.yml text eol=lf
+
+# Les configurations lues par un service dans un conteneur, pour la même
+# raison : elles sont montées telles quelles depuis le dépôt (#69).
+Caddyfile text eol=lf
+nginx.conf text eol=lf

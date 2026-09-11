@@ -67,20 +67,31 @@ d'authentification déroutantes. Ajuster `POSTGRES_PORT` si besoin.
 ## Déployer
 
 Le déploiement se fait par Docker sur un VPS personnel doté d'un nom de
-domaine (ADR-0003, ADR-0007), et **suppose un pare-feu n'exposant que le
-port du front, et lui seul**. Les publications sur la boucle locale
-ci-dessus ne dispensent pas de ce réglage : elles évitent d'en dépendre pour
-PostgreSQL et l'API, mais tout autre port ouvert sur la machine le reste.
-L'hypothèse est écrite ici pour être vérifiée au moment du déploiement,
-plutôt que supposée.
+domaine (ADR-0003, ADR-0007). La pile de production est décrite par
+`docker-compose.prod.yml` et `Caddyfile` ; la procédure, les valeurs à
+renseigner et celles qui ne quittent jamais le serveur sont dans
+[docs/deploiement.md](docs/deploiement.md).
 
-Ce port est **4200** en l'état, et non 80 : `WEB_PORT` publie le front sur
-la machine hôte, le `80` du `docker-compose.yml` étant celui où nginx écoute
-*dans* le conteneur. Un pare-feu réglé sur 80/443 fermerait donc la seule
-chose que ce déploiement expose délibérément. Le jour où le carnet répondra
-sur un nom de domaine, c'est `WEB_PORT=80` qu'il faudra poser — et une
-terminaison TLS pour le 443, qui n'existe nulle part dans ce dépôt à ce
-jour.
+Ce que la production change par rapport à ce qui précède :
+
+- **Caddy** s'ajoute et détient 80 et 443. Il termine le TLS, obtient son
+  certificat par ACME sans configuration ni tâche planifiée, et redirige le
+  clair vers le chiffré.
+- **Aucun autre service ne publie de port.** Ni la base, ni l'API, ni le
+  front : Caddy les joint par le réseau interne de Docker. Le pare-feu
+  n'a donc que 80 et 443 à laisser passer, en plus de SSH.
+- **`web` en particulier ne publie plus rien**, là où le développement le
+  sert sur 4200. Une porte en clair contournant le TLS n'a pas lieu d'exister
+  sur un carnet protégé par un seul mot de passe (ADR-0011) : ce mot de passe
+  y circulerait en clair sur le réseau.
+- **Les images sont tirées, pas construites** (ADR-0017). Le VPS a un cœur et
+  pas de swap ; y compiler un bundle Angular expose à l'arrêt du processus
+  par l'OOM killer, sur la machine qui sert le carnet au même moment.
+
+Un second proxy devant nginx défait la chaîne de confiance sur l'adresse du
+visiteur, dont dépend la limitation des tentatives de connexion. C'est ce que
+`realip` rétablit dans `apps/web/nginx.conf` — voir l'amendement #69 de
+ADR-0011.
 
 ## Développer
 

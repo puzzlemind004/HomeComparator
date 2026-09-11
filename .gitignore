@@ -1,11 +1,14 @@
 # Dépendances
 node_modules
 
-# Secrets : tous les fichiers d'environnement sauf l'exemple documenté
+# Secrets : tous les fichiers d'environnement sauf les exemples documentés.
+# La liste des exceptions est à tenir : un exemple ajouté sans sa ligne ici
+# est ignoré en silence, et ne manque à personne avant le jour du déploiement.
 .env
 .env.*
 !.env.example
 !.env.test.example
+!.env.prod.example
 
 # Sorties de build
 build

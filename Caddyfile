@@ -1,0 +1,67 @@
+# Terminaison TLS du carnet (#69).
+#
+# Ce fichier est court, et c'est la raison d'être de Caddy dans cette pile :
+# un nom de domaine et un amont suffisent à obtenir un certificat, le
+# renouveler, et rediriger le clair vers le chiffré. Aucune de ces trois
+# choses n'est écrite ici — elles sont le comportement par défaut, et les
+# écrire reviendrait à répéter le logiciel.
+#
+# `{$DOMAINE}` et `{$COURRIEL_ACME}` sont lus dans l'environnement du
+# conteneur, que `docker-compose.prod.yml` renseigne depuis le `.env` du
+# serveur. Le nom de domaine n'est donc écrit nulle part dans le dépôt : un
+# changement d'hôte, ou un second exemplaire du carnet, ne demande pas de
+# modifier un fichier versionné.
+{
+	# L'adresse à laquelle Let's Encrypt écrit quand un certificat approche
+	# de l'expiration sans avoir été renouvelé. Sans elle, le renouvellement
+	# marche tout autant, mais son échec ne se découvre qu'au navigateur.
+	email {$COURRIEL_ACME}
+}
+
+{$DOMAINE} {
+	# Le seul amont : le nginx du front, joint par son nom de service sur le
+	# réseau interne de Compose. C'est lui qui sert l'application à page
+	# unique et relaie `/api` vers l'API — ce partage-là ne se rejoue pas
+	# ici, sans quoi deux fichiers décriraient le même routage et l'un des
+	# deux finirait par mentir.
+	#
+	# `:80` est le port **dans** le conteneur, celui où nginx écoute. Il
+	# n'est plus publié sur l'hôte (`docker-compose.prod.yml`) : ce réseau
+	# interne est désormais le seul chemin vers le carnet.
+	#
+	# Caddy pose de lui-même `X-Forwarded-For`, `X-Forwarded-Proto` et
+	# `X-Forwarded-Host` en relayant. C'est ce qui rend nécessaire le
+	# `realip` de `apps/web/nginx.conf` : sans lui, nginx écraserait cet
+	# en-tête par l'adresse de Caddy, et la limitation des tentatives de
+	# connexion (ADR-0011) compterait tout le monde sur un seul compteur.
+	reverse_proxy web:80
+
+	# Le garde-fou extérieur sur la taille du corps.
+	#
+	# **Ce n'est pas ici que se joue le refus d'une photo trop lourde.** Trois
+	# plafonds se suivent, et l'ordre est voulu : l'API refuse au-delà de
+	# 10 Mo par fichier en nommant le fichier en cause (#13), nginx refuse un
+	# corps entier au-delà de son `client_max_body_size 60m` — 62,9 Mo, la
+	# notation étant binaire —, et cette ligne ne sert qu'au-delà. Le refus
+	# utile est celui de l'API, le seul dont le message dise quelque chose à
+	# qui envoie ; les deux autres sont là pour que l'aberration n'aille pas
+	# jusqu'à elle.
+	#
+	# 64 Mo, soit au-dessus des 62,9 Mo de nginx, et cet ordre est le point :
+	# un envoi de taille plausible mais excessive doit être arrêté par nginx,
+	# dont le 413 est déjà le comportement établi, et non par Caddy. La bande
+	# où cette ligne décide seule est donc étroite — entre 62,9 et 64 Mo —, et
+	# c'est voulu : elle n'existe que pour le corps manifestement sans rapport
+	# avec une série de photos de visite, que rien ne gagnerait à voir
+	# traverser le TLS en entier.
+	#
+	# Ces valeurs ont été éprouvées à travers la chaîne complète : 20 Mo
+	# atteignent l'API et reçoivent son message, 182 Mo sont arrêtés avant.
+	request_body {
+		max_size 64MB
+	}
+
+	# La journalisation par défaut de Caddy écrit sur la sortie standard du
+	# conteneur, que `docker compose logs caddy` rend. Aucun fichier, aucune
+	# rotation à régler sur un VPS à un cœur : c'est Docker qui s'en charge.
+}
