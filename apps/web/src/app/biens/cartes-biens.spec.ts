@@ -3,7 +3,7 @@ import { CartesBiens } from './cartes-biens';
 import { unBien } from './bien.test-helper';
 import type { Bien } from './bien';
 import type { ValeursCriteres } from '../criteres/valeurs';
-import { COLONNES_DECISIVES } from '../criteres/colonnes';
+import { COLONNES_DECISIVES, ID_COLONNE_PRIX_METRE_CARRE } from '../criteres/colonnes';
 
 /**
  * `Intl` insère des espaces insécables autour des unités et des séparateurs
@@ -31,7 +31,7 @@ function bien(libelle: string, criteres: ValeursCriteres = {}): Bien {
   return unBien({ libelle, criteres });
 }
 
-/** Un Bien dont les trois Critères décisifs sont renseignés. */
+/** Un Bien dont toutes les Colonnes décisives sont renseignées. */
 const complet: ValeursCriteres = {
   prixDemande: 250000,
   surfaceHabitable: 72.5,
@@ -69,10 +69,10 @@ describe('CartesBiens', () => {
     expect(carte.libelleStatut).toBe('Visité');
   });
 
-  it('porte les Critères les plus décisifs, et eux seuls', () => {
-    // Prix, surface, ville : ce qui permet de reconnaître un Bien d'un coup
-    // d'œil (#11). Les seize Colonnes du tableau, empilées à la verticale,
-    // seraient le tableau qu'ADR-0006 écarte sur mobile.
+  it('porte les Colonnes les plus décisives, et elles seules', () => {
+    // Prix, prix au m², surface, ville : ce qui permet de reconnaître un Bien
+    // d'un coup d'œil (#11). Les seize Colonnes du tableau, empilées à la
+    // verticale, seraient le tableau qu'ADR-0006 écarte sur mobile.
     const cartes = creerCartes([bien('le T3 avec la terrasse', complet)]);
 
     expect(cartes.cartes()[0].cases.map((donnee) => donnee.colonne.id)).toEqual(
@@ -83,39 +83,42 @@ describe('CartesBiens', () => {
   it('écrit ses valeurs comme le tableau les écrit', () => {
     const cartes = creerCartes([bien('le T3 avec la terrasse', complet)]);
 
-    expect(textes(cartes)).toEqual(['250 000 €', '72,5 m²', 'Nantes']);
+    expect(textes(cartes)).toEqual(['250 000 €', '3 448 €/m²', '72,5 m²', 'Nantes']);
   });
 
-  it('garde sa place à un Critère non renseigné plutôt que de le retirer', () => {
+  it('garde sa place à une Colonne non renseignée plutôt que de la retirer', () => {
     // Ce qui manque est ce qu'il reste à demander à l'agence (#6) : une carte
-    // qui omettrait ses Critères vides aurait une hauteur variable, et
+    // qui omettrait ses Colonnes vides aurait une hauteur variable, et
     // l'absence d'un prix se lirait comme une carte plus courte — c'est-à-dire
     // pas du tout.
     const cartes = creerCartes([bien('le T3 avec la terrasse', { villeQuartier: 'Nantes' })]);
     const [carte] = cartes.cartes();
 
     expect(carte.cases).toHaveLength(COLONNES_DECISIVES.length);
-    expect(carte.cases.map((donnee) => donnee.renseigne)).toEqual([false, false, true]);
+    expect(carte.cases.map((donnee) => donnee.renseigne)).toEqual([false, false, false, true]);
   });
 
   it('reste lisible sur un Bien qu’on vient de repérer', () => {
     // Un Bien créé ne porte que son Libellé (#3, ADR-0008) : la carte doit
-    // tenir debout avec trois Critères vides, sans quoi la liste de repérage
-    // — le premier écran de l'outil — n'affiche que des cartes cassées.
+    // tenir debout avec toutes ses Colonnes vides, sans quoi la liste de
+    // repérage — le premier écran de l'outil — n'affiche que des cartes
+    // cassées.
     const cartes = creerCartes([bien('le T3 avec la terrasse')]);
     const [carte] = cartes.cartes();
 
     expect(carte.bien.libelle).toBe('le T3 avec la terrasse');
     expect(carte.cases.every((donnee) => !donnee.renseigne)).toBe(true);
-    expect(textes(cartes)).toEqual(['', '', '']);
+    expect(textes(cartes)).toEqual(carte.cases.map(() => ''));
   });
 
-  it('compte les Critères décisifs qui restent à renseigner', () => {
-    // Le compte dit d'un mot ce que trois cases vides disent en creux, et
-    // c'est ce que le lecteur d'écran annonce : trois tirets ne s'entendent
-    // pas (ADR-0005).
+  it('compte les Colonnes décisives qui restent à renseigner', () => {
+    // Le compte dit d'un mot ce que les cases vides disent en creux, et c'est
+    // ce que le lecteur d'écran annonce : quatre tirets ne s'entendent pas
+    // (ADR-0005).
     expect(creerCartes([bien('a', complet)]).cartes()[0].manquants).toBe(0);
-    expect(creerCartes([bien('a', { villeQuartier: 'Nantes' })]).cartes()[0].manquants).toBe(2);
+    // Le prix au m² manque avec le prix dont il sort : deux cases vides pour
+    // un seul Critère non renseigné.
+    expect(creerCartes([bien('a', { villeQuartier: 'Nantes' })]).cartes()[0].manquants).toBe(3);
     expect(creerCartes([bien('a')]).cartes()[0].manquants).toBe(COLONNES_DECISIVES.length);
   });
 
@@ -125,6 +128,19 @@ describe('CartesBiens', () => {
     const cartes = creerCartes([bien('a', { prixDemande: 0 })]);
 
     expect(cartes.cartes()[0].cases[0].renseigne).toBe(true);
+  });
+
+  it('laisse le prix au mètre carré vide tant qu’il manque une de ses sources', () => {
+    // La Colonne calculée se tait dès qu'il lui manque le prix ou la surface,
+    // et la carte la marque alors comme ce qu'il reste à demander — jamais
+    // comme un zéro (ADR-0013).
+    const cartes = creerCartes([bien('a', { prixDemande: 250000 })]);
+    const prixMetreCarre = cartes
+      .cartes()[0]
+      .cases.find((donnee) => donnee.colonne.id === ID_COLONNE_PRIX_METRE_CARRE)!;
+
+    expect(prixMetreCarre.renseigne).toBe(false);
+    expect(prixMetreCarre.texte).toBe('');
   });
 
   it('porte l’URL de l’Annonce quand elle est renseignée', () => {

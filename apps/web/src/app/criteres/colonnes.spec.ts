@@ -263,13 +263,14 @@ describe('caseDe', () => {
 });
 
 describe('COLONNES_DECISIVES', () => {
-  it('porte le prix, la surface et la ville, dans l’ordre du tableau', () => {
-    // Les trois Critères sur lesquels un Bien se reconnaît d'un coup d'œil
-    // (#11). L'ordre est celui de `COLONNES`, comme partout ailleurs : les
-    // deux présentations montrent les mêmes Biens (ADR-0006), et une carte
-    // qui réordonnerait ce que le tableau ordonne se lirait contre lui.
+  it('porte le prix, le prix au m², la surface et la ville, dans l’ordre du tableau', () => {
+    // Ce sur quoi un Bien se reconnaît d'un coup d'œil (#11). L'ordre est
+    // celui de `COLONNES`, comme partout ailleurs : les deux présentations
+    // montrent les mêmes Biens (ADR-0006), et une carte qui réordonnerait ce
+    // que le tableau ordonne se lirait contre lui.
     expect(COLONNES_DECISIVES.map((colonne) => colonne.id)).toEqual([
       'prixDemande',
+      ID_COLONNE_PRIX_METRE_CARRE,
       'surfaceHabitable',
       'villeQuartier',
     ]);
@@ -299,18 +300,33 @@ describe('COLONNES_DECISIVES', () => {
 
     expect(COLONNES_DECISIVES.map((colonne) => normaliser(colonne.texte(criteres)))).toEqual([
       '250 000 €',
+      '3 448 €/m²',
       '72,5 m²',
       'Nantes',
     ]);
   });
 
-  it('ne porte pas le prix au mètre carré', () => {
-    // La Colonne calculée sert à comparer des Biens de surfaces différentes,
-    // ce qui suppose de les voir ensemble : elle a sa place dans le tableau,
-    // pas sur une carte que l'on lit seule (ADR-0013).
-    expect(COLONNES_DECISIVES.some((colonne) => colonne.id === ID_COLONNE_PRIX_METRE_CARRE)).toBe(
-      false,
-    );
+  it('porte le prix au mètre carré, et le pose à la suite du prix', () => {
+    // ADR-0013 le veut sur toutes les formes du carnet, cartes comprises :
+    // c'est sur mobile, où les Biens se lisent l'un après l'autre plutôt que
+    // côte à côte, qu'il porte le plus — il situe un Bien sans qu'on ait
+    // l'autre sous les yeux.
+    const ids = COLONNES_DECISIVES.map((colonne) => colonne.id);
+
+    expect(ids.indexOf(ID_COLONNE_PRIX_METRE_CARRE)).toBe(ids.indexOf('prixDemande') + 1);
+  });
+
+  it('reste vide sur le prix au mètre carré quand une de ses sources manque', () => {
+    // La Colonne calculée se tait dès qu'il lui manque le prix ou la surface,
+    // et la carte la marque alors comme ce qu'il reste à demander — jamais
+    // comme un zéro.
+    const prixMetreCarre = COLONNES_DECISIVES.find(
+      (colonne) => colonne.id === ID_COLONNE_PRIX_METRE_CARRE,
+    )!;
+
+    expect(
+      prixMetreCarre.valeur(unBien({ criteres: { prixDemande: 250000 } }).criteres),
+    ).toBeNull();
   });
 });
 

@@ -262,15 +262,15 @@ export function colonneParId(id: string): Colonne | undefined {
 }
 
 /**
- * Les Critères les plus décisifs : ceux sur lesquels un Bien se reconnaît
- * d'un coup d'œil dans une liste, sans ouvrir sa fiche (#11).
+ * Les Colonnes les plus décisives : celles sur lesquelles un Bien se
+ * reconnaît d'un coup d'œil dans une liste, sans ouvrir sa fiche (#11).
  *
  * Le choix est éditorial et se cite en dur : aucune métadonnée de la
  * définition ne dit qu'un prix décide plus qu'un type de chauffage, et
  * `sensComparaison` ne le dit pas non plus — il dit dans quel sens comparer,
- * pas si la comparaison compte. Les trois noms sont donc écrits, et
- * `colonnes.spec.ts` vérifie qu'ils désignent toujours quelque chose : un
- * Critère renommé viderait autrement la carte en silence.
+ * pas si la comparaison compte. Les noms sont donc écrits, et
+ * `colonnes.spec.ts` vérifie qu'ils désignent toujours quelque chose : une
+ * Colonne renommée viderait autrement la carte en silence.
  *
  * C'est le seul endroit du carnet où l'exigence d'ADR-0004 — ajouter un
  * Critère sans retoucher d'écran — ne s'applique pas, et c'est voulu : un
@@ -278,27 +278,32 @@ export function colonneParId(id: string): Colonne | undefined {
  * qui accueillerait chaque nouveau venu redeviendrait le tableau qu'ADR-0006
  * écarte sur mobile, réécrit à la verticale.
  *
- * Le prix au mètre carré n'en est pas, bien qu'il soit la Colonne la plus
- * parlante du tableau : il se lit en rapprochant des Biens de surfaces
- * différentes, donc en les voyant ensemble, et une carte se lit seule.
+ * **Le prix au mètre carré en est**, quoiqu'il ne soit pas un Critère
+ * (ADR-0013). C'est même sur la carte qu'il porte le plus : les Biens s'y
+ * lisent l'un après l'autre plutôt que côte à côte, et le prix ramené au
+ * mètre carré est ce qui permet de situer celui qu'on regarde sans avoir
+ * l'autre sous les yeux. ADR-0013 le dit et désigne ce ticket ; c'est
+ * pourquoi la liste porte des identifiants de Colonnes et non de Critères.
  */
 export const ID_COLONNES_DECISIVES: readonly string[] = [
   'prixDemande',
+  ID_COLONNE_PRIX_METRE_CARRE,
   'surfaceHabitable',
   'villeQuartier',
 ];
 
 /**
- * Ces Critères présentés en colonnes, dans l'ordre où `COLONNES` les porte et
- * non dans celui de la liste ci-dessus.
+ * Ces Colonnes, dans l'ordre où `COLONNES` les porte et non dans celui de la
+ * liste ci-dessus.
  *
- * Les colonnes sont celles du tableau, prises telles quelles : les deux
+ * Elles sont celles du tableau, prises telles quelles : les deux
  * présentations montrent les mêmes Biens (ADR-0006), et une valeur écrite
  * « 250000 » sur la carte et « 250 000 € » dans le tableau se lirait comme
- * deux données différentes.
+ * deux données différentes. Le prix au mètre carré s'y trouve donc juste
+ * après le prix dont il sort, comme dans le tableau.
  *
  * Un identifiant qui ne désigne plus rien est ignoré plutôt que de faire
- * tomber l'écran — la carte perd un Critère, elle ne disparaît pas. C'est
+ * tomber l'écran — la carte perd une Colonne, elle ne disparaît pas. C'est
  * `colonnes.spec.ts` qui refuse cet état, là où il se voit.
  */
 export const COLONNES_DECISIVES: readonly Colonne[] = COLONNES.filter((colonne) =>

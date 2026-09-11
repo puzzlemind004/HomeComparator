@@ -1,3 +1,5 @@
+@use '../criteres/statut';
+
 // Le tableau reste utilisable avec plusieurs dizaines de Biens (#10) : le
 // conteneur défile, et l'en-tête reste collé en haut. Sans cela, on perd le
 // nom des colonnes au bout de dix lignes, et comparer demande de remonter.
@@ -211,31 +213,10 @@ th[aria-sort='descending'] {
   color: #a16207;
 }
 
+// La même pastille que sur les cartes : les deux présentations montrent les
+// mêmes Biens (ADR-0006), et un Bien écarté doit s'y repérer pareil.
 .tableau__statut {
-  background: #f1f5f9;
-  border-radius: 999px;
-  color: #475569;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.15rem 0.6rem;
-  white-space: nowrap;
-
-  // Les mêmes couleurs que la pastille de la liste : les deux écrans
-  // montrent la même chose, et un Bien écarté doit se repérer pareil.
-  &[data-statut='ecarte'] {
-    background: #fef2f2;
-    color: #991b1b;
-  }
-
-  &[data-statut='vendu'] {
-    background: #f5f3ff;
-    color: #5b21b6;
-  }
-
-  &[data-statut='offreFaite'] {
-    background: #ecfdf5;
-    color: #065f46;
-  }
+  @include statut.pastille;
 }
 
 tbody tr:hover {

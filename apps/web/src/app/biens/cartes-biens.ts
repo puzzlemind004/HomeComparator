@@ -17,11 +17,11 @@ export interface Carte {
   statut: Statut;
   libelleStatut: string;
 
-  /** Une case par Critère décisif, dans l'ordre où `COLONNES` les porte. */
+  /** Une case par Colonne décisive, dans l'ordre où `COLONNES` les porte. */
   cases: CaseColonne[];
 
   /**
-   * Combien de ces Critères restent à renseigner.
+   * Combien de ces Colonnes restent à renseigner.
    *
    * Trois cases vides le disent en creux à l'œil ; elles ne s'entendent pas.
    * Le compte est ce que la carte annonce au lecteur d'écran (ADR-0005), et
@@ -31,7 +31,7 @@ export interface Carte {
 }
 
 /**
- * Les cartes mobiles : une carte par Bien, sur les Critères qui permettent de
+ * Les cartes mobiles : une carte par Bien, sur les Colonnes qui permettent de
  * le reconnaître d'un coup d'œil (#11, ADR-0006).
  *
  * C'est une présentation distincte du tableau, et non son adaptation. Un
@@ -41,10 +41,16 @@ export interface Carte {
  * seize Colonnes à la verticale ne ferait que réécrire le même tableau.
  *
  * La carte porte donc ce sous quoi l'acheteur reconnaît un Bien — son
- * Libellé, son Statut — et les trois Critères les plus décisifs : prix,
- * surface, ville. Ils viennent de `COLONNES_DECISIVES` et non d'une liste
- * écrite ici : les deux présentations montrent les mêmes Biens, et une valeur
- * ne peut pas s'écrire autrement d'un écran à l'autre.
+ * Libellé, son Statut — et les Colonnes les plus décisives : le prix, le prix
+ * au mètre carré, la surface et la ville. Elles viennent de
+ * `COLONNES_DECISIVES` et non d'une liste écrite ici : les deux présentations
+ * montrent les mêmes Biens, et une valeur ne peut pas s'écrire autrement d'un
+ * écran à l'autre.
+ *
+ * Le prix au mètre carré n'est pas un Critère (ADR-0013), et c'est pourtant
+ * sur la carte qu'il porte le plus : les Biens s'y lisent l'un après l'autre
+ * plutôt que côte à côte, et c'est lui qui permet de situer celui qu'on
+ * regarde sans avoir l'autre sous les yeux.
  *
  * **La photo n'y est pas encore.** Le ticket la demande « si elle existe »,
  * et aucune n'existe : les photos sont l'objet de #13, qui n'est pas livré et
@@ -52,8 +58,8 @@ export interface Carte {
  * l'accueillir — c'est ce que demande le critère « les cartes restent
  * lisibles sans photo », qui décrit exactement l'état livré ici.
  *
- * Le composant ne décide de rien qu'il puisse déléguer : les Critères
- * décisifs viennent de `colonnes.ts`, l'ordre des cartes de `trier`, et
+ * Le composant ne décide de rien qu'il puisse déléguer : les Colonnes
+ * décisives viennent de `colonnes.ts`, l'ordre des cartes de `trier`, et
  * l'écriture des valeurs de `formatage.ts` à travers la colonne. Il ne tient
  * que le branchement au gabarit.
  */
@@ -85,7 +91,7 @@ export class CartesBiens {
   }
 
   /**
-   * Les Critères que porte une carte. Exposé pour le gabarit, qui écrit leur
+   * Les Colonnes que porte une carte. Exposé pour le gabarit, qui écrit leur
    * libellé à côté de la valeur : sur une carte, aucune en-tête de colonne ne
    * dit ce qu'un nombre représente.
    */

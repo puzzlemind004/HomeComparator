@@ -4,8 +4,11 @@
   Un tableau de seize Colonnes est illisible sur un téléphone quelle que soit
   l'astuce employée, et le défilement horizontal détruit ce qui fait l'intérêt
   d'un tableau. La carte est donc une présentation distincte — ce sous quoi on
-  reconnaît un Bien, et les trois Critères qui décident : prix, surface,
-  ville (#11).
+  reconnaît un Bien, et les Colonnes qui décident : le prix, le prix au mètre
+  carré, la surface et la ville (#11). Le prix au m² n'est pas un Critère
+  (ADR-0013), et c'est pourtant ici qu'il porte le plus : les Biens se lisent
+  l'un après l'autre, et il situe celui qu'on regarde sans l'autre sous les
+  yeux.
 
   La photo viendra ici, en tête de carte, quand #13 l'aura rendue disponible :
   le modèle `Bien` n'en porte aucune aujourd'hui. La carte se lit sans elle,
@@ -16,8 +19,14 @@
     <li class="carte">
       <!--
         Le Libellé en tête, et c'est lui qui mène à la fiche : c'est ce sous
-        quoi l'acheteur reconnaît un Bien, et la cible de clic la plus large
-        de la carte.
+        quoi l'acheteur reconnaît un Bien.
+
+        Le lien s'étend à toute la carte par un pseudo-élément (voir la
+        feuille), plutôt que d'envelopper la carte dans une balise `a` : le
+        lien vers l'Annonce est lui aussi dans la carte, et un lien dans un
+        lien n'est pas du HTML valide. Un seul lien reste donc annoncé au
+        lecteur d'écran, et le doigt a toute la carte pour cible — ce que
+        demande « une carte mène à la fiche du Bien » (#11).
       -->
       <a class="carte__libelle" [routerLink]="['/biens', carte.bien.id]">
         {{ carte.bien.libelle }}
@@ -28,7 +37,7 @@
       </span>
 
       <!--
-        Les Critères décisifs, chacun sous son nom : sur une carte, aucune
+        Les Colonnes décisives, chacune sous son nom : sur une carte, aucune
         en-tête de colonne ne dit ce qu'un nombre représente, et « 72,5 m² »
         seul se lirait sans qu'on sache de quelle surface il s'agit.
 
@@ -39,7 +48,7 @@
       <dl class="carte__criteres">
         @for (donnee of carte.cases; track donnee.colonne.id) {
           <!--
-            Un Critère de texte prend la ligne entière : une ville ou un
+            Une Colonne de texte prend la ligne entière : une ville ou un
             quartier est de longueur libre, là où un prix et une surface
             tiennent en quelques caractères. Partagé en deux, un nom de
             commune un peu long se replie sur trois lignes et laisse la
@@ -89,7 +98,7 @@
       -->
       @if (carte.manquants) {
         <p class="carte__lecture">
-          {{ carte.manquants }} Critère{{ carte.manquants > 1 ? 's' : '' }} sur
+          {{ carte.manquants }} Colonne{{ carte.manquants > 1 ? 's' : '' }} sur
           {{ carte.cases.length }} reste{{ carte.manquants > 1 ? 'nt' : '' }} à renseigner.
         </p>
       }

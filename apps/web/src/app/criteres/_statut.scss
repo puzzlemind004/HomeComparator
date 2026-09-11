@@ -1,0 +1,41 @@
+// L'allure de la pastille de Statut, partagée par les écrans qui la posent.
+//
+// Le tableau desktop et les cartes mobiles montrent les mêmes Biens
+// (ADR-0006) : un Bien écarté doit s'y repérer pareil. Les six couleurs
+// étaient écrites deux fois, et deux jeux de valeurs finissent par diverger —
+// au prochain Statut ajouté, ou à la première retouche de teinte, un même
+// Statut se serait lu rouge d'un côté et gris de l'autre.
+//
+// Un mixin plutôt qu'une règle globale : l'encapsulation de vue d'Angular
+// porte les styles au composant, et une classe globale contredirait ce
+// découpage pour six déclarations. Le mixin les émet dans la feuille de
+// chacun, qui garde la main sur ce qui lui est propre — la mise en page.
+//
+// Les teintes ne sont pas arbitraires : les deux sorties se distinguent des
+// étapes — Écarté est une décision de l'acheteur, Vendu un fait extérieur, et
+// ni l'un ni l'autre n'attend plus rien — et « Offre faite » est l'étape où
+// quelque chose se joue, donc celle qui se repère d'un coup d'œil.
+@mixin pastille {
+  background: #f1f5f9;
+  border-radius: 999px;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.6rem;
+  white-space: nowrap;
+
+  &[data-statut='ecarte'] {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
+  &[data-statut='vendu'] {
+    background: #f5f3ff;
+    color: #5b21b6;
+  }
+
+  &[data-statut='offreFaite'] {
+    background: #ecfdf5;
+    color: #065f46;
+  }
+}

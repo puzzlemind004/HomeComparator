@@ -25,14 +25,14 @@ La notion vit côté écran : l'API ne connaît que les Critères, chacun adoss�
 _Avoid_: Colonne SQL — le stockage d'un Critère est un détail de base, sans rapport avec ce que le mot désigne ici. Champ, cellule
 
 **Carte** :
-La façon dont un Bien se présente sur un écran étroit : son Libellé, son Statut, et les quelques Critères les plus décisifs — prix, surface, ville — plutôt que toutes ses Colonnes. C'est une présentation distincte du tableau et non son adaptation, ce qu'ADR-0006 tranche : un tableau de seize Colonnes est illisible sur un téléphone quelle que soit l'astuce employée.
+La façon dont un Bien se présente sur un écran étroit : son Libellé, son Statut, et les quelques Colonnes les plus décisives plutôt que toutes. C'est une présentation distincte du tableau et non son adaptation, ce qu'ADR-0006 tranche : un tableau de seize Colonnes est illisible sur un téléphone quelle que soit l'astuce employée.
 
-Une Carte se lit seule, là où un tableau se lit en comparant des lignes entre elles. C'est ce qui décide de ce qu'elle porte : le Prix au mètre carré, la Colonne la plus parlante du tableau, n'y figure pas — il ne dit quelque chose qu'en rapprochant des Biens de surfaces différentes.
+Une Carte se lit seule, là où un tableau se lit en comparant des lignes entre elles. C'est ce qui décide de ce qu'elle porte, et pourquoi le Prix au mètre carré y figure : il est ce qui permet de situer un Bien sans avoir l'autre sous les yeux (ADR-0013).
 _Avoid_: Tuile, vignette, ligne mobile
 
-**Critère décisif** :
-Un Critère porté par la Carte, parce qu'il permet de reconnaître un Bien d'un coup d'œil sans ouvrir sa fiche. Ils sont trois — prix demandé, surface habitable, ville ou quartier — et se choisissent à la main : rien dans la définition d'un Critère ne dit qu'il décide plus qu'un autre, et un Critère ajouté ne le devient pas du seul fait d'exister.
-_Avoid_: Critère principal, critère mis en avant
+**Colonne décisive** :
+Une Colonne portée par la Carte, parce qu'elle permet de reconnaître un Bien d'un coup d'œil sans ouvrir sa fiche. Elles sont quatre — le prix demandé, le Prix au mètre carré, la surface habitable, la ville ou quartier — et se choisissent à la main : rien dans la définition d'un Critère ne dit qu'il décide plus qu'un autre, et un Critère ajouté ne le devient pas du seul fait d'exister. Ce sont des Colonnes et non des Critères, le Prix au mètre carré n'en étant pas un.
+_Avoid_: Critère décisif — le Prix au mètre carré en est une sans être un Critère. Critère principal, colonne mise en avant
 
 **Prix au mètre carré** :
 Le prix demandé rapporté à la surface habitable, la valeur qui permet de comparer des Biens de surfaces différentes. C'est une Colonne calculée : l'acheteur y pense comme à un chiffre du carnet, mais il ne se saisit nulle part et ne se stocke pas (ADR-0013).

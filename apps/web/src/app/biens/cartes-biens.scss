@@ -1,3 +1,5 @@
+@use '../criteres/statut';
+
 // Les cartes mobiles (#11, ADR-0006). Une carte par Bien, empilées : la
 // présentation ne réclame donc aucune largeur particulière, et c'est ce qui
 // la rend tenable là où le tableau ne tient pas.
@@ -9,7 +11,7 @@
   padding: 0;
 }
 
-// La carte : le Libellé et le Statut sur une ligne, les Critères dessous.
+// La carte : le Libellé et le Statut sur une ligne, les Colonnes dessous.
 //
 // `minmax(0, …)` sur la colonne du Libellé : sans ce plancher à zéro, une
 // colonne de grille prend la largeur minimale de son contenu, et un Libellé
@@ -24,7 +26,15 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   padding: 0.75rem 1rem;
+  // Le repère du lien étendu ci-dessous, qui se dimensionne sur la carte.
+  position: relative;
   row-gap: 0.5rem;
+
+  // Toute la carte est cliquable : le survol le dit, faute de quoi seul le
+  // Libellé aurait l'air de mener quelque part.
+  &:hover {
+    border-color: #94a3b8;
+  }
 }
 
 .carte__libelle {
@@ -36,48 +46,48 @@
   // mot, seul recours contre une URL collée en guise de nom.
   overflow-wrap: anywhere;
 
+  // Le lien s'étend à toute la carte : « une carte mène à la fiche du Bien »
+  // (#11), et sur un téléphone la cible doit se viser au pouce. Le
+  // pseudo-élément couvre la carte sans qu'aucune balise ne l'enveloppe — un
+  // `a` autour du tout contiendrait le lien vers l'Annonce, et un lien dans
+  // un lien n'est pas du HTML valide.
+  //
+  // Le texte reste le seul lien annoncé, et c'est lui qui porte le focus : le
+  // pseudo-élément ne change rien au clavier ni au lecteur d'écran.
+  &::after {
+    content: '';
+    inset: 0;
+    position: absolute;
+  }
+
+  // Le focus se dessine sur le texte et non sur le rectangle étendu, qui
+  // couvrirait la carte entière d'un cadre bleu. `z-index` le garde lisible
+  // au-dessus du fond des cases.
   &:focus-visible {
     outline: 2px solid #1d4ed8;
     outline-offset: 2px;
+    position: relative;
+    z-index: 1;
   }
 }
 
-// Les mêmes couleurs que la pastille du tableau : les deux présentations
-// montrent les mêmes Biens, et un Bien écarté doit se repérer pareil.
+// La même pastille que dans le tableau : les deux présentations montrent les
+// mêmes Biens (ADR-0006), et un Bien écarté doit s'y repérer pareil.
 .carte__statut {
-  background: #f1f5f9;
-  border-radius: 999px;
-  color: #475569;
-  font-size: 0.75rem;
-  font-weight: 600;
+  @include statut.pastille;
+
   // La pastille ne se replie ni ne se comprime : c'est le Libellé qui cède
   // la place, lui seul étant de longueur libre.
   justify-self: end;
-  padding: 0.15rem 0.6rem;
-  white-space: nowrap;
-
-  &[data-statut='ecarte'] {
-    background: #fef2f2;
-    color: #991b1b;
-  }
-
-  &[data-statut='vendu'] {
-    background: #f5f3ff;
-    color: #5b21b6;
-  }
-
-  &[data-statut='offreFaite'] {
-    background: #ecfdf5;
-    color: #065f46;
-  }
 }
 
-// Les trois Critères décisifs, côte à côte tant que la place le permet.
+// Les Colonnes décisives, côte à côte tant que la place le permet.
 //
 // `auto-fit` et non un nombre de colonnes fixe : à 320 px — l'écran le plus
 // étroit encore en service — trois colonnes de 7rem ne tiennent pas, et la
 // grille en repose deux puis une d'elle-même. Rien ne déborde jamais, à
-// aucune largeur, sans qu'un point de rupture ait à être choisi.
+// aucune largeur, sans qu'un point de rupture ait à être choisi, et une
+// Colonne promue décisive s'y range sans qu'on revienne ici.
 .carte__criteres {
   display: grid;
   gap: 0.5rem 0.75rem;
@@ -86,8 +96,8 @@
   margin: 0;
 }
 
-// Un Critère et sa valeur, l'un sous l'autre : sur une carte, aucune en-tête
-// de colonne ne dit ce qu'un nombre représente.
+// Une Colonne et sa valeur, l'une sous l'autre : sur une carte, aucune
+// en-tête de colonne ne dit ce qu'un nombre représente.
 .carte__critere {
   background: #f8fafc;
   border-radius: 0.375rem;
@@ -112,15 +122,15 @@
   }
 }
 
-// Un Critère de texte prend la ligne entière : sa valeur est de longueur
+// Une Colonne de texte prend la ligne entière : sa valeur est de longueur
 // libre, là où un prix et une surface tiennent en quelques caractères.
 // Partagé en deux, un nom de commune un peu long se replie sur trois lignes
 // et laisse la moitié de la carte vide à côté — mesuré au navigateur sur les
 // largeurs de 320 à 430 px.
 //
-// La règle suit le type déclaré par la définition et non l'identifiant du
-// Critère (ADR-0004) : une deuxième Colonne de texte promue décisive s'y
-// rangera sans qu'on revienne ici.
+// La règle suit le type déclaré par la Colonne et non son identifiant
+// (ADR-0004) : une deuxième Colonne de texte promue décisive s'y rangera
+// sans qu'on revienne ici.
 .carte__critere--large {
   grid-column: 1 / -1;
 }
@@ -142,11 +152,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+// Le lien vers l'Annonce passe au-dessus du lien étendu du Libellé : sans
+// cela, le rectangle qui couvre la carte l'intercepterait, et le clic partirait
+// vers la fiche au lieu de l'Annonce. `justify-self: start` borne la zone
+// relevée au texte du lien, et laisse le reste de la ligne à la carte.
 .carte__annonce {
   color: #1d4ed8;
   font-size: 0.875rem;
   grid-column: 1 / -1;
   justify-self: start;
+  position: relative;
+  z-index: 1;
 
   &:focus-visible {
     outline: 2px solid #1d4ed8;
@@ -154,7 +170,7 @@
   }
 }
 
-// Ce qui se lit sans se voir : le compte des Critères à renseigner, que le
+// Ce qui se lit sans se voir : le compte des Colonnes à renseigner, que le
 // fond des cases dit déjà à l'œil (ADR-0005). Même recette que la légende du
 // tableau.
 .carte__lecture {
