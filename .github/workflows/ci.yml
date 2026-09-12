@@ -29,3 +29,4 @@ jobs:
     # toute façon conditionnée à `publier`.
     permissions:
       contents: read
+      packages: write
