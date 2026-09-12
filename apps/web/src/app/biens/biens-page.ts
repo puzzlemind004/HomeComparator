@@ -1,11 +1,20 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Subject, switchMap } from 'rxjs';
 import { BienService, type ListeBiens } from './bien.service';
 import { ExportService, type FormatExport } from './export.service';
 import { STATUTS, libelleStatut, type Statut } from '../criteres/statut';
 import { CartesBiens } from './cartes-biens';
+import { ComparaisonBiens } from './comparaison-biens';
 import { TableauBiens } from './tableau-biens';
+import { LargeurEcran } from '../criteres/largeur-ecran';
+import {
+  MINIMUM_COMPARAISON,
+  basculerSelection,
+  comparaisonPossible,
+  selectionAjustee,
+} from '../criteres/selection-comparaison';
+import type { Bien } from './bien';
 
 /**
  * L'écran de repérage : saisir un Libellé, et retrouver le Bien dans la
@@ -14,13 +23,14 @@ import { TableauBiens } from './tableau-biens';
  */
 @Component({
   selector: 'app-biens-page',
-  imports: [CartesBiens, FormsModule, TableauBiens],
+  imports: [CartesBiens, ComparaisonBiens, FormsModule, TableauBiens],
   styleUrl: './biens-page.scss',
   templateUrl: './biens-page.html',
 })
 export class BiensPage {
   private readonly bienService = inject(BienService);
   private readonly exportService = inject(ExportService);
+  private readonly largeurEcran = inject(LargeurEcran);
 
   /**
    * L'état lu par le gabarit. Il est public plutôt que `protected` pour
@@ -88,6 +98,72 @@ export class BiensPage {
   readonly erreurExport = signal<string | null>(null);
 
   /**
+   * Les Biens retenus pour le face-à-face (#12), dans l'ordre où l'acheteur
+   * les a choisis — c'est cet ordre qui fixe celui des colonnes.
+   *
+   * La sélection vit ici et non dans le tableau ou les cartes : les deux
+   * présentations la montrent, et deux états séparés divergeraient dès qu'une
+   * fenêtre redimensionnée fait passer de l'une à l'autre. Elle ne se retient
+   * pas d'une visite à l'autre — le carnet ne persiste aucune préférence.
+   */
+  private readonly choix = signal<readonly number[]>([]);
+
+  /** Combien de Biens l'écran courant permet de comparer (ADR-0006). */
+  readonly maximumSelection = computed(() => this.largeurEcran.maximumComparaison());
+
+  /** Ce qu'il faut de Biens pour qu'il y ait quelque chose à comparer. */
+  readonly minimumComparaison = MINIMUM_COMPARAISON;
+
+  /**
+   * La sélection telle que l'écran peut réellement l'honorer : ce que
+   * l'acheteur a coché, ramené au plafond et aux Biens encore listés.
+   *
+   * Elle est **dérivée** et non écrite, là où un `effect` qui corrigerait le
+   * signal aurait fait la même chose : deux choses la rendent caduque sans
+   * qu'on y touche — la fenêtre qui rétrécit sous le seuil, et un Bien qui
+   * quitte la liste, supprimé ou masqué par un filtre. Un état corrigé après
+   * coup existe brièvement faux, et cette page-là se lirait avec une colonne
+   * dont elle n'a plus les valeurs.
+   *
+   * Rétrécir la fenêtre puis l'élargir rend les Biens que le plafond avait
+   * mis de côté, tant qu'aucun clic n'est venu entre-temps : le premier
+   * geste de sélection repart de ce qui est réellement comparé, et ce qui
+   * dépassait est alors abandonné pour de bon. Retenir indéfiniment des
+   * colonnes invisibles ferait resurgir, à l'élargissement, des Biens que
+   * l'acheteur croyait avoir remplacés.
+   */
+  readonly selection = computed<readonly number[]>(() => {
+    const liste = this.liste();
+    const disponibles = liste?.chargee ? liste.biens.map((bien) => bien.id) : undefined;
+
+    return selectionAjustee(this.choix(), this.maximumSelection(), disponibles);
+  });
+
+  /** Vrai dès que deux Biens sont retenus : la vue a alors de quoi s'afficher. */
+  readonly comparaisonAffichee = computed(() => comparaisonPossible(this.selection()));
+
+  /**
+   * Vrai quand le plafond est atteint : la page le dit au-dessus de la
+   * liste, plutôt que de laisser l'acheteur découvrir des cases qui ne
+   * répondent plus sans savoir pourquoi.
+   */
+  readonly selectionPleine = computed(() => this.selection().length >= this.maximumSelection());
+
+  /**
+   * Les Biens à comparer, dans l'ordre de la sélection et non dans celui de
+   * la liste : c'est l'ordre que l'acheteur a demandé, et le seul qui ne
+   * fasse pas bouger les colonnes déjà posées quand il en ajoute une.
+   */
+  readonly biensCompares = computed<Bien[]>(() => {
+    const liste = this.liste();
+    const biens = liste?.chargee ? liste.biens : [];
+
+    return this.selection()
+      .map((bienId) => biens.find((bien) => bien.id === bienId))
+      .filter((bien): bien is Bien => bien !== undefined);
+  });
+
+  /**
    * Le libellé sous lequel un Statut s'affiche.
    *
    * L'écran ne s'en sert plus que pour nommer le filtre dans ses messages —
@@ -114,6 +190,25 @@ export class BiensPage {
       .subscribe((liste) => this.liste.set(liste));
 
     this.rafraichir();
+  }
+
+  /**
+   * Le clic sur la case d'un Bien : il rejoint la comparaison, ou il en
+   * sort.
+   *
+   * Au plafond, l'ajout est refusé et la sélection ne bouge pas — c'est ce
+   * que dit `basculerSelection`, et la page l'annonce au-dessus de la liste.
+   */
+  basculerComparaison(bienId: number): void {
+    // Le plafond s'applique à la sélection effective et non au choix brut :
+    // un Bien coché au bureau puis masqué par le rétrécissement de la
+    // fenêtre ne doit pas occuper une place sur le téléphone.
+    this.choix.update(() => basculerSelection(this.selection(), bienId, this.maximumSelection()));
+  }
+
+  /** Le bouton qui vide la comparaison, sans toucher à la liste. */
+  viderComparaison(): void {
+    this.choix.set([]);
   }
 
   /**

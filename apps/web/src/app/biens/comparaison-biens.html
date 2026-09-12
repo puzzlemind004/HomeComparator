@@ -1,0 +1,109 @@
+<!--
+  Le face-à-face : un Bien par colonne, un Critère par ligne, la meilleure
+  valeur mise en évidence (#12).
+
+  Les axes sont inversés par rapport au tableau, qui met un Bien par ligne :
+  c'est ce qui permet de lire un Critère d'un balayage horizontal court —
+  deux ou quatre valeurs côte à côte — là où le tableau ferait parcourir
+  seize colonnes.
+
+  Toutes les lignes d'un coup, sans les groupes pliables du tableau : à deux
+  ou quatre colonnes, le débordement se fait en hauteur, où il ne coûte rien
+  (ADR-0006).
+-->
+<div class="comparaison">
+  <table>
+    <caption class="comparaison__lecture">
+      Les Biens comparés côte à côte, un par colonne, un Critère par ligne. La meilleure valeur de
+      chaque Critère est mise en évidence ; un Critère non renseigné ne l'est jamais, et plusieurs
+      Biens à égalité le sont tous.
+    </caption>
+
+    <thead>
+      <tr>
+        <!--
+          La case d'angle : elle ne nomme rien, les en-têtes de lignes étant
+          les Critères et ceux de colonnes les Biens. Vide plutôt que
+          meublée d'un mot qui n'aurait de sens dans aucun des deux axes.
+        -->
+        <td></td>
+
+        @for (colonne of colonnes(); track colonne.bien.id) {
+          <th scope="col" class="comparaison__bien">
+            @if (colonne.bien.photoRepresentative; as photo) {
+              <!--
+                La photo représentative, en tête de colonne (#13) : c'est ce
+                qui fait reconnaître le Bien dont on lit les valeurs, sans
+                relire son Libellé à chaque ligne.
+
+                Sans texte de remplacement : le Libellé est juste en dessous,
+                et décrire la photo ferait annoncer deux fois le même Bien au
+                lecteur d'écran (ADR-0005).
+              -->
+              <img class="comparaison__photo" [src]="photo.urlVignette" alt="" loading="lazy" />
+            }
+
+            <a [routerLink]="['/biens', colonne.bien.id]">{{ colonne.bien.libelle }}</a>
+
+            <span class="comparaison__statut" [attr.data-statut]="colonne.statut">
+              {{ colonne.libelleStatut }}
+            </span>
+          </th>
+        }
+      </tr>
+    </thead>
+
+    <tbody>
+      @for (ligne of lignes(); track ligne.colonne.id) {
+        <tr>
+          <th scope="row" class="comparaison__critere">{{ ligne.colonne.libelle }}</th>
+
+          @for (donnee of ligne.cases; track $index) {
+            <!--
+              La mise en évidence est portée par une classe, et le mot qui
+              l'accompagne n'est écrit que sur les cases qui la portent : une
+              couleur seule ne s'entend pas (ADR-0005).
+
+              Une case non renseignée se distingue par sa classe et non par
+              son texte, comme dans le tableau : c'est ce qu'il reste à
+              demander à l'agence (#6), et un zéro saisi ne doit pas s'y
+              confondre.
+            -->
+            <td
+              [class.comparaison__meilleure]="donnee.meilleure"
+              [class.comparaison__absent]="!donnee.renseigne"
+              [class.comparaison__nombre]="
+                donnee.colonne.type === 'entier' || donnee.colonne.type === 'decimal'
+              "
+            >
+              @if (donnee.renseigne) {
+                {{ donnee.texte }}
+
+                @if (donnee.meilleure) {
+                  <!--
+                    Le mot est masqué à l'œil, que la couleur renseigne déjà,
+                    et lu par le lecteur d'écran, pour qui elle n'existe pas.
+                    « meilleure valeur » et non « gagnant » : la ligne désigne
+                    une valeur, et plusieurs Biens peuvent la porter.
+                  -->
+                  <span class="comparaison__lecture"> — meilleure valeur</span>
+                }
+              } @else {
+                <span class="comparaison__manquant">
+                  <span aria-hidden="true">—</span>
+                  <!--
+                    Le tiret ne se lit pas : `aria-label` sur un `span` porte
+                    le rôle `generic`, que la spec ARIA interdit de nommer, et
+                    le lecteur d'écran annoncerait « tiret ». Le mot est donc
+                    écrit, puis masqué à l'œil.
+                  -->
+                  <span class="comparaison__lecture">non renseigné</span>
+                </span>
+              }
+            </td>
+          }
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

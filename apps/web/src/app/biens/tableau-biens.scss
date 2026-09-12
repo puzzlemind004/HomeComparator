@@ -246,3 +246,40 @@ tbody tr:hover {
   vertical-align: middle;
   width: 3rem;
 }
+
+// La colonne des cases de sélection pour le face-à-face (#12).
+//
+// Étroite et à largeur fixe : elle ne porte qu'une case, et la laisser
+// s'étirer prendrait la place des Colonnes qu'on vient comparer.
+.tableau__choix {
+  width: 2.5rem;
+
+  label {
+    // La cible du doigt et du curseur dépasse la case elle-même, qui fait
+    // treize pixels : c'est le label qui la porte, et il occupe la cellule.
+    cursor: pointer;
+    display: block;
+  }
+
+  // Une case désactivée dit que le plafond est atteint : le curseur le
+  // confirme au survol, avant le clic qui ne ferait rien.
+  input:disabled {
+    cursor: not-allowed;
+  }
+
+  label:has(input:disabled) {
+    cursor: not-allowed;
+  }
+}
+
+// La ligne d'un Bien retenu pour la comparaison.
+//
+// Un liseré à gauche plutôt qu'un fond : le fond est déjà pris par les cases
+// non renseignées (#6), et deux fonds superposés se liraient l'un pour
+// l'autre. Le liseré dit « celui-ci est retenu » sans rien recouvrir.
+.tableau__ligne--choisie {
+  th:first-of-type,
+  td:first-of-type {
+    box-shadow: inset 0.2rem 0 0 #1d4ed8;
+  }
+}

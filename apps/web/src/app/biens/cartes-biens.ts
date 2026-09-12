@@ -1,4 +1,4 @@
-import { Component, Input, computed, signal } from '@angular/core';
+import { Component, Input, Output, EventEmitter, computed, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Bien } from './bien';
 import { COLONNES_DECISIVES, caseDe, type CaseColonne } from '../criteres/colonnes';
@@ -28,6 +28,17 @@ export interface Carte {
    * ce qui évite de faire lire trois tirets à la suite.
    */
   manquants: number;
+
+  /** Vrai quand le Bien fait partie de ceux qu'on compare face à face (#12). */
+  selectionne: boolean;
+
+  /**
+   * Vrai quand la case de sélection ne répond plus : le plafond est atteint
+   * et ce Bien n'en fait pas partie. Sur un téléphone le plafond est de deux
+   * (ADR-0006), et il s'atteint donc vite : la case reste à sa place pour
+   * que l'acheteur voie pourquoi elle ne répond pas.
+   */
+  selectionBloquee: boolean;
 }
 
 /**
@@ -91,6 +102,33 @@ export class CartesBiens {
   }
 
   /**
+   * Les Biens retenus pour la comparaison face-à-face (#12), tels que la
+   * page les tient.
+   *
+   * Les cartes ne décident pas de la sélection : elles la montrent et
+   * signalent les clics. C'est la page qui la détient, parce que le tableau
+   * la montre aussi et que les deux présentations doivent s'accorder.
+   */
+  readonly selection = signal<readonly number[]>([]);
+
+  @Input()
+  set selectionCourante(selection: readonly number[]) {
+    this.selection.set(selection);
+  }
+
+  /** Le plafond de la sélection, que la largeur de l'écran décide (ADR-0006). */
+  readonly maximum = signal(0);
+
+  @Input()
+  set maximumSelection(maximum: number) {
+    this.maximum.set(maximum);
+  }
+
+  /** Le clic sur une case de sélection : la page en tire la nouvelle liste. */
+  @Output()
+  readonly selectionBasculee = new EventEmitter<number>();
+
+  /**
    * Les Colonnes que porte une carte. Exposé pour le gabarit, qui écrit leur
    * libellé à côté de la valeur : sur une carte, aucune en-tête de colonne ne
    * dit ce qu'un nombre représente.
@@ -108,9 +146,13 @@ export class CartesBiens {
    * Le calcul est fait une fois par changement de Biens et non à chaque
    * lecture du gabarit, comme pour les lignes du tableau (#10).
    */
-  readonly cartes = computed<Carte[]>(() =>
-    trier(this.biens(), TRI_INITIAL).map((bien) => {
+  readonly cartes = computed<Carte[]>(() => {
+    const selection = this.selection();
+    const pleine = selection.length >= this.maximum();
+
+    return trier(this.biens(), TRI_INITIAL).map((bien) => {
       const cases = this.colonnes.map((colonne) => caseDe(colonne, bien.criteres));
+      const selectionne = selection.includes(bien.id);
 
       return {
         bien,
@@ -118,7 +160,11 @@ export class CartesBiens {
         libelleStatut: libelleStatut(bien.statut),
         cases,
         manquants: cases.filter((donnee) => !donnee.renseigne).length,
+        selectionne,
+        // Un Bien déjà retenu garde sa case active : le plafond borne
+        // l'ajout, jamais le retrait.
+        selectionBloquee: pleine && !selectionne,
       };
-    }),
-  );
+    });
+  });
 }

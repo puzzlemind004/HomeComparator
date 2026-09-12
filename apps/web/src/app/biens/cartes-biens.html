@@ -16,7 +16,28 @@
 -->
 <ul class="cartes">
   @for (carte of cartes(); track carte.bien.id) {
-    <li class="carte">
+    <li class="carte" [class.carte--choisie]="carte.selectionne">
+      <!--
+        La case qui retient le Bien pour le face-à-face (#12).
+
+        Elle est posée au-dessus du lien qui couvre la carte (voir la
+        feuille) : sans cela, le pseudo-élément du Libellé la recouvrirait et
+        cocher mènerait à la fiche. C'est le seul élément de la carte qui
+        passe devant lui, et c'est voulu — les deux gestes sont distincts.
+
+        Sur un téléphone le plafond est de deux (ADR-0006) : la case se
+        désactive vite, et reste visible pour dire pourquoi.
+      -->
+      <label class="carte__choix">
+        <input
+          type="checkbox"
+          [checked]="carte.selectionne"
+          [disabled]="carte.selectionBloquee"
+          (change)="selectionBasculee.emit(carte.bien.id)"
+        />
+        <span class="carte__lecture">Comparer {{ carte.bien.libelle }}</span>
+      </label>
+
       <!--
         Le Libellé en tête, et c'est lui qui mène à la fiche : c'est ce sous
         quoi l'acheteur reconnaît un Bien.

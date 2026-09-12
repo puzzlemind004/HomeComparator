@@ -136,8 +136,69 @@
           présentations n'ait à savoir sur quel écran elle est montée, et
           qu'une fenêtre redimensionnée bascule sans rien remonter.
         -->
-        <app-tableau-biens class="vue-desktop" [biensAAfficher]="liste.biens" />
-        <app-cartes-biens class="vue-mobile" [biensAAfficher]="liste.biens" />
+        <!--
+          Ce que la sélection en cours permet, dit avant la liste plutôt
+          qu'après : l'acheteur doit savoir que le plafond est atteint au
+          moment où il coche, et non en découvrant des cases qui ne
+          répondent plus (#12, ADR-0005).
+        -->
+        <p class="comparaison-etat" role="status">
+          @if (selection().length) {
+            {{ selection().length }} Bien{{ selection().length > 1 ? 's' : '' }} retenu{{
+              selection().length > 1 ? 's' : ''
+            }}
+            pour la comparaison, sur {{ maximumSelection() }} possible{{
+              maximumSelection() > 1 ? 's' : ''
+            }}.
+
+            @if (selectionPleine()) {
+              <!--
+                Le plafond dépend de la largeur de l'écran, et ce n'est pas
+                évident : le dire évite de chercher pourquoi une case ne
+                répond plus (ADR-0006).
+              -->
+              Retirez-en un pour en choisir un autre.
+            } @else if (!comparaisonAffichee()) {
+              Choisissez-en un second pour les comparer.
+            }
+
+            <button type="button" class="comparaison-etat__vider" (click)="viderComparaison()">
+              Vider la comparaison
+            </button>
+          } @else {
+            Cochez deux Biens pour les comparer face à face.
+          }
+        </p>
+
+        <app-tableau-biens
+          class="vue-desktop"
+          [biensAAfficher]="liste.biens"
+          [selectionCourante]="selection()"
+          [maximumSelection]="maximumSelection()"
+          (selectionBasculee)="basculerComparaison($event)"
+        />
+        <app-cartes-biens
+          class="vue-mobile"
+          [biensAAfficher]="liste.biens"
+          [selectionCourante]="selection()"
+          [maximumSelection]="maximumSelection()"
+          (selectionBasculee)="basculerComparaison($event)"
+        />
+
+        <!--
+          Le face-à-face, sous la liste où la sélection se fait : il paraît
+          dès que deux Biens sont retenus, et disparaît en deçà — un Bien
+          seul ne se compare à rien, et sa fiche est déjà là pour le montrer
+          (#12).
+
+          Une seule fois, pour les deux présentations : c'est la même vue sur
+          téléphone et au bureau, seul le nombre de colonnes change
+          (ADR-0006).
+        -->
+        @if (comparaisonAffichee()) {
+          <h2>Comparer</h2>
+          <app-comparaison-biens [biensAComparer]="biensCompares()" />
+        }
       } @else if (filtre(); as statut) {
         <!--
           « Rien à ce stade » est une réponse, et elle se dit autrement que

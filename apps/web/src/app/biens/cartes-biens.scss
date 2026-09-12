@@ -201,3 +201,43 @@
   object-fit: cover;
   width: 100%;
 }
+
+// La case qui retient le Bien pour le face-à-face (#12).
+//
+// Hors du flux de la grille : posée en cellule, elle décalerait le Libellé
+// et le Statut d'une colonne, et la carte serait à refaire. En absolu, elle
+// se glisse dans le coin et la grille ne la voit pas — c'est le padding de
+// la carte, élargi à droite ci-dessous, qui lui réserve sa place.
+//
+// Au-dessus du lien étendu : sans ce `z-index`, le pseudo-élément du Libellé
+// la recouvrirait et cocher mènerait à la fiche. C'est le seul élément de la
+// carte qui passe devant lui, et les deux gestes restent distincts.
+.carte__choix {
+  cursor: pointer;
+  padding: 0.25rem;
+  position: absolute;
+  right: 0.5rem;
+  top: 0.5rem;
+  z-index: 2;
+
+  input:disabled {
+    cursor: not-allowed;
+  }
+
+  &:has(input:disabled) {
+    cursor: not-allowed;
+  }
+}
+
+// La place réservée à la case, pour que le Statut ne passe pas dessous.
+.carte {
+  padding-right: 2.5rem;
+}
+
+// La carte d'un Bien retenu pour la comparaison : sa bordure le dit, là où
+// le tableau pose un liseré sur sa ligne. Le fond reste libre pour les cases
+// non renseignées (#6), qu'un second fond rendrait illisibles.
+.carte--choisie {
+  border-color: #1d4ed8;
+  box-shadow: inset 0 0 0 1px #1d4ed8;
+}

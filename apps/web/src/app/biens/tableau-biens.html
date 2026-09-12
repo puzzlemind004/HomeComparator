@@ -51,6 +51,17 @@
 
     <thead>
       <tr>
+        <!--
+          La colonne des cases de sélection. Son en-tête nomme ce qu'elle
+          fait pour le lecteur d'écran, et se masque à l'œil : les cases
+          parlent d'elles-mêmes, et le mot « Comparer » au-dessus d'une
+          colonne de deux centimètres la ferait paraître plus large qu'elle
+          n'a besoin de l'être.
+        -->
+        <th scope="col" class="tableau__choix">
+          <span class="tableau__lecture">Comparer</span>
+        </th>
+
         <th scope="col" class="tableau__libelle">Bien</th>
         <th scope="col">Statut</th>
 
@@ -89,7 +100,32 @@
 
     <tbody>
       @for (ligne of lignes(); track ligne.bien.id) {
-        <tr>
+        <tr [class.tableau__ligne--choisie]="ligne.selectionne">
+          <!--
+            La case qui retient le Bien pour le face-à-face (#12).
+
+            Une vraie case à cocher : c'est un choix multiple, et le clavier
+            comme le lecteur d'écran la connaissent sans qu'on ait à lui
+            apprendre (ADR-0005). Son intitulé porte le Libellé, sans quoi
+            une page de vingt cases en annoncerait vingt identiques.
+
+            Désactivée quand le plafond est atteint et que ce Bien n'en fait
+            pas partie : elle reste à sa place plutôt que de disparaître, et
+            l'acheteur voit que la sélection est pleine au lieu de cliquer
+            dans le vide.
+          -->
+          <td class="tableau__choix">
+            <label>
+              <input
+                type="checkbox"
+                [checked]="ligne.selectionne"
+                [disabled]="ligne.selectionBloquee"
+                (change)="selectionBasculee.emit(ligne.bien.id)"
+              />
+              <span class="tableau__lecture">Comparer {{ ligne.bien.libelle }}</span>
+            </label>
+          </td>
+
           <th scope="row" class="tableau__libelle">
             @if (ligne.bien.photoRepresentative; as photo) {
               <!--
