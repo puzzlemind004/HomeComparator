@@ -11,148 +11,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  api:
-    name: API (lint, types, tests)
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: homecomparator
-          POSTGRES_PASSWORD: homecomparator
-          POSTGRES_DB: homecomparator_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U homecomparator -d homecomparator_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      NODE_ENV: test
-      TZ: UTC
-      HOST: localhost
-      PORT: 3333
-      LOG_LEVEL: silent
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_USER: homecomparator
-      DB_PASSWORD: homecomparator
-      DB_DATABASE: homecomparator_test
-      CORS_ORIGIN: http://localhost:4200
-      # Mot de passe des tests : les tests de connexion s'y réfèrent par
-      # `env.get('APP_PASSWORD')` plutôt que de le recopier.
-      APP_PASSWORD: mot-de-passe-de-test
-      # Horodatage de la dernière sauvegarde pendant les tests : un fichier à
-      # part, écrit et effacé par les tests eux-mêmes (#67). Nommé ici comme
-      # dans `.env.test`, qui n'est pas versionné et donc absent de la CI.
-      HORODATAGE_SAUVEGARDE: ./tmp/derniere-sauvegarde-test
-
-    defaults:
-      run:
-        working-directory: apps/api
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: apps/api/package-lock.json
-
-      - run: npm ci
-
-      # Clé générée par exécution : rien de sensible n'est versionné, et
-      # les tests n'ont besoin d'aucune clé stable.
-      - name: Générer APP_KEY
-        run: echo "APP_KEY=$(openssl rand -base64 24)" >> "$GITHUB_ENV"
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Compilation TypeScript
-        run: npm run typecheck
-
-      - name: Tests
-        run: npm test
-
-  web:
-    name: Front (lint, types, tests, build)
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: apps/web
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
-
-      - run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Compilation TypeScript
-        run: npm run typecheck
-
-      - name: Tests
-        run: npm test -- --watch=false
-
-      - name: Build
-        run: npm run build
-
-  docker:
-    name: Images Docker
-    runs-on: ubuntu-latest
-    # Aucun `needs` : la construction des images exerce une propriété
-    # distincte des lint/types/tests, et le signal est plus utile en
-    # parallèle qu'en aval.
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-buildx-action@v3
-
-      # Docker est le seul mécanisme de déploiement (ADR-0003, ADR-0007) :
-      # sans cette étape, la CI valide un artefact qui n'est pas celui qu'on
-      # déploie (#19). Une cible de production renommée ou disparue d'un
-      # `Dockerfile` fait échouer le job.
-      #
-      # Les contextes et les cibles recopient ceux que `docker-compose.yml`
-      # déclare par service ; les deux restent maintenus séparément, et rien
-      # ici ne rattraperait un renommage fait du seul côté de Compose.
-      - name: Construire l'image de l'API
-        uses: docker/build-push-action@v6
-        with:
-          context: ./apps/api
-          target: production
-          push: false
-          # La CI construit et ne déploie pas : l'image porte le `dev` que
-          # le `Dockerfile` donne par défaut (#67). Le déploiement, lui,
-          # passera le numéro du tag. L'argument est nommé ici pour que sa
-          # disparition du `Dockerfile` se voie.
-          build-args: |
-            VERSION=dev
-          # Le cache GHA est cloisonné par clé : sans `scope`, les deux
-          # images se partageraient la même entrée et s'évinceraient l'une
-          # l'autre à chaque exécution.
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,mode=max,scope=api
-
-      - name: Construire l'image du front
-        uses: docker/build-push-action@v6
-        with:
-          context: ./apps/web
-          target: production
-          push: false
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
+  # Les trois jobs vivaient ici ; ils sont désormais dans un workflow
+  # appelable que le déploiement invoque aussi (#70). La CI n'est plus qu'un
+  # de ses deux appelants, et c'est ce qui garantit que la production rejoue
+  # exactement ce que les pull requests ont exercé.
+  verifications:
+    name: Vérifications
+    uses: ./.github/workflows/verifications.yml
+    # Aucun argument : les valeurs par défaut sont celles de la CI — on
+    # construit les images sans les publier, et elles portent `dev`, puisque
+    # rien ici ne désigne une version à déployer.
+    # **`packages: write` est accordé ici alors que la CI ne pousse jamais,
+    # et cette concession apparente demande son explication.**
+    #
+    # Le workflow appelé déclare ce droit sur son job `publier`. Les
+    # permissions sont validées au **chargement** du workflow, avant que le
+    # `if:` de ce job ne soit évalué : un appelant qui ne l'accorde pas fait
+    # donc échouer l'exécution entière au démarrage, sans qu'aucun job ne
+    # tourne. Mesuré sur cette branche : `startup_failure` en une seconde,
+    # sur un message qui ne nomme pas la cause.
+    #
+    # Ce que la CI accorde ne lui donne pour autant aucun accès au registre.
+    # `publier` est le seul job à s'y connecter, et son `if: inputs.publier`
+    # le saute intégralement ici — la CI appelle sans cet argument. Le droit
+    # est porté, jamais exercé.
+    permissions:
+      contents: read
+      packages: write

@@ -72,6 +72,15 @@ domaine (ADR-0003, ADR-0007). La pile de production est décrite par
 renseigner et celles qui ne quittent jamais le serveur sont dans
 [docs/deploiement.md](docs/deploiement.md).
 
+**On déploie en posant une version**, depuis l'onglet Actions — workflow
+« Poser une version », et le numéro — ou par
+`gh workflow run poser-version.yml -f version=0.1.0`. Le numéro est inscrit
+dans les deux `package.json`, commité sur `main` et tagué ; le déploiement
+vérifie que le commit descend de `main`, rejoue lint, types, tests et
+construction, publie les images sur GHCR, fait tourner la pile, puis
+interroge la route de santé **par son URL publique**. Aucun retour en arrière
+automatique n'est tenté : les migrations ne se défont pas (ADR-0018).
+
 Ce que la production change par rapport à ce qui précède :
 
 - **Caddy** s'ajoute et détient 80 et 443. Il termine le TLS, obtient son

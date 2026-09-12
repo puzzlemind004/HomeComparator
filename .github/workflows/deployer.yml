@@ -1,0 +1,454 @@
+name: Déployer
+
+# Le second des deux workflows de déploiement (#70), et celui qui touche la
+# production. Il rejoue les vérifications, publie les images, fait tourner la
+# pile sur le VPS, puis vérifie que le carnet répond **depuis l'extérieur**.
+#
+# Deux déclencheurs, et ils ne se valent pas :
+#
+#   - `workflow_call`, la voie normale : `poser-version.yml` l'appelle juste
+#     après avoir posé le tag. C'est la seule qui fonctionne d'elle-même,
+#     GitHub refusant de réveiller un workflow sur un tag poussé par le jeton
+#     d'une exécution.
+#   - `push: tags`, la voie de secours : un tag `v*` poussé à la main depuis
+#     un clone. Elle n'arrive pas dans le geste courant, mais elle arrive —
+#     et c'est très exactement le cas que la vérification d'ascendance
+#     ci-dessous existe pour arrêter.
+#
+# Aucun retour en arrière automatique, et c'est une décision de fond
+# (ADR-0018) : les migrations ne se défont pas, et redescendre une image sur
+# un schéma déjà migré casse plus sûrement que de rester en panne. Le
+# workflow échoue bruyamment, l'acheteur décide.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_call:
+    inputs:
+      version:
+        description: 'Numéro de version, sans le « v » (ex. 0.1.0)'
+        required: true
+        type: string
+
+# Deux déploiements simultanés se marcheraient dessus sur le VPS — même
+# dossier, même pile, même base. `cancel-in-progress: false` : on
+# n'interrompt pas un déploiement en cours, qui a peut-être déjà migré la
+# base. Le second attend son tour.
+concurrency:
+  group: deployer
+  cancel-in-progress: false
+
+jobs:
+  # ── Première barrière : le commit tagué descend-il de `main` ? ───────────
+  #
+  # Ce job fait un travail réel, et non une vérification de principe : le
+  # dépôt est privé, donc la protection de branche est indisponible, et rien
+  # côté serveur n'empêche un tag d'être posé sur une branche de travail. Un
+  # essai tagué depuis un clone partirait en production.
+  #
+  # Il est seul et en amont de tout le reste : rien ne doit se construire ni
+  # se publier avant que la provenance ne soit établie.
+  verifier-la-provenance:
+    name: Le commit tagué descend de main
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    outputs:
+      version: ${{ steps.version.outputs.numero }}
+
+    steps:
+      # **Le tag est nommé explicitement, et c'est indispensable sur la voie
+      # `workflow_call`.** Le contexte `github` d'un workflow appelé est
+      # toujours celui de l'**appelant** : `github.sha` y désigne le commit
+      # sur lequel la saisie du numéro a été lancée, c'est-à-dire celui
+      # d'**avant** la montée de version. Un `checkout` nu construirait donc
+      # les images sans les `package.json` fraîchement bumpés, et la
+      # vérification d'ascendance porterait sur le mauvais commit.
+      #
+      # Sur la voie `push: tags`, `github.ref` vaut déjà ce tag et cette
+      # ligne ne change rien — elle rend les deux voies identiques.
+      #
+      # `fetch-depth: 0` : l'ascendance ne se juge pas sur un clone
+      # superficiel, qui n'a pas l'historique où chercher le commit.
+      - uses: actions/checkout@v4
+        with:
+          # Sur `workflow_call`, `inputs.version` porte le numéro nu ; sur
+          # `push: tags`, il est vide et `github.ref_name` vaut déjà « v… ».
+          ref: ${{ inputs.version && format('refs/tags/v{0}', inputs.version) || github.ref }}
+          fetch-depth: 0
+
+      # Le numéro vient de deux endroits selon le déclencheur, et le reste du
+      # workflow ne doit pas avoir à savoir lequel : il le lit ici, une fois.
+      - name: Déterminer le numéro de version
+        id: version
+        env:
+          VERSION_APPELANT: ${{ inputs.version }}
+          REF_TAG: ${{ github.ref_name }}
+        run: |
+          if [ -n "$VERSION_APPELANT" ]; then
+            numero="$VERSION_APPELANT"
+          else
+            # `github.ref_name` vaut « v0.1.0 » sur un déclenchement par tag ;
+            # les images et les `package.json` portent le numéro nu.
+            numero="${REF_TAG#v}"
+          fi
+
+          if ! echo "$numero" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::« $numero » n'est pas un numéro semver."
+            exit 1
+          fi
+
+          echo "numero=$numero" >> "$GITHUB_OUTPUT"
+          echo "Version à déployer : $numero"
+
+      - name: Le commit est-il sur main ?
+        run: |
+          git fetch --no-tags origin main
+
+          # `merge-base --is-ancestor` répond exactement à la question posée :
+          # le commit qu'on s'apprête à déployer est-il contenu dans `main` ?
+          # Un commit d'une branche jamais fusionnée ne l'est pas, et le
+          # déploiement s'arrête ici.
+          #
+          # Le sens compte : on demande si HEAD est un *ancêtre* de
+          # `origin/main`, et non l'inverse. Un tag posé sur un commit en
+          # avance sur `main` — le cas de la branche de travail — échoue
+          # bien, tandis qu'un tag posé sur un commit ancien de `main`
+          # passe, ce qui est correct : redéployer une version antérieure est
+          # un geste légitime.
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::Le commit tagué ne descend pas de main : rien ne sera déployé."
+            echo "Un tag posé sur une branche de travail ne part jamais en production (#70)."
+            exit 1
+          fi
+
+          echo "Le commit $(git rev-parse --short HEAD) est bien sur main."
+
+  # ── Deuxième barrière : tout repasse au vert, sur le commit tagué ────────
+  #
+  # ADR-0007 exige de ne déployer que si lint, types, tests et construction
+  # passent. Le commit est déjà passé par la CI sur `main`, et on rejoue
+  # quand même : ce qui a été vérifié est le commit, tandis que ce qu'on
+  # déploie est ce commit-ci *avec ce numéro de version*, et la construction
+  # des images n'est pas la même — elle fige le numéro et pousse.
+  #
+  # C'est ici que les images partent vers le registre : `publier: true`.
+  verifications:
+    name: Vérifications
+    needs: verifier-la-provenance
+    uses: ./.github/workflows/verifications.yml
+    with:
+      version: ${{ needs.verifier-la-provenance.outputs.version }}
+      publier: true
+      # Le tag, et non le défaut : sans lui, les jobs appelés prendraient le
+      # commit de l'appelant — celui d'avant la montée de version — et les
+      # images seraient construites sans les `package.json` bumpés.
+      ref: refs/tags/v${{ needs.verifier-la-provenance.outputs.version }}
+    permissions:
+      contents: read
+      packages: write
+
+  # ── Le déploiement proprement dit ────────────────────────────────────────
+  deployer:
+    name: Faire tourner la version sur le VPS
+    needs: [verifier-la-provenance, verifications]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      # Le jeton de cette exécution est ce qui ouvre la session du VPS vers
+      # le registre (ADR-0017). Il vit le temps du déploiement et n'est
+      # jamais écrit sur la machine : un secret qui n'existe pas ne peut ni
+      # fuir, ni expirer.
+      packages: read
+
+    env:
+      VERSION: ${{ needs.verifier-la-provenance.outputs.version }}
+      # Le dossier qui porte la pile sur le VPS. Il contient trois fichiers
+      # et trois seulement — le Compose, le Caddyfile, le `.env` — le dépôt
+      # n'étant pas cloné sur le serveur.
+      DOSSIER: /opt/homecomparator
+
+    steps:
+      # Le tag, pour la même raison qu'au job de provenance : c'est le
+      # `docker-compose.prod.yml` et le `Caddyfile` **de la version
+      # déployée** qui doivent partir sur le serveur, et non ceux du commit
+      # depuis lequel la saisie a été lancée.
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/v${{ needs.verifier-la-provenance.outputs.version }}
+
+      # La clé privée de déploiement, et l'empreinte du serveur. Les deux
+      # vivent dans les secrets du dépôt ; `docs/deploiement.md` dit comment
+      # les poser, et `scripts/preparer-deploiement.sh` les pose.
+      - name: Préparer l'accès SSH
+        env:
+          CLE: ${{ secrets.VPS_CLE_SSH }}
+          EMPREINTE: ${{ secrets.VPS_EMPREINTE }}
+        run: |
+          if [ -z "$CLE" ] || [ -z "$EMPREINTE" ]; then
+            echo "::error::Secrets VPS manquants. Voir docs/deploiement.md."
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$CLE" > ~/.ssh/id_deploiement
+          chmod 600 ~/.ssh/id_deploiement
+
+          # **L'empreinte est posée depuis un secret, et non récoltée par
+          # `ssh-keyscan`.** Demander sa clé à la machine à laquelle on
+          # s'apprête à faire confiance ne vérifie rien : un intermédiaire
+          # qui répondrait à sa place serait cru sur parole. L'empreinte a
+          # été relevée une fois, sur la console du serveur, et c'est elle
+          # qui fait foi.
+          printf '%s\n' "$EMPREINTE" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      # Le Compose de production et le Caddyfile sont copiés **à chaque
+      # exécution**, et c'est ce qui fait du dépôt la source de vérité de ce
+      # qui tourne : une modification de la pile part avec le déploiement
+      # suivant, sans geste manuel sur le serveur.
+      #
+      # Le `.env`, lui, n'est jamais touché : il porte les trois secrets qui
+      # ne quittent pas la machine (`docs/deploiement.md`). Les faire
+      # transiter à chaque déploiement multiplierait les endroits où ils
+      # existent sans rien acheter.
+      - name: Copier la description de la pile
+        env:
+          HOTE: ${{ secrets.VPS_HOTE }}
+          UTILISATEUR: ${{ secrets.VPS_UTILISATEUR }}
+        run: |
+          scp -i ~/.ssh/id_deploiement \
+            docker-compose.prod.yml Caddyfile \
+            "$UTILISATEUR@$HOTE:$DOSSIER/"
+
+      - name: Tirer les images et démarrer la pile
+        env:
+          HOTE: ${{ secrets.VPS_HOTE }}
+          UTILISATEUR: ${{ secrets.VPS_UTILISATEUR }}
+          JETON_REGISTRE: ${{ secrets.GITHUB_TOKEN }}
+          ACTEUR: ${{ github.actor }}
+        run: |
+          # **Le jeton et le script voyagent tous deux par l'entrée standard,
+          # et le découpage entre les deux mérite son explication.**
+          #
+          # Le jeton d'abord : en argument de la commande distante, il se
+          # lirait dans la table des processus du serveur pendant toute
+          # l'exécution, par quiconque a un compte sur la machine. Il occupe
+          # donc la première ligne du flux, et un prologue distant très court
+          # la lit et l'exporte.
+          #
+          # Le script ensuite, sur le reste du même flux, lu par `bash -s`.
+          # C'est ce qui le dispense de traverser le shell distant : `ssh`
+          # concatène les arguments de sa commande et les fait **relire** par
+          # le shell du serveur, si bien qu'une apostrophe dans un
+          # commentaire français — il y en a plus bas — refermerait la
+          # citation et couperait le script en deux. Mesuré à la mise au
+          # point : la commande sortait sur un « unexpected EOF ».
+          {
+            printf '%s\n' "$JETON_REGISTRE"
+            cat <<'SCRIPT'
+          set -euo pipefail
+
+          cd "$DOSSIER"
+
+          # La version à tourner est inscrite dans le `.env` du serveur, que
+          # le Compose lit. C'est aussi ce qui permet de revenir en arrière à
+          # la main : remettre le numéro précédent et relancer.
+          #
+          # Le fichier est réécrit ligne à ligne plutôt qu'avec `sed -i`, qui
+          # remplacerait aussi une occurrence apparaissant dans un
+          # commentaire ou dans une autre variable.
+          #
+          # **`|| [ $? -eq 1 ]` et non `|| true`, et les trois caractères
+          # d'écart valent le carnet entier.** `grep` rend 1 quand il ne
+          # garde aucune ligne — le cas normal d'un `.env` ne portant que
+          # `VERSION=` — mais 2 ou plus sur une erreur réelle : fichier
+          # illisible, disque plein. Un `|| true` absorbe les deux, et la
+          # redirection a déjà tronqué `.env.nouveau` : le `.env` se
+          # retrouverait réduit à sa seule ligne `VERSION=`, **sur un statut
+          # de sortie 0** que `set -euo pipefail` ne voit pas.
+          #
+          # Ce que ce fichier porte rend la panne définitive. `POSTGRES_PASSWORD`
+          # a initialisé le volume `postgres-data` et n'existe nulle part
+          # ailleurs — ni dans le dépôt, ni dans les secrets GitHub, qu'ADR-0018
+          # écarte explicitement, ni dans la sauvegarde de #71, qui couvre la
+          # base et les Photos mais pas le `.env`. En regénérer un ne rouvre
+          # pas la base : Postgres exige celui qui l'a initialisée. Le carnet
+          # passerait d'un déploiement raté à une base morte, et ADR-0001 rend
+          # chaque Bien irrécupérable.
+          touch .env
+          grep -v '^VERSION=' .env > .env.nouveau || [ $? -eq 1 ]
+          printf 'VERSION=%s\n' "$VERSION" >> .env.nouveau
+          mv .env.nouveau .env
+          chmod 600 .env
+
+          # La session vers le registre, ouverte avec le jeton de
+          # l'exécution et refermée quoi qu'il arrive (ADR-0017). Le `trap`
+          # est ce qui garantit la fermeture : un `pull` qui échoue laisserait
+          # sinon les identifiants dans `~/.docker/config.json`.
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+
+          printf '%s' "$jeton" | docker login ghcr.io -u "$ACTEUR" --password-stdin
+
+          docker compose -f docker-compose.prod.yml pull
+
+          # `--wait` attend que chaque service soit **sain** et non seulement
+          # démarré : c'est le healthcheck de l'image de l'API (#67) qui est
+          # interrogé, et les migrations que joue l'entrypoint tombent dans
+          # sa `start-period`. Sans lui, la commande rendrait la main pendant
+          # que la base migre encore, et la vérification qui suit
+          # interrogerait une API pas encore debout.
+          #
+          # `--wait-timeout` borne l'attente : sans borne, une pile qui ne
+          # devient jamais saine tiendrait le job jusqu'au plafond de
+          # GitHub.
+          docker compose -f docker-compose.prod.yml up -d --wait --wait-timeout 180
+
+          # **Aucun `docker image prune` ici, et son absence est délibérée.**
+          #
+          # Une version antérieure de ce script faisait le ménage des images
+          # devenues inutiles. C'était un piège : `prune` agit sur **tout le
+          # démon** et non sur cette pile, et il retire toute image que plus
+          # aucun conteneur ne référence — un conteneur supprimé, et non
+          # seulement arrêté, cesse d'en être un. Or d'autres piles vivent
+          # encore sur cette machine (#68, #72), et la bascule en a descendu
+          # une par `docker compose down`, qui supprime ses conteneurs. Leurs
+          # images seraient donc parties, en silence, depuis le déploiement
+          # d'un projet qui ne les connaît pas.
+          #
+          # Le disque du VPS mérite ce ménage, mais il appartient à qui
+          # connaît l'inventaire de la machine, et il se fait à froid — pas
+          # dans la fenêtre où un déploiement vient de changer la production.
+
+          docker compose -f docker-compose.prod.yml ps
+          SCRIPT
+          } | ssh -i ~/.ssh/id_deploiement "$UTILISATEUR@$HOTE" \
+                  "read -r jeton; export jeton; DOSSIER='$DOSSIER' VERSION='$VERSION' ACTEUR='$ACTEUR' bash -s"
+
+      # ── La vérification qui conclut, et qui est un test réel ─────────────
+      #
+      # **Elle interroge le carnet par son URL publique, depuis l'extérieur.**
+      # C'est le point : une interrogation locale sur le VPS déclarerait le
+      # succès alors que le site serait inatteignable. D'ici, la requête
+      # exerce toute la chaîne — résolution DNS, Caddy, certificat, nginx,
+      # API, base —, et chacun de ces maillons peut tomber sans que la pile
+      # Docker ait l'air malade.
+      #
+      # Le niveau anonyme de la route suffit : il rend l'état du service et
+      # celui de la base, ce qui est exactement ce qu'on vérifie ici, et il
+      # ne demande pas de session — le workflow n'a pas le mot de passe du
+      # carnet et n'a pas à l'avoir (#67).
+      - name: Le carnet répond-il depuis l'extérieur ?
+        env:
+          DOMAINE: ${{ secrets.VPS_DOMAINE }}
+        run: |
+          url="https://$DOMAINE/api/health"
+          echo "Interrogation de $url"
+
+          # Caddy peut encore être en train d'obtenir son certificat au
+          # premier démarrage, et la propagation d'un changement DNS n'est
+          # pas instantanée : on réessaie plutôt que de conclure au premier
+          # refus. Deux minutes au total, ce qui couvre l'obtention ACME
+          # sans laisser une panne franche traîner.
+          for tentative in $(seq 1 24); do
+            # Pas de `-k` : le certificat est **ce qu'on vérifie**, et
+            # l'ignorer retirerait à cette étape la moitié de son objet. Un
+            # certificat expiré doit être découvert ici, par le déploiement,
+            # et non par l'acheteur devant un avertissement du navigateur.
+            corps=$(curl -sS --max-time 10 "$url" 2>&1) && code=0 || code=$?
+
+            # Le corps est **analysé** et non filtré par `grep` : une
+            # recherche de `"status":"ok"` dépendrait de l'absence d'espace
+            # après le deux-points, qui est un détail de sérialisation et non
+            # un contrat. `jq` est présent d'office sur les exécuteurs
+            # GitHub.
+            if [ "$code" -eq 0 ] \
+              && [ "$(printf '%s' "$corps" | jq -r '.status' 2>/dev/null)" = "ok" ]; then
+              echo "Le carnet répond : $corps"
+              exit 0
+            fi
+
+            echo "Tentative $tentative/24 : pas encore. ($corps)"
+            sleep 5
+          done
+
+          echo "::error::Le carnet ne répond pas sur $url après deux minutes."
+          echo "Aucun retour en arrière n'est tenté : une migration déjà jouée ne se"
+          echo "défait pas, et redescendre une image sur un schéma migré casse plus"
+          echo "sûrement que de rester en panne (ADR-0018). À vous de décider."
+          exit 1
+
+      # La route rend la version **figée dans l'image** à la construction, et
+      # non celle que le `.env` a demandée (#67). Comparer les deux ferme
+      # donc la boucle pour de bon : elle prouve que l'image qui tourne est
+      # bien celle que ce workflow vient de construire, et non une ancienne
+      # que le `pull` aurait manquée ou qu'un cache aurait resservie.
+      #
+      # Le niveau anonyme ne rend pas la version — c'est voulu, elle n'a pas
+      # à être publique. La comparaison se fait donc sur le tag de l'image
+      # que Docker fait effectivement tourner, relevé sur le serveur.
+      - name: La version qui tourne est-elle celle qu'on a déployée ?
+        env:
+          HOTE: ${{ secrets.VPS_HOTE }}
+          UTILISATEUR: ${{ secrets.VPS_UTILISATEUR }}
+        run: |
+          # **Le service est nommé, et ce n'est pas un détail de confort** :
+          # sans lui, `images` rend aussi Postgres et Caddy, et l'ordre des
+          # lignes n'est pas garanti. Mesuré à la mise au point : le premier
+          # tag rendu pouvait être `17-alpine`, qui faisait échouer un
+          # déploiement parfaitement sain.
+          #
+          # La sortie est **analysée** par `jq`, pour la raison qui vaut déjà
+          # à l'étape précédente : un découpage sur les virgules dépendrait
+          # d'un détail de sérialisation, et se tromperait franchement sur un
+          # tag qui en contiendrait une. Compose rend selon les versions un
+          # tableau ou un objet par ligne ; `.[]?` traverse le premier,
+          # `select` rattrape le second.
+          tag=$(ssh -i ~/.ssh/id_deploiement "$UTILISATEUR@$HOTE" \
+            "cd '$DOSSIER' && docker compose -f docker-compose.prod.yml images api --format json" \
+            | jq -rs '[.. | objects | select(has("Tag")) | .Tag] | first // empty')
+
+          if [ -z "$tag" ]; then
+            echo "::error::Impossible de relever le tag de l'image de l'API."
+            exit 1
+          fi
+
+          if [ "$tag" != "$VERSION" ]; then
+            echo "::error::La pile tourne « $tag » alors que « $VERSION » a été déployée."
+            exit 1
+          fi
+
+          echo "La pile tourne bien la version $VERSION."
+
+      - name: Dire ce qui a été déployé
+        if: always()
+        env:
+          DOMAINE: ${{ secrets.VPS_DOMAINE }}
+        run: |
+          {
+            if [ "${{ job.status }}" = "success" ]; then
+              echo "### Version $VERSION déployée"
+              echo
+              echo "Le carnet répond sur https://$DOMAINE, par son certificat."
+            else
+              echo "### Le déploiement de $VERSION a échoué"
+              echo
+              echo "**Aucun retour en arrière n'a été tenté** (ADR-0018) : les migrations"
+              echo "ne se défont pas. La version précédente se remet à la main en"
+              echo "changeant \`VERSION\` dans le \`.env\` du serveur — voir"
+              echo "\`docs/deploiement.md\`."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # La clé privée est retirée de l'exécuteur, même si le job a échoué.
+      # Les exécuteurs de GitHub sont éphémères, donc c'est une ceinture par
+      # dessus des bretelles — mais une clé qui traîne dans un système de
+      # fichiers pendant qu'une étape ultérieure tourne est une surface qu'on
+      # peut simplement ne pas avoir.
+      - name: Effacer la clé
+        if: always()
+        run: rm -f ~/.ssh/id_deploiement

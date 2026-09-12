@@ -1,0 +1,169 @@
+name: Poser une version
+
+# Le premier des deux workflows de déploiement (#70). Il inscrit un numéro
+# dans le dépôt, pose le tag, puis appelle `deployer.yml`.
+#
+# **L'appel est explicite et non déclenché par le tag**, pour une raison que
+# le job `deployer` plus bas détaille : GitHub ne réveille aucun workflow sur
+# un événement produit par le jeton d'une exécution. Le tag reste néanmoins
+# ce qui *désigne* la version déployée, et `deployer.yml` conserve son
+# déclencheur par tag pour le cas où un tag est poussé à la main.
+#
+# **Pourquoi taguer depuis GitHub plutôt que depuis sa machine** : un tag posé
+# localement désigne ce que le clone contient, qui peut être en retard sur
+# `main` de plusieurs commits sans que rien ne le signale. Ici le tag naît sur
+# un `main` fraîchement récupéré, et le commit qu'il désigne est celui que ce
+# workflow vient de créer. Un dépôt local en retard devient structurellement
+# incapable de poser une version.
+#
+# L'acheteur le déclenche depuis l'onglet Actions, en saisissant le numéro.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Numéro de version, sans le « v » (ex. 0.1.0)'
+        required: true
+        type: string
+
+# Deux poses de version simultanées écriraient toutes deux sur `main` et la
+# seconde serait rejetée sur un `non-fast-forward` peu parlant. `false` et non
+# `cancel-in-progress: true` : on n'interrompt pas une pose en cours, qui a
+# peut-être déjà commité.
+concurrency:
+  group: poser-version
+  cancel-in-progress: false
+
+jobs:
+  poser:
+    name: Inscrire le numéro, commiter, taguer
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Le droit d'écrire sur `main` et d'y pousser un tag. C'est le seul
+      # droit de ce workflow : il ne touche ni au registre, ni au serveur.
+      contents: write
+
+    steps:
+      # `ref: main` explicitement, et non le défaut : `workflow_dispatch` peut
+      # être lancé depuis n'importe quelle branche par le menu de l'onglet
+      # Actions, et une version posée depuis une branche de travail est très
+      # exactement ce que ce workflow existe pour empêcher.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Vérifier la forme du numéro
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          # Semver sans le « v » : c'est la forme que portent les deux
+          # `package.json` et le tag des images. Le tag Git, lui, prend le
+          # « v » — la convention de Git, pas celle de npm.
+          #
+          # Le contrôle ici plutôt qu'à la relecture : un numéro fautif
+          # produirait sinon un `package.json` que npm refuse, découvert
+          # après le commit sur `main`.
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::« $VERSION » n'est pas un numéro semver (attendu : 0.1.0)."
+            exit 1
+          fi
+
+      - name: Refuser une version déjà posée
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          # Reposer un tag existant déploierait un commit différent sous un
+          # numéro déjà publié, et les images du registre porteraient alors
+          # un contenu qui n'est plus celui que ce numéro désignait. Le
+          # constater ici, avant d'écrire quoi que ce soit sur `main`.
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Le tag v$VERSION existe déjà. Choisissez le numéro suivant."
+            exit 1
+          fi
+
+      - name: Inscrire le numéro dans les deux paquets
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          # `npm version` et non une réécriture à la main : il met à jour le
+          # `package.json` **et** le `package-lock.json`, qui porte lui aussi
+          # le numéro. Les oublier désaccorderait les deux fichiers, et
+          # `npm ci` refuse un lock qui ne correspond pas à son paquet.
+          #
+          # `--no-git-tag-version` : c'est le tag de la racine du dépôt qu'on
+          # veut, un seul, et non deux tags posés par npm dans deux
+          # sous-dossiers.
+          npm version "$VERSION" --no-git-tag-version --workspaces=false \
+            --prefix apps/api
+          npm version "$VERSION" --no-git-tag-version --workspaces=false \
+            --prefix apps/web
+
+      - name: Commiter et taguer
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          # L'auteur du commit est le robot de GitHub Actions, et non
+          # l'acheteur : le commit est fait par la machine, et l'historique
+          # gagne à le dire.
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git add apps/api/package.json apps/api/package-lock.json \
+                  apps/web/package.json apps/web/package-lock.json
+          git commit -m "Version $VERSION"
+
+          # Un tag annoté et non léger : il porte un auteur et une date, que
+          # `git describe` et l'interface de GitHub savent rendre.
+          git tag -a "v$VERSION" -m "Version $VERSION"
+
+          # **Le commit et le tag partent d'un seul `push`, et l'atomicité
+          # est le point.** Poussés séparément, un tag qui arrive sans son
+          # commit — ou un commit rejeté après un tag déjà posé — laisserait
+          # le dépôt dans un état où `deployer.yml` se déclenche sur un
+          # `main` qui ne contient pas ce qu'il croit.
+          #
+          # `--atomic` fait échouer les deux si l'un est refusé, ce qui
+          # arrive quand `main` a bougé pendant l'exécution.
+          git push --atomic origin main "refs/tags/v$VERSION"
+
+      - name: Dire ce qui a été posé
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          {
+            echo "### Version v$VERSION posée"
+            echo
+            echo "Le commit est sur \`main\`, le tag \`v$VERSION\` le désigne."
+            echo
+            echo "Le déploiement enchaîne dans cette même exécution."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # **Le déploiement est appelé ici, et cet appel n'est pas une commodité :
+  # c'est ce qui fait que la chaîne fonctionne.** GitHub refuse de déclencher
+  # un workflow sur un événement produit par le `GITHUB_TOKEN` d'une
+  # exécution — une garde contre les boucles récursives. Le tag poussé au job
+  # précédent ne réveille donc *rien*, et `deployer.yml` resterait immobile
+  # si l'on comptait sur son déclencheur `push: tags`.
+  #
+  # Les deux voies possibles pour contourner cette garde — un jeton personnel
+  # ou une application GitHub — supposent toutes deux un secret durable qui
+  # expire, précisément ce qu'ADR-0017 écarte pour le registre et pour la
+  # même raison : la panne arrive des mois plus tard, sur un message dont la
+  # cause est distante de l'effet.
+  #
+  # L'appel direct n'a besoin d'aucun secret nouveau. `deployer.yml` garde
+  # par ailleurs son déclencheur par tag, qui sert au cas où un tag est
+  # poussé à la main — et sa vérification d'ascendance couvre ce cas.
+  deployer:
+    name: Déployer
+    needs: poser
+    uses: ./.github/workflows/deployer.yml
+    with:
+      version: ${{ inputs.version }}
+    # Les secrets ne descendent pas d'eux-mêmes vers un workflow appelé, et
+    # celui-ci a besoin de ceux du VPS.
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write

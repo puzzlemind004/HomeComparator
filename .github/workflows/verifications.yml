@@ -1,0 +1,293 @@
+name: Vérifications
+
+# Les trois vérifications du carnet — API, front, images —, dans un workflow
+# **appelable** et non déclenché par lui-même (#70).
+#
+# Pourquoi les extraire : la CI se déclenche sur `main` et sur les pull
+# requests, jamais sur un tag. Un déploiement déclenché par un tag ne
+# rejouerait donc rien, alors qu'ADR-0007 exige de ne déployer que si tout
+# passe. Deux appelants les invoquent désormais — `ci.yml` et `deployer.yml` —
+# et c'est le même code qui tourne des deux côtés : une vérification ajoutée
+# ici part en production sans qu'on ait à y penser, là où deux copies
+# divergeraient en silence.
+#
+# Ce workflow ne se déclenche sur rien : `workflow_call` est son seul
+# événement. Le voir seul dans l'onglet Actions, sans exécution propre, est
+# donc normal — il n'apparaît que sous ses appelants.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: >-
+          Le numéro figé dans l'image de l'API à la construction, que la route
+          de santé rend ensuite (#67). `dev` en CI, où l'on construit sans
+          déployer ; le numéro du tag au déploiement.
+        required: false
+        type: string
+        default: dev
+      publier:
+        description: >-
+          Pousser les images vers GHCR au lieu de seulement les construire.
+          Faux en CI : une image par pull request encombrerait le registre
+          sans que rien ne la tire jamais.
+        required: false
+        type: boolean
+        default: false
+      ref:
+        description: >-
+          Le commit à vérifier. **Indispensable au déploiement** : le contexte
+          `github` d'un workflow appelé est toujours celui de l'appelant, si
+          bien qu'un `checkout` nu prendrait ici le commit d'avant la montée
+          de version, et construirait les images sans les `package.json`
+          bumpés. Vide en CI, où le défaut désigne déjà le bon commit.
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  api:
+    name: API (lint, types, tests)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: homecomparator
+          POSTGRES_PASSWORD: homecomparator
+          POSTGRES_DB: homecomparator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U homecomparator -d homecomparator_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      TZ: UTC
+      HOST: localhost
+      PORT: 3333
+      LOG_LEVEL: silent
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: homecomparator
+      DB_PASSWORD: homecomparator
+      DB_DATABASE: homecomparator_test
+      CORS_ORIGIN: http://localhost:4200
+      # Mot de passe des tests : les tests de connexion s'y réfèrent par
+      # `env.get('APP_PASSWORD')` plutôt que de le recopier.
+      APP_PASSWORD: mot-de-passe-de-test
+      # Horodatage de la dernière sauvegarde pendant les tests : un fichier à
+      # part, écrit et effacé par les tests eux-mêmes (#67). Nommé ici comme
+      # dans `.env.test`, qui n'est pas versionné et donc absent de la CI.
+      HORODATAGE_SAUVEGARDE: ./tmp/derniere-sauvegarde-test
+
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+
+      - run: npm ci
+
+      # Clé générée par exécution : rien de sensible n'est versionné, et
+      # les tests n'ont besoin d'aucune clé stable.
+      - name: Générer APP_KEY
+        run: echo "APP_KEY=$(openssl rand -base64 24)" >> "$GITHUB_ENV"
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Compilation TypeScript
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+  web:
+    name: Front (lint, types, tests, build)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Compilation TypeScript
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test -- --watch=false
+
+      - name: Build
+        run: npm run build
+
+  docker:
+    name: Images Docker
+    runs-on: ubuntu-latest
+    # **Ce job construit sans jamais pousser, et la séparation d'avec le job
+    # `publier` plus bas est ce qui tient un critère de #70.**
+    #
+    # Aucun `needs` : la construction exerce une propriété distincte des
+    # lint/types/tests, et le signal est plus utile en parallèle qu'en aval.
+    # Une pull request voit les quatre résultats arriver ensemble.
+    #
+    # Pousser depuis ici aurait en revanche envoyé des images vers le
+    # registre pendant que les tests tournent encore, alors que #70 demande
+    # de rejouer tout « avant de publier quoi que ce soit ». Le critère porte
+    # sur la **publication** et non sur le seul déploiement : des images
+    # qu'aucun déploiement ne tirera ne sont pas inoffensives pour autant,
+    # le registre étant privé et durable.
+    #
+    # `needs` n'accepte aucune expression — aucun contexte n'y est
+    # disponible —, donc un `needs` conditionnel n'était pas une option : il
+    # a fallu deux jobs.
+
+    # Aucun droit sur le registre : ce job ne pousse pas.
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Docker est le seul mécanisme de déploiement (ADR-0003, ADR-0007) :
+      # sans cette étape, la CI valide un artefact qui n'est pas celui qu'on
+      # déploie (#19). Une cible de production renommée ou disparue d'un
+      # `Dockerfile` fait échouer le job.
+      #
+      # Les contextes et les cibles recopient ceux que `docker-compose.yml`
+      # déclare par service ; les deux restent maintenus séparément, et rien
+      # ici ne rattraperait un renommage fait du seul côté de Compose.
+      - name: Construire l'image de l'API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/api
+          target: production
+          push: false
+          # `VERSION` fige le numéro dans l'image (#67) : c'est lui que la
+          # route de santé rend, et une image construite sans lui dirait
+          # `dev` à qui l'interroge. Il est passé ici bien qu'on ne pousse
+          # pas, pour que ce job construise exactement ce que `publier`
+          # construira — et remplisse donc le cache qui le fera aller vite.
+          build-args: |
+            VERSION=${{ inputs.version }}
+          # Le cache GHA est cloisonné par clé : sans `scope`, les deux
+          # images se partageraient la même entrée et s'évinceraient l'une
+          # l'autre à chaque exécution.
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Construire l'image du front
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/web
+          target: production
+          push: false
+          # Pas de `VERSION` ici : seul le `Dockerfile` de l'API porte cet
+          # argument, la version n'étant rendue que par la route de santé.
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  # ── La publication, qui attend que tout soit vert ────────────────────────
+  #
+  # Ce job n'existe que pour le déploiement : `if: inputs.publier` le saute
+  # entièrement en CI, où une image par pull request encombrerait le registre
+  # sans que rien ne la tire jamais.
+  #
+  # **Son `needs` est ce qui tient le critère de #70** : rejouer lint, types,
+  # tests et construction « avant de publier quoi que ce soit ». Rien ne part
+  # vers le registre tant qu'`api`, `web` et `docker` ne sont pas tous verts.
+  #
+  # La reconstruction qu'il fait n'est pas un doublon coûteux : `docker` vient
+  # de remplir le cache GHA sur les mêmes contextes et les mêmes arguments,
+  # si bien que les couches sont réutilisées et que ce job ne fait guère plus
+  # que pousser.
+  publier:
+    name: Publier les images sur GHCR
+    needs: [api, web, docker]
+    if: inputs.publier
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      # Le droit de pousser vers GHCR, accordé au seul job qui pousse. Le
+      # jeton de l'exécution ouvre la session (ADR-0017) : aucun identifiant
+      # durable n'existe nulle part, ni ici ni sur le VPS.
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Le nom du compte doit être en minuscules : le registre refuse les
+      # majuscules dans un nom d'image, et `github.repository_owner` porte la
+      # casse du compte GitHub telle qu'elle a été choisie.
+      - name: Nommer les images
+        id: noms
+        run: |
+          compte=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "api=ghcr.io/$compte/homecomparator-api" >> "$GITHUB_OUTPUT"
+          echo "web=ghcr.io/$compte/homecomparator-web" >> "$GITHUB_OUTPUT"
+
+      - name: Ouvrir la session vers le registre
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publier l'image de l'API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/api
+          target: production
+          push: true
+          tags: ${{ steps.noms.outputs.api }}:${{ inputs.version }}
+          build-args: |
+            VERSION=${{ inputs.version }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Publier l'image du front
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/web
+          target: production
+          push: true
+          tags: ${{ steps.noms.outputs.web }}:${{ inputs.version }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
