@@ -8,6 +8,30 @@ ports du VPS.
 suit est donc à la fois la procédure d'aujourd'hui et l'inventaire de ce que ce
 workflow aura à porter.
 
+## Deux scripts déroulent cette procédure
+
+Le document reste la référence — il explique *pourquoi* chaque geste —, mais on
+n'a pas à le suivre à la main : deux wizards l'exécutent pas à pas, en
+vérifiant à chaque étape.
+
+```bash
+# 1. Sur la machine de développement, à la racine du dépôt :
+bash scripts/publier-images.sh
+
+# 2. Copier la pile et le second wizard sur le VPS :
+scp docker-compose.prod.yml Caddyfile scripts/basculer-vps.sh root@srv571823:/root/
+
+# 3. Puis, connecté au VPS :
+ssh root@srv571823
+bash /root/basculer-vps.sh
+```
+
+**Le second tourne sur le VPS, et c'est une contrainte et non un confort** : les
+trois secrets qu'il génère ne doivent jamais quitter le serveur, ce qu'un
+script piloté depuis une autre machine ne pourrait pas garantir. Il est
+interruptible — les valeurs déjà écrites sont reprises à la relance — et ne
+coupe rien avant d'avoir tout vérifié.
+
 ## Ce qui va où
 
 Trois endroits reçoivent des valeurs, et ils ne se valent pas. La distinction
