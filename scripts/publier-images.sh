@@ -236,12 +236,32 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 if ! docker info >/dev/null 2>&1; then
-  warn "« docker » existe mais le démon ne répond pas."
-  note "Docker Desktop est-il démarré ? La réponse exacte :"
-  docker info 2>&1 | tail -n 5 | sed 's/^/      /'
+  reponse=$(docker info 2>&1 || true)
+  # Le message de WSL 1 est le cas le plus fréquent ici, et il se reconnaît :
+  # Docker Desktop ne s'intègre qu'à WSL 2, si bien que `docker` peut exister
+  # dans le PATH — le binaire Windows étant visible depuis la distro — sans
+  # qu'aucun démon ne soit joignable. Le distinguer d'un Docker Desktop
+  # simplement éteint évite de chercher au mauvais endroit.
+  if printf '%s' "$reponse" | grep -qi 'wsl'; then
+    warn "Ce shell est une distro WSL, où Docker Desktop n'est pas joignable."
+    note ""
+    note "Le « docker --version » qui répond ailleurs n'y change rien : c'est"
+    note "le shell qui exécute CE script qui doit joindre le démon."
+    note ""
+    note "Ouvrez Git Bash ou PowerShell sous Windows — pas WSL — puis :"
+    note "  cd /c/Users/33604/Desktop/Dev/WebCoding/HomeComparator"
+    note "  bash scripts/publier-images.sh"
+    note ""
+    note "Pour vérifier que vous y êtes : « docker info » doit répondre sans"
+    note "mentionner WSL."
+  else
+    warn "« docker » existe mais le démon ne répond pas."
+    note "Docker Desktop est-il démarré ? La réponse exacte :"
+    printf '%s\n' "$reponse" | head -n 8 | sed 's/^/      /'
+  fi
   exit 1
 fi
-say "  [ok] $(docker --version)"
+say "  [ok] $(docker --version), démon joignable"
 if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
   warn "L'arbre de travail n'est pas propre."
   note "Les images porteront donc du code qui n'est pas celui d'un commit,"
