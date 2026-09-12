@@ -1,0 +1,224 @@
+# Pile de production du carnet (#69).
+#
+# Ce fichier ne remplace pas `docker-compose.yml`, il en est le pendant
+# déployé, et les deux vivent côte à côte sans se surcharger. Compose sait
+# empiler deux fichiers (`-f a -f b`), et ce n'est délibérément pas ce qui est
+# fait ici : une surcharge n'exprime que des différences, et il faudrait lire
+# les deux fichiers pour savoir ce qui tourne — en sachant qu'une clé absente
+# de la surcharge est héritée, ce qu'aucune ligne ne dit. La production se lit
+# donc ici, entière, au prix d'une redite que la divergence rend de toute
+# façon nécessaire : les services n'y construisent plus, ne publient plus les
+# mêmes ports, et il s'en ajoute un quatrième.
+#
+# Ce que la production change, en résumé :
+#   - `api` et `web` tirent des images du registre au lieu de les construire
+#     (ADR-0017) : le VPS a un cœur et pas de swap, y compiler un bundle
+#     Angular expose à l'arrêt du processus par l'OOM killer, sur la machine
+#     qui sert le carnet au même moment.
+#   - `caddy` s'ajoute et détient 80 et 443 ; il termine le TLS.
+#   - `web` ne publie plus aucun port : voir son service.
+#   - `postgres` et `api` ne publient plus rien non plus.
+#
+# Lancement, depuis le dossier qui porte ce fichier et le `.env` du serveur :
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Voir `docs/deploiement.md` pour ce qu'il faut avoir renseigné avant.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire (openssl rand -base64 24)}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Les scripts d'initialisation du dépôt ne sont **pas** montés ici,
+      # alors que le Compose de développement les monte. Ils ne créent qu'une
+      # base de test (`docker/postgres/init-test-db.sh`), qui n'a pas d'objet
+      # en production — et ce montage supposerait le dépôt présent sur le VPS,
+      # ce que le déploiement par images cherche précisément à éviter : seuls
+      # ce fichier, le `Caddyfile` et le `.env` y sont déposés.
+    # Aucun `ports:` : en développement la publication sur la boucle locale
+    # sert à lancer l'API hors conteneur et à jouer les tests fonctionnels
+    # (#18). Ni l'un ni l'autre n'a lieu ici, et la base est ce que le carnet
+    # a d'irremplaçable (ADR-0001, ADR-0007). Elle n'est jointe que par le
+    # réseau interne de Compose, où `api` la trouve sous son nom de service.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    # L'image publiée, et non une construction locale (ADR-0017). Le tag est
+    # lu depuis l'environnement : c'est ce qui permet au déploiement de
+    # désigner la version à tourner sans modifier ce fichier versionné, et de
+    # revenir en arrière en redéployant un numéro antérieur.
+    #
+    # Sans valeur par défaut, et c'est voulu : une pile relancée à la main
+    # sans `VERSION` ne doit pas silencieusement repartir sur un `latest` ou
+    # un `dev` dont personne ne sait ce qu'il contient. Elle refuse de
+    # démarrer, sur un message qui nomme la variable manquante.
+    image: ghcr.io/${GHCR_COMPTE:?GHCR_COMPTE est obligatoire (le compte GitHub qui porte les images)}/homecomparator-api:${VERSION:?VERSION est obligatoire (le tag des images a deployer, ex. 0.1.0)}
+    restart: unless-stopped
+    # Pas de `healthcheck:` ici non plus : il vit dans l'image (#25, #67), et
+    # c'est très exactement ce qui le rend utile sur un serveur qui n'a pas ce
+    # dépôt. Compose reprend celui de l'image, et `web` s'en sert plus bas.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TZ: UTC
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3333
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      APP_KEY: ${APP_KEY:?APP_KEY est obligatoire (openssl rand -base64 24)}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_DATABASE: ${POSTGRES_DB}
+      # Le front et l'API sont servis sous la même origine — le nom de
+      # domaine —, nginx relayant `/api` par le réseau interne. Il n'y a donc
+      # pas de requête inter-origines à autoriser, et cette valeur ne sert
+      # qu'à ce que la configuration soit close. Elle nomme l'origine
+      # publique plutôt que `http://localhost:4200`, qui n'a aucun sens ici.
+      #
+      # Le `:?` est répété ici alors que `caddy` porte déjà le même garde sur
+      # cette variable, et la répétition n'est pas une maladresse : Compose
+      # interpole service par service, et `api` vient avant `caddy`. Sans ce
+      # garde, un `.env` sans `DOMAINE` ne ferait ici qu'un avertissement et
+      # produirait un `CORS_ORIGIN: https://` — la pile échouerait bien, mais
+      # deux services plus loin et sur une autre variable.
+      CORS_ORIGIN: https://${DOMAINE:?DOMAINE est obligatoire (le nom de domaine du carnet)}
+      APP_PASSWORD: ${APP_PASSWORD:?APP_PASSWORD est obligatoire}
+      STOCKAGE_PHOTOS: /app/stockage/photos
+      HORODATAGE_SAUVEGARDE: /app/sauvegardes/derniere-sauvegarde
+      # `VERSION` n'apparaît **pas** dans cet environnement, et son absence
+      # est une décision : elle est figée dans l'image à la construction
+      # (`ARG VERSION` du `Dockerfile`), et une image à qui l'on pourrait
+      # souffler une autre version au démarrage ne dirait plus rien de sûr de
+      # ce qu'elle contient. Ce que la route de santé rend vient de l'image
+      # tirée (#67) ; au-dessus, la variable ne sert qu'à choisir le tag.
+    volumes:
+      - photos-data:/app/stockage/photos
+      # En lecture seule, et **personne n'écrit encore dans ce volume** : la
+      # sauvegarde quotidienne d'ADR-0007 est le ticket #71, et aucun service
+      # de cette pile ne la joue. La route de santé rendra donc une date de
+      # dernière sauvegarde absente en production, ce qui est exact (#67) et
+      # non une panne — mais il vaut mieux l'écrire que de le laisser
+      # découvrir. Le volume est déclaré dès maintenant pour que #71 n'ait
+      # qu'un service à ajouter, et non à retoucher le montage de l'API.
+      - sauvegardes-data:/app/sauvegardes:ro
+    # Aucun `ports:`. En développement la publication sur la boucle locale
+    # sert à jouer les tests contre l'API ; ici elle n'aurait aucun usage et
+    # rouvrirait le chemin direct que la limitation des tentatives de
+    # connexion suppose fermé (ADR-0011, #18) : une requête qui atteint l'API
+    # sans passer par nginx arrive avec le `X-Forwarded-For` que son auteur a
+    # écrit. Ne rien publier est la forme la plus sûre de cette fermeture —
+    # elle la retire même à qui a déjà un accès à l'hôte, ce que la liaison à
+    # la boucle locale du développement ne fait pas.
+
+  web:
+    image: ghcr.io/${GHCR_COMPTE}/homecomparator-web:${VERSION}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    # **Aucun port publié, et c'est le cœur du ticket.** En développement
+    # `web` se publie sur 4200 parce que c'est la seule façon de joindre le
+    # carnet. En production Caddy le joint par le réseau interne, et publier
+    # le 80 de nginx sur l'hôte ouvrirait une porte en clair contournant le
+    # TLS — un carnet protégé par un seul mot de passe (ADR-0011) n'a pas de
+    # raison d'offrir un chemin où ce mot de passe circule en clair, et ce
+    # chemin-là échapperait en outre à la redirection que Caddy pose.
+
+  caddy:
+    # Le terminateur TLS, et le seul service à toucher le réseau public.
+    #
+    # Caddy plutôt qu'un nginx d'hôte avec certbot : il obtient et renouvelle
+    # les certificats par ACME sans configuration ni tâche planifiée, ce qui
+    # retire du serveur un mécanisme à maintenir en parallèle du dépôt. Tout
+    # ce qui décrit la production vit dans le dépôt (#69).
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      # Notation courte, donc liaison sur toutes les interfaces : c'est le
+      # seul service dont c'est le rôle. Le 80 n'est pas là par confort — ACME
+      # s'en sert pour la validation du nom, et Caddy y pose la redirection
+      # permanente vers le 443.
+      - '80:80'
+      - '443:443'
+    environment:
+      # Le nom de domaine est lu ici plutôt qu'écrit dans le Caddyfile : un
+      # changement d'hôte, ou un second exemplaire, ne doit pas demander de
+      # modifier un fichier versionné.
+      DOMAINE: ${DOMAINE:?DOMAINE est obligatoire (le nom de domaine du carnet)}
+      # L'adresse à laquelle Let's Encrypt écrit avant l'expiration d'un
+      # certificat que le renouvellement automatique n'aurait pas repris.
+      COURRIEL_ACME: ${COURRIEL_ACME:?COURRIEL_ACME est obligatoire (adresse prevenue des expirations de certificat)}
+    networks:
+      default:
+        # **L'adresse fixe est ce qui rend vraie la ligne `set_real_ip_from`
+        # de `apps/web/nginx.conf`.** nginx doit nommer le seul maillon
+        # autorisé à parler de l'adresse d'autrui ; il lui faut donc une
+        # adresse stable à nommer, et Docker en attribue une différente à
+        # chaque recréation de conteneur.
+        #
+        # Les deux valeurs doivent rester d'accord, et c'est le couplage
+        # assumé de ce montage. Si elle change ici sans changer là-bas, nginx
+        # cesse de croire Caddy : `$remote_addr` redevient l'adresse du proxy
+        # et la limitation des tentatives de connexion (ADR-0011) compte tout
+        # le monde sur un seul compteur. La panne est silencieuse — le carnet
+        # répond normalement —, d'où ce commentaire des deux côtés.
+        ipv4_address: 172.30.0.2
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Les certificats obtenus, et la clé du compte ACME. **Ce volume est ce
+      # qui évite de redemander un certificat à chaque redémarrage** : Let's
+      # Encrypt plafonne les échecs à cinq par nom et par heure, et une pile
+      # qui repartirait de zéro à chaque `up` finirait par se heurter à la
+      # limite au plus mauvais moment.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      # Forme courte, et non `service_healthy` : l'image nginx du front ne
+      # porte pas de healthcheck, et la condition ne serait jamais remplie.
+      # L'attente n'est de toute façon pas critique ici — Caddy rend une 502
+      # le temps que l'amont réponde, là où l'ordre importait entre nginx et
+      # l'API à cause des migrations (#25).
+      - web
+
+networks:
+  # Le sous-réseau est déclaré plutôt que laissé à Docker, pour la seule
+  # raison qui précède : l'adresse fixe de Caddy doit tomber dedans, et une
+  # plage choisie par Docker au gré des réseaux déjà présents sur la machine
+  # ne le garantirait pas.
+  #
+  # `172.30.0.0/24` est pris dans l'espace privé que Docker utilise déjà, en
+  # s'écartant du bas de la plage où ses réseaux par défaut se rangent. Rien
+  # n'y est sacré : la seule contrainte est que `172.30.0.2` soit dans le
+  # sous-réseau et hors de la passerelle, qui prend `.1`.
+  #
+  # `ip_range` est ce qui rend l'adresse fixe **tenable**, et son absence a
+  # été mesurée : fixer une adresse ne la réserve pas, et Docker distribue sa
+  # plage dynamique depuis le bas du sous-réseau. `postgres`, démarrant le
+  # premier, prenait `172.30.0.2` et Caddy échouait ensuite sur un
+  # « Address already in use » — panne franche, au moins, et non silencieuse.
+  # Les adresses distribuées d'office sont donc cantonnées à la moitié haute
+  # du sous-réseau, laissant tout le bas aux attributions explicites.
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          ip_range: 172.30.0.128/25
+
+volumes:
+  postgres-data:
+  photos-data:
+  sauvegardes-data:
+  caddy-data:
+  caddy-config:
