@@ -267,7 +267,9 @@ if [[ -z "$DOMAINE" ]]; then
 fi
 say ""
 ip_publique=$(curl -fsS --max-time 10 https://api.ipify.org 2>/dev/null || echo "")
-ip_domaine=$(getent hosts "$DOMAINE" 2>/dev/null | awk '{print $1}' | head -n1)
+# `|| true` : sans lui, un nom qui ne résout pas ferait sortir le script sous
+# `set -e` — soit précisément le cas que cette étape existe pour signaler.
+ip_domaine=$(getent hosts "$DOMAINE" 2>/dev/null | awk '{print $1}' | head -n1 || true)
 note "Cette machine : ${ip_publique:-inconnue}"
 note "$DOMAINE : ${ip_domaine:-NE RÉSOUT PAS}"
 say ""
@@ -412,6 +414,27 @@ say "Tout est prêt. La bascule proprement dite n'a plus rien à découvrir."
 pause "Continuer ?"
 
 # -- 6 ---------------------------------------------------------------------
+# À partir d'ici, une sortie prématurée laisse la machine sans rien qui serve :
+# les ports sont libérés et la pile n'est pas encore démarrée. Le piège s'est
+# produit — une substitution de commande se terminant sur un test faux suffit
+# à faire sortir un script en `set -e` —, et le silence est alors le pire
+# retour possible. Ce piège dit donc quoi faire pour reprendre la main.
+_reprise() {
+  local st=$?
+  [[ $st -eq 0 ]] && return 0
+  printf '\n'
+  warn "Le script s'est interrompu APRÈS la libération des ports."
+  note "La machine ne sert plus rien tant que la pile n'a pas démarré."
+  note ""
+  note "Reprenez la main avec :"
+  note "  cd $PILE_DIR"
+  note "  docker compose -f docker-compose.prod.yml up -d"
+  note "  docker compose -f docker-compose.prod.yml logs -f caddy"
+  note ""
+  note "Le .env et les images sont déjà en place : rien n'est à ressaisir."
+}
+trap _reprise EXIT
+
 stage "Libérer les ports 80 et 443"
 warn "C'EST L'ÉTAPE IRRÉVERSIBLE. À partir d'ici, le VPS ne sert plus rien"
 warn "jusqu'à ce que la pile démarre et obtienne son certificat."
@@ -460,7 +483,12 @@ else
 fi
 say ""
 step "Aucun second mécanisme de certificats ne doit subsister :"
-doubles=$( { systemctl list-timers --all 2>/dev/null | grep -iE 'certbot|acme' || true; for c in /etc/cron.d/*certbot* /etc/cron.d/*letsencrypt*; do [[ -e "$c" ]] && printf '%s\n' "$c"; done; } )
+# Le `|| true` final n'est pas décoratif : sous `set -e`, une substitution de
+# commande dont la dernière évaluation est fausse fait sortir le script. La
+# boucle ci-dessous se termine sur un test faux dès qu'aucun fichier ne
+# correspond — c'est-à-dire dans le cas NORMAL, machine saine —, et le script
+# mourait alors juste après avoir coupé les ports, au pire moment possible.
+doubles=$( { systemctl list-timers --all 2>/dev/null | grep -iE 'certbot|acme' || true; for c in /etc/cron.d/*certbot* /etc/cron.d/*letsencrypt*; do [[ -e "$c" ]] && printf '%s\n' "$c"; done; true; } || true )
 if [[ -n "$doubles" ]]; then
   warn "Restes possibles, à examiner après la bascule :"
   printf '%s\n' "$doubles" | sed 's/^/      /'
@@ -477,6 +505,8 @@ if ! docker compose -f docker-compose.prod.yml up -d; then
   note "Journaux : docker compose -f docker-compose.prod.yml logs"
   exit 1
 fi
+# La pile tourne : la fenêtre dangereuse est refermée, le filet se retire.
+trap - EXIT
 say ""
 say "Pile démarrée. Caddy demande maintenant son certificat à Let's Encrypt."
 note "Cela prend de quelques secondes à une minute."
