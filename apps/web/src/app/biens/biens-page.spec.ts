@@ -3,6 +3,7 @@ import { Injector, runInInjectionContext } from '@angular/core';
 import { of, Subject, type Observable } from 'rxjs';
 import { BiensPage } from './biens-page';
 import { BienService } from './bien.service';
+import { ExportService, type ExportResultat, type FormatExport } from './export.service';
 import type { Bien, CreationBien } from './bien';
 import type { CreationBienResultat, ListeBiens } from './bien.service';
 import { unBien } from './bien.test-helper';
@@ -12,15 +13,22 @@ import type { Statut } from '../criteres/statut';
  * Le composant est construit sans TestBed : seul son service est injecté,
  * et les assertions portent sur ses signaux plutôt que sur le DOM rendu.
  */
-function creerPage(service: {
-  lister?: (statut?: Statut) => Observable<ListeBiens>;
-  creer?: (saisie: CreationBien) => Observable<CreationBienResultat>;
-}) {
+function creerPage(
+  service: {
+    lister?: (statut?: Statut) => Observable<ListeBiens>;
+    creer?: (saisie: CreationBien) => Observable<CreationBienResultat>;
+  },
+  exportService: { exporter?: (format: FormatExport) => Observable<ExportResultat> } = {},
+) {
   const injector = Injector.create({
     providers: [
       {
         provide: BienService,
         useValue: { lister: () => of(chargee([])), ...service },
+      },
+      {
+        provide: ExportService,
+        useValue: { exporter: () => of<ExportResultat>({ exporte: true }), ...exportService },
       },
     ],
   });
@@ -340,6 +348,119 @@ describe('BiensPage', () => {
       page.creer();
 
       expect(biensAffiches(page.liste())).toEqual([cree]);
+    });
+  });
+
+  /**
+   * L'export du carnet, déclenché depuis cet écran (#14).
+   *
+   * Tout est saisi à la main (ADR-0001) : l'export sert à sortir ses données
+   * vers un tableur, et à ne pas se sentir prisonnier de l'outil (ADR-0007).
+   * L'écran n'en fabrique rien — c'est l'API qui rend le fichier — mais il
+   * doit dire ce qui se passe, et surtout quand cela échoue.
+   */
+  describe('export', () => {
+    it('demande le format choisi', () => {
+      const formats: FormatExport[] = [];
+      const page = creerPage(
+        {},
+        {
+          exporter: (format) => {
+            formats.push(format);
+            return of<ExportResultat>({ exporte: true });
+          },
+        },
+      );
+
+      page.exporter('csv');
+      page.exporter('json');
+
+      expect(formats).toEqual(['csv', 'json']);
+    });
+
+    /**
+     * Un export réussi ne laisse rien à l'écran : le fichier est chez
+     * l'acheteur, et son navigateur le lui a déjà annoncé. Un message de
+     * plus ferait du bruit pour une chose déjà dite.
+     */
+    it('ne dit rien d’un export réussi', () => {
+      const page = creerPage({}, { exporter: () => of<ExportResultat>({ exporte: true }) });
+
+      page.exporter('json');
+
+      expect(page.erreurExport()).toBeNull();
+      expect(page.export()).toBeNull();
+    });
+
+    /**
+     * Un échec, lui, se dit. Sans message, l'acheteur croirait tenir une
+     * copie de son carnet alors que rien n'a été produit — et ne s'en
+     * apercevrait que le jour où il en aurait besoin.
+     */
+    it('annonce un export qui n’a pas abouti', () => {
+      const page = creerPage(
+        {},
+        {
+          exporter: () => of<ExportResultat>({ exporte: false, erreur: "L'API est injoignable." }),
+        },
+      );
+
+      page.exporter('csv');
+
+      expect(page.erreurExport()).toBe("L'API est injoignable.");
+    });
+
+    /**
+     * Le format en cours pendant la demande : c'est ce qui désactive les
+     * boutons et dit lequel des deux travaille. Un carnet bien rempli met
+     * un instant à sortir, et deux clics impatients lanceraient deux
+     * téléchargements.
+     */
+    it('retient le format en cours pendant la demande', () => {
+      const reponses = new Subject<ExportResultat>();
+      const page = creerPage({}, { exporter: () => reponses });
+
+      page.exporter('csv');
+      expect(page.export()).toBe('csv');
+
+      reponses.next({ exporte: true });
+      expect(page.export()).toBeNull();
+    });
+
+    it('ignore un second clic tant que le premier n’a pas rendu', () => {
+      let appels = 0;
+      const reponses = new Subject<ExportResultat>();
+      const page = creerPage(
+        {},
+        {
+          exporter: () => {
+            appels += 1;
+            return reponses;
+          },
+        },
+      );
+
+      page.exporter('csv');
+      page.exporter('json');
+
+      expect(appels).toBe(1);
+    });
+
+    /**
+     * Une erreur d'export précédente disparaît quand on réessaie : la
+     * laisser afficher pendant la nouvelle tentative ferait lire l'échec
+     * d'hier comme celui d'aujourd'hui.
+     */
+    it('efface l’erreur précédente à la nouvelle tentative', () => {
+      const reponses = new Subject<ExportResultat>();
+      const page = creerPage({}, { exporter: () => reponses });
+
+      page.exporter('csv');
+      reponses.next({ exporte: false, erreur: 'Raté.' });
+      expect(page.erreurExport()).toBe('Raté.');
+
+      page.exporter('csv');
+      expect(page.erreurExport()).toBeNull();
     });
   });
 });

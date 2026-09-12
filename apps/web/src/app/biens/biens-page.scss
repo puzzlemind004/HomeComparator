@@ -177,3 +177,56 @@
   margin: 0;
   padding: 0.75rem 1rem;
 }
+
+// L'export du carnet (#14). Discret : c'est un geste rare — quelques fois
+// dans une recherche —, et il ne doit pas concurrencer du regard le filtre
+// ni la liste, qui sont ce pour quoi on ouvre l'écran.
+.export {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.export__titre {
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.export__bouton {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  color: #334155;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 0.35rem 0.85rem;
+
+  &:hover:not(:disabled) {
+    border-color: #94a3b8;
+  }
+
+  // Le parcours au clavier doit se voir, comme pour les filtres (ADR-0005).
+  &:focus-visible {
+    outline: 2px solid #1d4ed8;
+    outline-offset: 2px;
+  }
+
+  // Pendant l'export, les deux boutons sont hors d'atteinte : deux demandes
+  // impatientes produiraient deux téléchargements du même carnet.
+  &:disabled {
+    color: #94a3b8;
+    cursor: not-allowed;
+  }
+}
+
+.export__erreur {
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  border-radius: 0.5rem;
+  color: #991b1b;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+}

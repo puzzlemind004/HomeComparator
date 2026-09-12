@@ -11,6 +11,9 @@
  */
 const BIENS = '/api/biens';
 
+/** L'export du carnet, en JSON ou en CSV (#14). */
+const EXPORT = '/api/export';
+
 /** La liste des Biens, et la racine sous laquelle chacun se trouve. */
 export function urlBiens(): string {
   return BIENS;
@@ -35,4 +38,14 @@ export function urlPhotos(bienId: number): string {
  */
 export function urlPhoto(bienId: number, photoId: number): string {
   return `${urlPhotos(bienId)}/${photoId}`;
+}
+
+/**
+ * L'export du carnet, dans le format demandé (#14).
+ *
+ * Le format est un paramètre et non une seconde adresse : c'est un bouton à
+ * deux choix côté écran, et la ressource est la même — le carnet entier.
+ */
+export function urlExport(format: 'json' | 'csv'): string {
+  return `${EXPORT}?format=${format}`;
 }

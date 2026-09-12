@@ -47,6 +47,42 @@
   <h2>Mes Biens</h2>
 
   <!--
+    L'export du carnet (#14). Tout est saisi à la main (ADR-0001), et ces
+    deux boutons sont ce qui permet d'en sortir une copie : vers un tableur,
+    ou vers un fichier qu'on garde. Le dispositif quotidien tourne par
+    ailleurs, sur le serveur (ADR-0007).
+  -->
+  <div class="export">
+    <span class="export__titre">Exporter mon carnet</span>
+
+    <button
+      type="button"
+      class="export__bouton"
+      [disabled]="export() !== null"
+      (click)="exporter('csv')"
+    >
+      {{ export() === 'csv' ? 'Export en cours…' : 'CSV (tableur)' }}
+    </button>
+
+    <button
+      type="button"
+      class="export__bouton"
+      [disabled]="export() !== null"
+      (click)="exporter('json')"
+    >
+      {{ export() === 'json' ? 'Export en cours…' : 'JSON (complet)' }}
+    </button>
+  </div>
+
+  <!--
+    Un export qui n'a pas abouti se dit : sans ce message, l'acheteur
+    croirait tenir une copie de son carnet alors que rien n'est sorti.
+  -->
+  @if (erreurExport(); as erreur) {
+    <p class="export__erreur" role="alert">{{ erreur }}</p>
+  }
+
+  <!--
     Le filtre par Statut. « Tous » d'abord et sélectionné par défaut :
     ouvrir le carnet montre tout, sorties comprises, et un filtre par défaut
     cacherait des Biens sans le dire (#7).
