@@ -398,7 +398,15 @@ depuis le serveur :
 
 ```bash
 cd /opt/homecomparator
-sed -i 's/^VERSION=.*/VERSION=0.1.0/' .env
+
+# La ligne est retirée puis réécrite, et non modifiée par `sed -i` : un
+# `sed` de substitution ne fait *rien* si le `.env` ne porte pas encore de
+# ligne `VERSION=`, et la pile repartirait alors sur l'ancien numéro sans
+# que rien ne le signale. C'est ce que fait le workflow, à l'identique.
+grep -v '^VERSION=' .env > .env.nouveau || true
+echo "VERSION=0.1.0" >> .env.nouveau
+mv .env.nouveau .env
+
 echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$COMPTE" --password-stdin
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d --wait

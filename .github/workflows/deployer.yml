@@ -60,10 +60,24 @@ jobs:
       version: ${{ steps.version.outputs.numero }}
 
     steps:
+      # **Le tag est nommé explicitement, et c'est indispensable sur la voie
+      # `workflow_call`.** Le contexte `github` d'un workflow appelé est
+      # toujours celui de l'**appelant** : `github.sha` y désigne le commit
+      # sur lequel la saisie du numéro a été lancée, c'est-à-dire celui
+      # d'**avant** la montée de version. Un `checkout` nu construirait donc
+      # les images sans les `package.json` fraîchement bumpés, et la
+      # vérification d'ascendance porterait sur le mauvais commit.
+      #
+      # Sur la voie `push: tags`, `github.ref` vaut déjà ce tag et cette
+      # ligne ne change rien — elle rend les deux voies identiques.
+      #
       # `fetch-depth: 0` : l'ascendance ne se juge pas sur un clone
       # superficiel, qui n'a pas l'historique où chercher le commit.
       - uses: actions/checkout@v4
         with:
+          # Sur `workflow_call`, `inputs.version` porte le numéro nu ; sur
+          # `push: tags`, il est vide et `github.ref_name` vaut déjà « v… ».
+          ref: ${{ inputs.version && format('refs/tags/v{0}', inputs.version) || github.ref }}
           fetch-depth: 0
 
       # Le numéro vient de deux endroits selon le déclencheur, et le reste du
@@ -129,6 +143,10 @@ jobs:
     with:
       version: ${{ needs.verifier-la-provenance.outputs.version }}
       publier: true
+      # Le tag, et non le défaut : sans lui, les jobs appelés prendraient le
+      # commit de l'appelant — celui d'avant la montée de version — et les
+      # images seraient construites sans les `package.json` bumpés.
+      ref: refs/tags/v${{ needs.verifier-la-provenance.outputs.version }}
     permissions:
       contents: read
       packages: write
@@ -155,7 +173,13 @@ jobs:
       DOSSIER: /opt/homecomparator
 
     steps:
+      # Le tag, pour la même raison qu'au job de provenance : c'est le
+      # `docker-compose.prod.yml` et le `Caddyfile` **de la version
+      # déployée** qui doivent partir sur le serveur, et non ceux du commit
+      # depuis lequel la saisie a été lancée.
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/v${{ needs.verifier-la-provenance.outputs.version }}
 
       # La clé privée de déploiement, et l'empreinte du serveur. Les deux
       # vivent dans les secrets du dépôt ; `docs/deploiement.md` dit comment
@@ -348,9 +372,16 @@ jobs:
           # lignes n'est pas garanti. Mesuré à la mise au point : le premier
           # tag rendu pouvait être `17-alpine`, qui faisait échouer un
           # déploiement parfaitement sain.
+          #
+          # La sortie est **analysée** par `jq`, pour la raison qui vaut déjà
+          # à l'étape précédente : un découpage sur les virgules dépendrait
+          # d'un détail de sérialisation, et se tromperait franchement sur un
+          # tag qui en contiendrait une. Compose rend selon les versions un
+          # tableau ou un objet par ligne ; `.[]?` traverse le premier,
+          # `select` rattrape le second.
           tag=$(ssh -i ~/.ssh/id_deploiement "$UTILISATEUR@$HOTE" \
             "cd '$DOSSIER' && docker compose -f docker-compose.prod.yml images api --format json" \
-            | tr ',' '\n' | grep -o '"Tag":"[^"]*"' | head -n1 | cut -d'"' -f4)
+            | jq -rs '[.. | objects | select(has("Tag")) | .Tag] | first // empty')
 
           if [ -z "$tag" ]; then
             echo "::error::Impossible de relever le tag de l'image de l'API."

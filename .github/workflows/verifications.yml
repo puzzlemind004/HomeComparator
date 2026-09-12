@@ -34,6 +34,16 @@ on:
         required: false
         type: boolean
         default: false
+      ref:
+        description: >-
+          Le commit à vérifier. **Indispensable au déploiement** : le contexte
+          `github` d'un workflow appelé est toujours celui de l'appelant, si
+          bien qu'un `checkout` nu prendrait ici le commit d'avant la montée
+          de version, et construirait les images sans les `package.json`
+          bumpés. Vide en CI, où le défaut désigne déjà le bon commit.
+        required: false
+        type: string
+        default: ''
 
 jobs:
   api:
@@ -81,6 +91,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -114,6 +126,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -138,47 +152,34 @@ jobs:
   docker:
     name: Images Docker
     runs-on: ubuntu-latest
-    # Aucun `needs` : la construction des images exerce une propriété
-    # distincte des lint/types/tests, et le signal est plus utile en
-    # parallèle qu'en aval.
+    # **Ce job construit sans jamais pousser, et la séparation d'avec le job
+    # `publier` plus bas est ce qui tient un critère de #70.**
     #
-    # **Quand ce job pousse, ce parallélisme devient une décision et non plus
-    # une commodité** : des images partent vers le registre sans attendre que
-    # les tests soient verts. Elles n'en sont pas déployées pour autant — le
-    # job qui les tire dépend de `verifications` tout entier, donc d'`api` et
-    # de `web` aussi. Le pire cas est une image publiée que rien ne tirera,
-    # qui coûte de l'espace sur le registre et rien d'autre ; l'attente, elle,
-    # aurait coûté plusieurs minutes à chaque déploiement.
+    # Aucun `needs` : la construction exerce une propriété distincte des
+    # lint/types/tests, et le signal est plus utile en parallèle qu'en aval.
+    # Une pull request voit les quatre résultats arriver ensemble.
+    #
+    # Pousser depuis ici aurait en revanche envoyé des images vers le
+    # registre pendant que les tests tournent encore, alors que #70 demande
+    # de rejouer tout « avant de publier quoi que ce soit ». Le critère porte
+    # sur la **publication** et non sur le seul déploiement : des images
+    # qu'aucun déploiement ne tirera ne sont pas inoffensives pour autant,
+    # le registre étant privé et durable.
+    #
+    # `needs` n'accepte aucune expression — aucun contexte n'y est
+    # disponible —, donc un `needs` conditionnel n'était pas une option : il
+    # a fallu deux jobs.
 
+    # Aucun droit sur le registre : ce job ne pousse pas.
     permissions:
       contents: read
-      # Le droit de pousser vers GHCR. Le jeton de l'exécution est ce qui
-      # ouvre la session vers le registre (ADR-0017) : aucun identifiant
-      # durable n'existe nulle part, ni ici ni sur le VPS.
-      packages: write
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - uses: docker/setup-buildx-action@v3
-
-      # Le nom du compte doit être en minuscules : le registre refuse les
-      # majuscules dans un nom d'image, et `github.repository_owner` porte la
-      # casse du compte GitHub telle qu'elle a été choisie.
-      - name: Nommer les images
-        id: noms
-        run: |
-          compte=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          echo "api=ghcr.io/$compte/homecomparator-api" >> "$GITHUB_OUTPUT"
-          echo "web=ghcr.io/$compte/homecomparator-web" >> "$GITHUB_OUTPUT"
-
-      - name: Ouvrir la session vers le registre
-        if: inputs.publier
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       # Docker est le seul mécanisme de déploiement (ADR-0003, ADR-0007) :
       # sans cette étape, la CI valide un artefact qui n'est pas celui qu'on
@@ -193,12 +194,12 @@ jobs:
         with:
           context: ./apps/api
           target: production
-          push: ${{ inputs.publier }}
-          tags: ${{ steps.noms.outputs.api }}:${{ inputs.version }}
+          push: false
           # `VERSION` fige le numéro dans l'image (#67) : c'est lui que la
           # route de santé rend, et une image construite sans lui dirait
-          # `dev` à qui l'interroge. `dev` est très exactement ce que la CI
-          # veut annoncer ; le déploiement, lui, passe le numéro du tag.
+          # `dev` à qui l'interroge. Il est passé ici bien qu'on ne pousse
+          # pas, pour que ce job construise exactement ce que `publier`
+          # construira — et remplisse donc le cache qui le fera aller vite.
           build-args: |
             VERSION=${{ inputs.version }}
           # Le cache GHA est cloisonné par clé : sans `scope`, les deux
@@ -212,9 +213,81 @@ jobs:
         with:
           context: ./apps/web
           target: production
-          push: ${{ inputs.publier }}
-          tags: ${{ steps.noms.outputs.web }}:${{ inputs.version }}
+          push: false
           # Pas de `VERSION` ici : seul le `Dockerfile` de l'API porte cet
           # argument, la version n'étant rendue que par la route de santé.
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  # ── La publication, qui attend que tout soit vert ────────────────────────
+  #
+  # Ce job n'existe que pour le déploiement : `if: inputs.publier` le saute
+  # entièrement en CI, où une image par pull request encombrerait le registre
+  # sans que rien ne la tire jamais.
+  #
+  # **Son `needs` est ce qui tient le critère de #70** : rejouer lint, types,
+  # tests et construction « avant de publier quoi que ce soit ». Rien ne part
+  # vers le registre tant qu'`api`, `web` et `docker` ne sont pas tous verts.
+  #
+  # La reconstruction qu'il fait n'est pas un doublon coûteux : `docker` vient
+  # de remplir le cache GHA sur les mêmes contextes et les mêmes arguments,
+  # si bien que les couches sont réutilisées et que ce job ne fait guère plus
+  # que pousser.
+  publier:
+    name: Publier les images sur GHCR
+    needs: [api, web, docker]
+    if: inputs.publier
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      # Le droit de pousser vers GHCR, accordé au seul job qui pousse. Le
+      # jeton de l'exécution ouvre la session (ADR-0017) : aucun identifiant
+      # durable n'existe nulle part, ni ici ni sur le VPS.
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Le nom du compte doit être en minuscules : le registre refuse les
+      # majuscules dans un nom d'image, et `github.repository_owner` porte la
+      # casse du compte GitHub telle qu'elle a été choisie.
+      - name: Nommer les images
+        id: noms
+        run: |
+          compte=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "api=ghcr.io/$compte/homecomparator-api" >> "$GITHUB_OUTPUT"
+          echo "web=ghcr.io/$compte/homecomparator-web" >> "$GITHUB_OUTPUT"
+
+      - name: Ouvrir la session vers le registre
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publier l'image de l'API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/api
+          target: production
+          push: true
+          tags: ${{ steps.noms.outputs.api }}:${{ inputs.version }}
+          build-args: |
+            VERSION=${{ inputs.version }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Publier l'image du front
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/web
+          target: production
+          push: true
+          tags: ${{ steps.noms.outputs.web }}:${{ inputs.version }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
