@@ -154,6 +154,18 @@ describe('ComparaisonBiens', () => {
     expect(normaliser(ligne?.cases[0].texte ?? '')).toBe('72,5 m²');
   });
 
+  it('met en évidence deux prix au mètre carré égaux que le flottant sépare', () => {
+    // 250 000 / 20,2 et 750 000 / 60,6 valent le même prix au m², que la
+    // division sépare au dernier bit : comparées sur la valeur, une seule
+    // des deux colonnes serait mise en évidence (#12).
+    const comparaison = creerComparaison([
+      unBien({ id: 1, criteres: { prixDemande: 250000, surfaceHabitable: 20.2 } }),
+      unBien({ id: 2, criteres: { prixDemande: 750000, surfaceHabitable: 60.6 } }),
+    ]);
+
+    expect(misEnEvidence(comparaison, ID_COLONNE_PRIX_METRE_CARRE)).toEqual([true, true]);
+  });
+
   it('reste affichable sans aucun Bien sélectionné', () => {
     // L'écran montre ses lignes vides plutôt que de disparaître : la page
     // décide seule s'il y a lieu de le monter.

@@ -158,4 +158,41 @@ describe('CartesBiens', () => {
   it('ne rend aucune carte sans Bien', () => {
     expect(creerCartes([]).cartes()).toEqual([]);
   });
+
+  describe('la sélection pour la comparaison', () => {
+    /** Deux Biens d'identifiants distincts : la sélection porte sur l'`id`. */
+    const deux = [
+      unBien({ id: 1, libelle: 'anatole' }),
+      unBien({ id: 2, libelle: 'bérénice' }),
+    ];
+
+    it('laisse les cases actives avant que le parent ait posé le plafond', () => {
+      // Les cartes se rendent une première fois avant que la liaison ne les
+      // alimente : un plafond à zéro désactiverait tout le temps d'une frame
+      // (#12).
+      const cartes = creerCartes(deux);
+
+      expect(cartes.cartes().every((carte) => !carte.selectionBloquee)).toBe(true);
+    });
+
+    it('marque les Biens retenus', () => {
+      const cartes = creerCartes(deux);
+
+      cartes.selection.set([1]);
+
+      expect(cartes.cartes().map((carte) => carte.selectionne)).toEqual([true, false]);
+    });
+
+    it('bloque les cases des Biens non retenus quand le plafond est atteint', () => {
+      // Sur un téléphone le plafond est de deux (ADR-0006), et il s'atteint
+      // donc vite : la case reste visible pour dire pourquoi elle ne répond
+      // pas.
+      const cartes = creerCartes(deux);
+
+      cartes.maximum.set(1);
+      cartes.selection.set([1]);
+
+      expect(cartes.cartes().map((carte) => carte.selectionBloquee)).toEqual([false, true]);
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { rang, type ValeurCritere } from './comparaison';
+import { meilleureSurEchelle, rang, type ValeurCritere } from './comparaison';
 import { COLONNES, caseDe, type CaseColonne, type Colonne } from './colonnes';
 import type { ValeursCriteres } from './valeurs';
 
@@ -31,6 +31,11 @@ import type { ValeursCriteres } from './valeurs';
  * le prix au mètre carré doit pourtant se mettre en évidence comme les
  * autres — le critère d'acceptation le demande nommément (#12).
  *
+ * Les deux partagent l'algorithme (`meilleureSurEchelle`) et ne diffèrent
+ * que par l'échelle qu'elles lui donnent : écrit deux fois, il aurait fini
+ * par diverger, et l'un des deux écrans aurait désigné un meilleur que
+ * l'autre ignore.
+ *
  * La Colonne déclare son `sensComparaison`, calculée ou non (ADR-0013) :
  * c'est ce qui suffit à la comparer, et l'écran n'a donc jamais à se
  * demander laquelle des deux sortes il tient. Le rang, lui, a besoin du
@@ -46,33 +51,9 @@ export function meilleureValeurColonne(
   colonne: Colonne,
   valeurs: readonly ValeurCritere[],
 ): ValeurCritere {
-  if (colonne.sensComparaison === 'aucun') {
-    return null;
-  }
-
-  const plusPetitEstMeilleur = colonne.sensComparaison === 'plusPetitEstMeilleur';
-
-  const classables = valeurs
-    .map((valeur) => ({ valeur, rang: rangSurColonne(colonne, valeur) }))
-    .filter(
-      (candidat): candidat is { valeur: ValeurCritere; rang: number } => candidat.rang !== null,
-    );
-
-  if (classables.length === 0) {
-    return null;
-  }
-
-  const meilleur = classables.reduce((meilleur, candidat) =>
-    plusPetitEstMeilleur
-      ? candidat.rang < meilleur.rang
-        ? candidat
-        : meilleur
-      : candidat.rang > meilleur.rang
-        ? candidat
-        : meilleur,
+  return meilleureSurEchelle(colonne.sensComparaison, valeurs, (valeur) =>
+    rangSurColonne(colonne, valeur),
   );
-
-  return meilleur.valeur;
 }
 
 /**
@@ -94,6 +75,35 @@ function rangSurColonne(colonne: Colonne, valeur: ValeurCritere): number | null 
   }
 
   return rang(colonne.critere, valeur);
+}
+
+/**
+ * Vrai quand ces deux rangs désignent la même place sur l'échelle de la
+ * Colonne — donc quand les deux Biens sont à égalité.
+ *
+ * Une Colonne calculée se compare **à la précision où elle s'affiche**, et
+ * non au bit près. Son rang est un quotient : 250 000 / 20,2 et
+ * 750 000 / 60,6 valent le même prix au mètre carré, et la division les
+ * sépare pourtant au dernier bit. Comparés par `===`, ces deux Biens
+ * seraient déclarés différents et un seul serait mis en évidence — le
+ * gagnant arbitraire que le ticket interdit (#12).
+ *
+ * L'arrondi n'est pas une tolérance choisie au hasard : c'est l'unité sous
+ * laquelle la valeur est écrite, l'euro (`formaterPrixAuMetreCarre`). Deux
+ * cases qui affichent le même chiffre se mettent ainsi en évidence
+ * ensemble, ce qui est la seule règle qu'un lecteur puisse vérifier des
+ * yeux — et qui ne réclame aucun epsilon à justifier.
+ *
+ * Les rangs d'un Critère, eux, se comparent exactement : une position dans
+ * la définition est un entier, et un nombre saisi se compare tel qu'il a été
+ * saisi.
+ */
+function memeRang(colonne: Colonne, gauche: number, droite: number): boolean {
+  if (colonne.critere) {
+    return gauche === droite;
+  }
+
+  return Math.round(gauche) === Math.round(droite);
 }
 
 /**
@@ -164,16 +174,28 @@ export function lignesFaceAFace(
     const valeurs = valeursParBien.map((valeurs) => colonne.valeur(valeurs));
     const meilleure = meilleureValeurColonne(colonne, valeurs);
 
+    // La mise en évidence se décide sur le **rang** et non sur la valeur :
+    // c'est la même échelle que celle qui a désigné le meilleur, et c'est
+    // `memeRang` qui dit ce qu'« être à égalité » veut dire sur cette
+    // Colonne — au bit près pour un Critère, à la précision d'affichage pour
+    // une Colonne calculée.
+    const rangMeilleur = meilleure === null ? null : rangSurColonne(colonne, meilleure);
+
     return {
       colonne,
-      cases: valeursParBien.map((valeursDuBien, rangBien) => ({
-        ...caseDe(colonne, valeursDuBien),
-        // La comparaison porte sur la valeur et non sur le texte : « 1 000 »
-        // et « 900 » se compareraient à l'envers. Et une case non renseignée
-        // ne gagne jamais, quand bien même `meilleure` vaudrait `null` sur
-        // une ligne que personne ne renseigne.
-        meilleure: meilleure !== null && valeurs[rangBien] === meilleure,
-      })),
+      cases: valeursParBien.map((valeursDuBien, rangBien) => {
+        const rangDuBien = rangSurColonne(colonne, valeurs[rangBien]);
+
+        return {
+          ...caseDe(colonne, valeursDuBien),
+          // Une case sans rang ne gagne jamais : c'est ce qui tient la règle
+          // « un Critère non renseigné ne gagne ni ne perd ».
+          meilleure:
+            rangMeilleur !== null &&
+            rangDuBien !== null &&
+            memeRang(colonne, rangDuBien, rangMeilleur),
+        };
+      }),
       compare: meilleure !== null,
     };
   });

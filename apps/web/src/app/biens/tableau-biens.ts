@@ -10,6 +10,7 @@ import {
 } from '../criteres/colonnes';
 import { TRI_INITIAL, basculer, trier, type Tri } from '../criteres/tri';
 import { libelleStatut, type Statut } from '../criteres/statut';
+import { MAXIMUM_MOBILE } from '../criteres/selection-comparaison';
 import type { GroupeCritere } from '../criteres/critere';
 
 /**
@@ -133,8 +134,12 @@ export class TableauBiens {
    * Le plafond de la sélection, que la largeur de l'écran décide (ADR-0006).
    * Le tableau ne l'applique pas — la page s'en charge — mais il a besoin de
    * le connaître pour désactiver les cases qui ne répondraient plus.
+   *
+   * Il part du plafond le plus bas et non de zéro : le composant se rend une
+   * première fois avant que la liaison du parent ne l'alimente, et un
+   * plafond nul y désactiverait toutes les cases le temps d'une frame.
    */
-  readonly maximum = signal(0);
+  readonly maximum = signal(MAXIMUM_MOBILE);
 
   @Input()
   set maximumSelection(maximum: number) {

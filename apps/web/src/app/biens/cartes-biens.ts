@@ -4,6 +4,7 @@ import type { Bien } from './bien';
 import { COLONNES_DECISIVES, caseDe, type CaseColonne } from '../criteres/colonnes';
 import { TRI_INITIAL, trier } from '../criteres/tri';
 import { libelleStatut, type Statut } from '../criteres/statut';
+import { MAXIMUM_MOBILE } from '../criteres/selection-comparaison';
 
 /** Une carte : un Bien, tel qu'un écran étroit le montre. */
 export interface Carte {
@@ -116,8 +117,14 @@ export class CartesBiens {
     this.selection.set(selection);
   }
 
-  /** Le plafond de la sélection, que la largeur de l'écran décide (ADR-0006). */
-  readonly maximum = signal(0);
+  /**
+   * Le plafond de la sélection, que la largeur de l'écran décide (ADR-0006).
+   *
+   * Il part du plafond le plus bas et non de zéro : les cartes se rendent une
+   * première fois avant que la liaison du parent ne les alimente, et un
+   * plafond nul y désactiverait toutes les cases le temps d'une frame.
+   */
+  readonly maximum = signal(MAXIMUM_MOBILE);
 
   @Input()
   set maximumSelection(maximum: number) {

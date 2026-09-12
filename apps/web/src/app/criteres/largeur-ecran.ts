@@ -1,4 +1,4 @@
-import { Injectable, signal, type Signal } from '@angular/core';
+import { Injectable, InjectionToken, inject, signal, type Signal } from '@angular/core';
 import { MAXIMUM_DESKTOP, MAXIMUM_MOBILE } from './selection-comparaison';
 
 /**
@@ -26,6 +26,45 @@ export const SEUIL_ECRAN_LARGE = 1024;
 export const REQUETE_ECRAN_LARGE = `(min-width: ${SEUIL_ECRAN_LARGE}px)`;
 
 /**
+ * De quoi observer une requête média : ce que `window.matchMedia` offre,
+ * réduit à ce que ce service en lit.
+ *
+ * Le type est déclaré plutôt qu'emprunté à la lib DOM pour que le service
+ * s'éprouve avec un objet écrit à la main : `MediaQueryList` porte une
+ * douzaine de membres dépréciés qu'un faux devrait alors tous fournir.
+ */
+export type MatchMedia = (requete: string) => {
+  matches: boolean;
+  addEventListener: (type: 'change', ecouteur: (evenement: { matches: boolean }) => void) => void;
+};
+
+/**
+ * Le `matchMedia` du navigateur, ou `null` là où il n'y en a pas — rendu
+ * serveur, ou environnement de test sans DOM.
+ */
+function matchMediaDuNavigateur(): MatchMedia | null {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return null;
+  }
+
+  return (requete) => window.matchMedia(requete);
+}
+
+/**
+ * Ce par quoi le service observe la largeur de la fenêtre.
+ *
+ * Un jeton plutôt qu'un appel direct à `window` dans le service : Angular
+ * réclame de toute façon un jeton pour un paramètre qui n'est pas une
+ * classe, et celui-ci a l'avantage de nommer la dépendance au lieu de la
+ * cacher. Sa fabrique rend le `matchMedia` du navigateur, ou `null` là où il
+ * n'y en a pas.
+ */
+export const MATCH_MEDIA = new InjectionToken<MatchMedia | null>('MatchMedia', {
+  providedIn: 'root',
+  factory: matchMediaDuNavigateur,
+});
+
+/**
  * Ce que l'écran mesure : est-il assez large pour comparer plus de deux
  * Biens (#12) ?
  *
@@ -51,15 +90,31 @@ export class LargeurEcran {
   /** Vrai quand l'écran est au-dessus du seuil. */
   readonly ecranLarge: Signal<boolean> = this.large.asReadonly();
 
+  /**
+   * `matchMedia` vient d'un jeton plutôt que d'une lecture directe de
+   * `window`, ce qui rend le service éprouvable sans DOM : les tests
+   * fournissent le leur, et n'ont ni à écrire sur un global ni à le
+   * restaurer après coup — c'est ce qui garde ce module testable comme ses
+   * voisins de `criteres/`.
+   *
+   * Le jeton rend `null` là où il n'y a pas de navigateur — rendu serveur,
+   * environnement sans DOM. L'écran étroit est alors la réponse : celle qui
+   * borne le plus, et ne promet pas une place qui n'existe peut-être pas.
+   */
   constructor() {
-    // `matchMedia` manque au rendu serveur et à un environnement de test
-    // dépourvu de DOM : l'écran étroit est alors la réponse, celle qui borne
-    // le plus et ne promet pas une place qui n'existe peut-être pas.
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    // La dépendance passe par `inject` et non par un paramètre de
+    // constructeur : Angular réclame un jeton pour chaque paramètre d'un
+    // injectable, optionnel compris, et `MatchMedia` est un type — il n'en
+    // fournit donc aucun (NG2003). Les tests posent le leur en fournissant
+    // `MATCH_MEDIA` sur un injecteur, comme `biens-page.spec.ts` fournit son
+    // service.
+    const matchMedia = inject(MATCH_MEDIA);
+
+    if (!matchMedia) {
       return;
     }
 
-    const requete = window.matchMedia(REQUETE_ECRAN_LARGE);
+    const requete = matchMedia(REQUETE_ECRAN_LARGE);
 
     this.large.set(requete.matches);
 

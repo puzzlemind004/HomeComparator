@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { lignesFaceAFace, meilleureValeurColonne } from './face-a-face';
 import { COLONNES, ID_COLONNE_PRIX_METRE_CARRE, colonneParId } from './colonnes';
+import { CRITERES_ORDONNES } from './definition';
 import type { ValeursCriteres } from './valeurs';
 
 /**
@@ -96,9 +97,19 @@ describe('lignesFaceAFace', () => {
     // Les mêmes Colonnes que le tableau, dans le même ordre : les deux
     // écrans montrent les mêmes Biens (ADR-0006), et le prix au m² se lit à
     // la suite du prix dont il sort.
+    //
+    // L'attente ne se compare pas à `COLONNES`, sur quoi la fonction itère :
+    // ce serait une tautologie, vraie quoi qu'il arrive. Elle vérifie la
+    // propriété qui compte, et que le lecteur retrouve à l'écran — le prix
+    // au m² juste après le prix, et les Critères dans l'ordre de la
+    // définition.
     const lignes = lignesFaceAFace([{}, {}]);
+    const ids = lignes.map((ligne) => ligne.colonne.id);
 
-    expect(lignes.map((ligne) => ligne.colonne.id)).toEqual(COLONNES.map((colonne) => colonne.id));
+    expect(ids.indexOf(ID_COLONNE_PRIX_METRE_CARRE)).toBe(ids.indexOf('prixDemande') + 1);
+    expect(ids.filter((id) => id !== ID_COLONNE_PRIX_METRE_CARRE)).toEqual(
+      CRITERES_ORDONNES.map((critere) => critere.id),
+    );
   });
 
   it('porte le prix au mètre carré parmi ses lignes', () => {
@@ -135,6 +146,17 @@ describe('lignesFaceAFace', () => {
     ).toEqual([true, false, true]);
   });
 
+  it('met en évidence deux Biens à égalité sur une énumération', () => {
+    // Le chemin n'est pas celui d'un nombre : la valeur désignée est la
+    // chaîne, et c'est son rang dans la définition qui départage. Deux Biens
+    // au même DPE se mettent donc en évidence tous les deux (#12).
+    expect(misEnEvidence('dpe', [{ dpe: 'C' }, { dpe: 'E' }, { dpe: 'C' }])).toEqual([
+      true,
+      false,
+      true,
+    ]);
+  });
+
   it('ne met jamais en évidence un Critère non renseigné', () => {
     // Même quand tous les autres le sont : l'absence n'est pas une petite
     // valeur, et un prix absent n'est pas le moins cher du carnet (#12).
@@ -168,6 +190,20 @@ describe('lignesFaceAFace', () => {
         { prixDemande: 300000, surfaceHabitable: 100 },
       ]),
     ).toEqual([false, true]);
+  });
+
+  it('met en évidence deux prix au mètre carré égaux que le flottant sépare', () => {
+    // 250 000 / 20,2 et 750 000 / 60,6 valent le même prix au m² — mais la
+    // division les sépare au dernier bit, et une égalité comparée sur la
+    // valeur en désignerait alors un seul. C'est très exactement le gagnant
+    // arbitraire que le ticket interdit (#12), sur des chiffres que le
+    // carnet peut réellement porter.
+    expect(
+      misEnEvidence(ID_COLONNE_PRIX_METRE_CARRE, [
+        { prixDemande: 250000, surfaceHabitable: 20.2 },
+        { prixDemande: 750000, surfaceHabitable: 60.6 },
+      ]),
+    ).toEqual([true, true]);
   });
 
   it('laisse vide le prix au mètre carré d’un Bien dont la surface manque', () => {
