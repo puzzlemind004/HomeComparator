@@ -256,18 +256,34 @@ step "La page s'ouvre avec les droits déjà cochés : write:packages et read:pa
 step "Donnez-lui une expiration courte — ce jeton ne sert qu'aujourd'hui."
 step "Cliquez « Generate token » en bas, puis copiez-le."
 warn "Le jeton ne sera PAS écrit sur le disque : il ne vit que le temps de ce script."
+note "Dans Git Bash, on colle avec un CLIC DROIT (ou Shift+Inser), pas Ctrl+V."
 ask_secret GH_JETON "Collez le jeton (l'affichage reste vide) :"
+# Retour chariot et espaces parasites : un jeton copié depuis un navigateur
+# sous Windows en traîne souvent un, invisible, et le registre rend alors un
+# « denied » qui accuse le jeton plutôt que le collage. Mesuré : un \r ajoute
+# un caractère à la saisie.
+GH_JETON=$(printf '%s' "$GH_JETON" | tr -d '\r\n[:space:]')
 if [[ -z "$GH_JETON" ]]; then
-  warn "Aucun jeton fourni."
+  warn "Aucun jeton reçu : le collage n'a pas abouti."
+  note "Git Bash ne colle pas avec Ctrl+V — utilisez le clic droit."
   exit 1
 fi
-if printf '%s' "$GH_JETON" | docker login ghcr.io -u "$GHCR_COMPTE" --password-stdin >/dev/null 2>&1; then
+say "Jeton reçu : ${#GH_JETON} caractères."
+note "Un jeton classic en fait typiquement 40 (ghp_…), un fine-grained bien plus."
+if printf '%s' "$GH_JETON" | docker login ghcr.io -u "$GHCR_COMPTE" --password-stdin 2>/tmp/login-err >/dev/null; then
   say "Session ouverte vers ghcr.io."
 else
-  warn "La connexion au registre a échoué."
-  note "Vérifiez le compte, le jeton, et que write:packages est bien coché."
+  warn "La connexion au registre a échoué. Erreur exacte :"
+  sed 's/^/      /' /tmp/login-err
+  note ""
+  note "Pistes, par ordre de probabilité :"
+  note "  - le jeton doit être un « classic », pas un « fine-grained »"
+  note "  - il lui faut le droit write:packages"
+  note "  - le compte saisi doit être celui du jeton (ici : $GHCR_COMPTE)"
+  rm -f /tmp/login-err
   exit 1
 fi
+rm -f /tmp/login-err
 pause "Continuer vers la construction ?"
 
 # ── 4 ─────────────────────────────────────────────────────────────────────

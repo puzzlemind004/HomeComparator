@@ -366,12 +366,24 @@ step "Tirer les images maintenant : c'est long, et l'ancien site répond encore.
 note "Un jeton GitHub est nécessaire (read:packages), les images étant privées."
 note "Il n'est pas écrit sur le disque : la session est refermée aussitôt après."
 ask_secret GH_JETON "Jeton GitHub (affichage vide) :"
-if printf '%s' "$GH_JETON" | docker login ghcr.io -u "$GHCR_COMPTE" --password-stdin >/dev/null 2>&1; then
-  say "  [ok] session ouverte vers ghcr.io"
-else
-  warn "  [échec] connexion au registre refusée"
+# Espaces et retour chariot parasites du collage : invisibles, ils font rendre
+# au registre un « denied » qui accuse le jeton plutôt que la saisie.
+GH_JETON=$(printf '%s' "$GH_JETON" | tr -d '\r\n[:space:]')
+if [[ -z "$GH_JETON" ]]; then
+  warn "  [échec] aucun jeton reçu : le collage n'a pas abouti."
   exit 1
 fi
+say "  Jeton reçu : ${#GH_JETON} caractères."
+if printf '%s' "$GH_JETON" | docker login ghcr.io -u "$GHCR_COMPTE" --password-stdin 2>/tmp/login-err >/dev/null; then
+  say "  [ok] session ouverte vers ghcr.io"
+else
+  warn "  [échec] connexion au registre refusée. Erreur exacte :"
+  sed 's/^/      /' /tmp/login-err
+  note "  Le jeton doit être un « classic » portant read:packages."
+  rm -f /tmp/login-err
+  exit 1
+fi
+rm -f /tmp/login-err
 if docker compose -f docker-compose.prod.yml pull; then
   say "  [ok] images présentes sur la machine"
 else
