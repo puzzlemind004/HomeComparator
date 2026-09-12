@@ -267,7 +267,10 @@ note "mais « non privilégié » désigne donc ici l'absence de sudo et de sess
 note "root, et non une impossibilité d'escalade."
 say ""
 confirm "Créer l'utilisateur « deploy » sur $VPS_HOTE ?" || exit 1
-ssh "$ADMIN_UTILISATEUR@$VPS_HOTE" bash -s <<'DISTANT'
+# La sortie du script distant est **relayée et retenue** : l'absence de `.env`
+# qu'il constate doit survivre au `_clear` des étapes suivantes, sans quoi le
+# seul avertissement disparaît quatre écrans avant le verdict final.
+SORTIE_DISTANTE=$(ssh "$ADMIN_UTILISATEUR@$VPS_HOTE" bash -s <<'DISTANT'
 set -euo pipefail
 if id deploy >/dev/null 2>&1; then
   echo "  [ok] l'utilisateur deploy existe déjà"
@@ -288,8 +291,16 @@ if [ -f /opt/homecomparator/.env ]; then
 else
   echo "  [!] aucun .env dans /opt/homecomparator"
   echo "      à renseigner avant le premier déploiement (docs/deploiement.md)"
+  # Marqueur lu par le wizard, qui refusera d'annoncer « prêt ».
+  echo "SANS_ENV"
 fi
 DISTANT
+)
+# Tout sauf le marqueur, qui n'a pas à s'afficher.
+printf '%s\n' "$SORTIE_DISTANTE" | grep -v '^SANS_ENV$' || true
+if printf '%s' "$SORTIE_DISTANTE" | grep -q '^SANS_ENV$'; then
+  ENV_MANQUANT=1
+fi
 
 # ── 4 ─────────────────────────────────────────────────────────────────────
 stage "Générer la clé de déploiement"
@@ -397,16 +408,44 @@ else
 fi
 
 _clear
-printf '\n%s%s  ✓ Déploiement prêt%s\n\n' "$BOLD" "$GREEN" "$RESET"
-say "Le workflow peut désormais se connecter au VPS."
-printf '\n'
-warn "Avant le premier déploiement, vérifiez que /opt/homecomparator/.env est"
-note "renseigné sur le serveur : le workflow n'y écrit que VERSION."
-note "Voir docs/deploiement.md, section « Ce qui va où »."
-printf '\n'
-say "Pour déployer, depuis l'onglet Actions :"
-note "  « Poser une version » → Run workflow → 0.1.0"
-printf '\n'
-say "Ou en ligne de commande :"
-note "  gh workflow run poser-version.yml -f version=0.1.0"
-printf '\n'
+# **Le verdict distingue « posé » de « prêt », et l'écart est ce qui évite de
+# brûler le premier numéro de version.** Sans `.env` sur le serveur, un
+# `poser-version` irait au bout de la partie coûteuse — commit sur `main`,
+# tag, vérifications rejouées, deux images publiées — avant d'échouer au
+# `up` sur le garde `POSTGRES_PASSWORD:?`. Le tag existant, et le workflow
+# refusant de le reposer, il faudrait passer à `0.1.1` pour un fichier
+# oublié.
+if [[ "${ENV_MANQUANT:-0}" == "1" ]]; then
+  printf '\n%s%s  ⚠ Accès posé — mais le déploiement n%sest PAS prêt%s\n\n' \
+    "$BOLD" "$YELLOW" "'" "$RESET"
+  say "L'utilisateur, la clé et les secrets sont en place."
+  printf '\n'
+  warn "Il manque /opt/homecomparator/.env sur le serveur."
+  note "Sans lui, la pile refuse de démarrer et le déploiement échoue après"
+  note "avoir commité, tagué et publié les images — le numéro est alors perdu,"
+  note "le workflow refusant de reposer un tag existant."
+  printf '\n'
+  say "À faire maintenant, sur le VPS :"
+  note "  scp .env.prod.example $ADMIN_UTILISATEUR@$VPS_HOTE:/opt/homecomparator/.env"
+  note "  ssh $ADMIN_UTILISATEUR@$VPS_HOTE"
+  note "  # puis renseigner les valeurs, et générer sur place :"
+  note "  #   openssl rand -base64 24   # POSTGRES_PASSWORD"
+  note "  #   openssl rand -base64 24   # APP_KEY"
+  note "  chown deploy:deploy /opt/homecomparator/.env && chmod 600 \$_"
+  printf '\n'
+  note "Voir docs/deploiement.md, section « Ce qui va où »."
+  printf '\n'
+  say "Ensuite seulement, déployer :"
+  note "  gh workflow run poser-version.yml -f version=0.1.0"
+  printf '\n'
+else
+  printf '\n%s%s  ✓ Déploiement prêt%s\n\n' "$BOLD" "$GREEN" "$RESET"
+  say "Le workflow peut désormais se connecter au VPS, et le .env est en place."
+  printf '\n'
+  say "Pour déployer, depuis l'onglet Actions :"
+  note "  « Poser une version » → Run workflow → 0.1.0"
+  printf '\n'
+  say "Ou en ligne de commande :"
+  note "  gh workflow run poser-version.yml -f version=0.1.0"
+  printf '\n'
+fi

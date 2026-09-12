@@ -262,8 +262,26 @@ jobs:
           # Le fichier est réécrit ligne à ligne plutôt qu'avec `sed -i`, qui
           # remplacerait aussi une occurrence apparaissant dans un
           # commentaire ou dans une autre variable.
+          #
+          # **`|| [ $? -eq 1 ]` et non `|| true`, et les trois caractères
+          # d'écart valent le carnet entier.** `grep` rend 1 quand il ne
+          # garde aucune ligne — le cas normal d'un `.env` ne portant que
+          # `VERSION=` — mais 2 ou plus sur une erreur réelle : fichier
+          # illisible, disque plein. Un `|| true` absorbe les deux, et la
+          # redirection a déjà tronqué `.env.nouveau` : le `.env` se
+          # retrouverait réduit à sa seule ligne `VERSION=`, **sur un statut
+          # de sortie 0** que `set -euo pipefail` ne voit pas.
+          #
+          # Ce que ce fichier porte rend la panne définitive. `POSTGRES_PASSWORD`
+          # a initialisé le volume `postgres-data` et n'existe nulle part
+          # ailleurs — ni dans le dépôt, ni dans les secrets GitHub, qu'ADR-0018
+          # écarte explicitement, ni dans la sauvegarde de #71, qui couvre la
+          # base et les Photos mais pas le `.env`. En regénérer un ne rouvre
+          # pas la base : Postgres exige celui qui l'a initialisée. Le carnet
+          # passerait d'un déploiement raté à une base morte, et ADR-0001 rend
+          # chaque Bien irrécupérable.
           touch .env
-          grep -v '^VERSION=' .env > .env.nouveau || true
+          grep -v '^VERSION=' .env > .env.nouveau || [ $? -eq 1 ]
           printf 'VERSION=%s\n' "$VERSION" >> .env.nouveau
           mv .env.nouveau .env
           chmod 600 .env

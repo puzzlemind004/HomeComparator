@@ -403,7 +403,7 @@ cd /opt/homecomparator
 # `sed` de substitution ne fait *rien* si le `.env` ne porte pas encore de
 # ligne `VERSION=`, et la pile repartirait alors sur l'ancien numéro sans
 # que rien ne le signale. C'est ce que fait le workflow, à l'identique.
-grep -v '^VERSION=' .env > .env.nouveau || true
+grep -v '^VERSION=' .env > .env.nouveau || [ $? -eq 1 ]
 echo "VERSION=0.1.0" >> .env.nouveau
 mv .env.nouveau .env
 
