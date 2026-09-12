@@ -240,6 +240,18 @@ if [[ "$manque" -eq 1 ]]; then
   exit 1
 fi
 say ""
+# Docker doit répondre avant tout le reste : ce script arrête des services
+# et démarre une pile. Découvrir qu'il ne répond pas après avoir coupé les
+# ports laisserait la machine sans rien qui serve.
+if ! command -v docker >/dev/null 2>&1; then
+  warn "La commande « docker » est introuvable sur cette machine."
+  exit 1
+fi
+if ! docker info >/dev/null 2>&1; then
+  warn "« docker » existe mais le démon ne répond pas :"
+  docker info 2>&1 | tail -n 5 | sed 's/^/      /'
+  exit 1
+fi
 note "Docker  : $(docker --version 2>/dev/null || echo ABSENT)"
 note "Compose : $(docker compose version --short 2>/dev/null || echo ABSENT)"
 pause "Continuer ?"

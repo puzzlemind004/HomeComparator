@@ -218,6 +218,30 @@ if [[ ! -f apps/api/Dockerfile || ! -f apps/web/Dockerfile ]]; then
 fi
 say "Dépôt trouvé."
 note "Branche : $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+say ""
+# Docker doit répondre AVANT qu'on demande quoi que ce soit. Sans ce contrôle,
+# un shell où `docker` n'existe pas — une distro WSL 1, typiquement, où
+# l'intégration Docker Desktop ne peut pas fonctionner — laisse le script
+# aller jusqu'à la saisie du jeton, puis échouer sur une connexion au
+# registre qui n'a jamais eu lieu. Le jeton est alors accusé à tort.
+step "Docker répond-il depuis ce shell ?"
+if ! command -v docker >/dev/null 2>&1; then
+  warn "La commande « docker » est introuvable ici."
+  note ""
+  note "Si ce message parle de WSL 1, c'est la cause : Docker Desktop ne s'y"
+  note "intègre pas. Lancez ce script depuis Git Bash ou PowerShell sous"
+  note "Windows, où Docker Desktop est joignable :"
+  note "  cd $(pwd 2>/dev/null)"
+  note "  bash scripts/publier-images.sh"
+  exit 1
+fi
+if ! docker info >/dev/null 2>&1; then
+  warn "« docker » existe mais le démon ne répond pas."
+  note "Docker Desktop est-il démarré ? La réponse exacte :"
+  docker info 2>&1 | tail -n 5 | sed 's/^/      /'
+  exit 1
+fi
+say "  [ok] $(docker --version)"
 if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
   warn "L'arbre de travail n'est pas propre."
   note "Les images porteront donc du code qui n'est pas celui d'un commit,"
