@@ -36,6 +36,16 @@ Le séparateur est le point-virgule et non la virgule : c'est ce qu'attend un ta
 
 Le fichier commence par un BOM UTF-8. Sans lui, Excel lit le fichier dans sa page de codes locale, et « Libellé » y devient « LibellÃ© ». Le jeu de caractères est aussi annoncé dans l'en-tête HTTP, et les deux se justifient : l'en-tête sert au navigateur qui reçoit la réponse, le BOM sert au tableur qui ouvre le fichier des semaines plus tard, l'en-tête HTTP oublié depuis longtemps.
 
+## Une valeur qui commence par `=`, `+`, `-` ou `@` est neutralisée
+
+Ces quatre caractères, en tête d'une cellule, font lire la suite comme une formule par un tableur, qui l'évalue à l'ouverture. Une apostrophe est posée devant ; elle ne s'affiche pas dans la cellule, et fait lire la suite comme du texte.
+
+Deux choses en découlent sans elle, et l'une comme l'autre est inacceptable pour un fichier qu'on exporte précisément pour le conserver. **La donnée disparaît de l'écran** : un Bien nommé « -15% négocié » s'ouvre sur `#NAME?`, la valeur étant toujours dans le fichier mais plus lisible — une perte silencieuse dans le seul artefact censé survivre à l'outil. Et **le tableur peut proposer d'exécuter** : les Notes sont du texte recopié d'annonces, pas de la saisie contrainte, et le validateur n'impose rien sur le premier caractère.
+
+Encadrer de guillemets n'y suffit pas — `"=1+1"` s'évalue tout autant —, ce qui est précisément pourquoi le geste est distinct de l'échappement du format.
+
+**Un nombre en est exempté.** `-15000` commence par un tiret sans être une formule : c'est un montant, et une apostrophe en ferait du texte que le tableur ne saurait plus additionner. C'est la limite assumée du geste — ce qui ressemble à un nombre passe tel quel, et le cas restant (une valeur non numérique commençant par un tiret) est du texte, où l'apostrophe ne coûte rien.
+
 ## Le front passe par une requête, pas par un lien
 
 Un simple `<a href="/api/export">` aurait suffi à télécharger, et c'était plus court.
@@ -43,6 +53,10 @@ Un simple `<a href="/api/export">` aurait suffi à télécharger, et c'était pl
 Il a été écarté parce qu'un lien n'a aucun moyen de dire que l'API n'a pas répondu : l'acheteur verrait une page d'erreur nue à la place de son carnet, en ayant quitté l'application. Le détour par une requête et un blob achète un échec qui se dit **à l'écran**, sur la page où l'on était — et c'est le seul cas qui compte vraiment, un export qu'on croit avoir obtenu étant pire qu'un export refusé.
 
 Le nom du fichier vient de l'en-tête `Content-Disposition` que l'API compose, daté. Le recomposer côté front en ferait une seconde source à tenir d'accord, et un export enregistré sous un nom que l'API n'a pas choisi mentirait sur sa date le jour où les deux divergeraient.
+
+Deux détails de l'enregistrement sont des contournements de navigateur, et méritent d'être écrits parce qu'ils se liraient sinon comme des maladresses à nettoyer. **Le lien est attaché au document avant le clic** — Firefox n'honore pas un clic sur un lien de téléchargement détaché — et **l'URL du blob n'est révoquée qu'au tour suivant**, la révoquer dans le même tour court-circuitant le téléchargement que le navigateur vient à peine d'entamer.
+
+Les deux échouent de la même façon, et c'est ce qui les rend sérieux : le fichier n'arrive pas, et rien ne le dit. Le service annonce une réussite, l'écran reste muet comme il doit l'être après un export réussi, et l'acheteur ne découvre l'absence qu'au moment d'ouvrir le fichier — c'est-à-dire au moment où il en a besoin.
 
 ## Ce qui n'est pas fait
 

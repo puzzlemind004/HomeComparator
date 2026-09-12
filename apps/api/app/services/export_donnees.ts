@@ -186,6 +186,26 @@ export function exporterCarnet(
 const SEPARATEUR = ';'
 
 /**
+ * Les caractères qui, en tête d'une valeur, font lire la suite comme une
+ * formule par un tableur.
+ *
+ * `=` et `+` ouvrent une formule ; `-` aussi, un tableur lisant `-A1` comme
+ * une soustraction ; `@` ouvre un appel de fonction hérité de Lotus, que
+ * Excel accepte encore.
+ */
+const DEBUTS_DE_FORMULE = new Set(['=', '+', '-', '@'])
+
+/**
+ * Ce qui ressemble à un nombre, et doit donc rester un nombre.
+ *
+ * C'est ce qui distingue un montant négatif — `-15000`, que le tableur doit
+ * pouvoir additionner — d'une valeur qui commence par un tiret sans être un
+ * nombre. Sans cette exception, la neutralisation ferait du texte de toutes
+ * les offres négatives.
+ */
+const NOMBRE = /^[+-]?\d+(?:[.,]\d+)?$/
+
+/**
  * Le BOM UTF-8, sans lequel Excel lit le fichier dans sa page de codes
  * locale : « Libellé » y devient « LibellÃ© ».
  *
@@ -236,9 +256,11 @@ export function versCsv({ biens }: ExportCarnet, champs: string[]): string {
 /**
  * Les en-têtes du CSV, dérivés du premier Bien exporté.
  *
- * Un carnet vide n'a aucun Bien d'où les tirer, et rend donc un fichier
- * sans en-têtes plutôt qu'une ligne inventée : les colonnes sont celles du
- * modèle, et il n'y a rien à en dire quand il n'y a rien à exporter.
+ * Un carnet vide n'a aucun Bien d'où les tirer, et n'en rend donc aucun :
+ * le fichier se réduit alors à la seule colonne que `versCsv` ajoute de
+ * lui-même, `nombrePhotos`. Les colonnes sont celles du modèle, et il n'y a
+ * rien à en dire quand il n'y a rien à exporter — inventer la ligne
+ * complète ferait promettre des Critères que le fichier ne porte pas.
  */
 export function champsDuCsv({ biens }: ExportCarnet): string[] {
   const [premier] = biens
@@ -263,15 +285,55 @@ export function champsDuCsv({ biens }: ExportCarnet): string[] {
  * - **Les sauts de ligne sont conservés dans la cellule**, jamais aplatis :
  *   une liste de travaux se lit en lignes (ADR-0012), et c'est encadré que
  *   le format les porte.
+ *
+ * Et un quatrième, qui n'est pas une affaire de format mais de ce que le
+ * tableur fait du fichier : **une valeur qui commence par un caractère de
+ * formule est neutralisée** (voir `neutraliserFormule`).
  */
 function echapper(valeur: unknown): string {
   if (valeur === null || valeur === undefined) {
     return ''
   }
 
-  const texte = String(valeur)
+  const texte = neutraliserFormule(String(valeur))
 
-  return /[";\r\n]/.test(texte) ? `"${texte.replaceAll('"', '""')}"` : texte
+  /**
+   * Le séparateur est repris de la constante plutôt que réécrit : les deux
+   * doivent s'accorder, et une virgule choisie plus haut sans être changée
+   * ici ferait un échappement qui ne protège plus rien — en silence.
+   */
+  const aEncadrer = new RegExp(`["\r\n${SEPARATEUR}]`)
+
+  return aEncadrer.test(texte) ? `"${texte.replaceAll('"', '""')}"` : texte
+}
+
+/**
+ * Une valeur que le tableur n'évaluera pas comme une formule.
+ *
+ * `=`, `+`, `-` et `@` en tête ouvrent une formule, et le tableur l'évalue à
+ * l'ouverture. Deux conséquences, et l'une comme l'autre est inacceptable
+ * pour un carnet qu'on exporte précisément pour le conserver : la donnée
+ * disparaît de l'écran au profit d'un `#NAME?`, et un contenu bien choisi
+ * peut faire proposer une exécution. Le texte des Notes est recopié
+ * d'annonces, pas saisi sous contrainte — le validateur n'impose rien sur le
+ * premier caractère (`validators/bien.ts`).
+ *
+ * **Encadrer ne suffit pas** : `"=1+1"` s'évalue tout autant. C'est
+ * l'apostrophe en tête qui fait lire la suite comme du texte, et elle ne
+ * s'affiche pas dans la cellule.
+ *
+ * Un nombre en est exempté : `-15000` est un montant que le tableur doit
+ * pouvoir additionner, et une apostrophe en ferait du texte. C'est la limite
+ * assumée du geste — ce qui ressemble à un nombre passe tel quel.
+ */
+function neutraliserFormule(texte: string): string {
+  const premier = texte[0]
+
+  if (premier === undefined || !DEBUTS_DE_FORMULE.has(premier) || NOMBRE.test(texte)) {
+    return texte
+  }
+
+  return `'${texte}`
 }
 
 /**

@@ -130,8 +130,61 @@ describe('ExportService', () => {
       expect(resultat.exporte).toBe(true);
       expect(creerUrl).toHaveBeenCalledOnce();
       expect(clic).toHaveBeenCalledOnce();
-      // L'URL fabriquée est révoquée : sans cela, le blob resterait en
-      // mémoire jusqu'au rechargement de la page.
+
+      /**
+       * L'URL fabriquée finit par être révoquée — sans cela, le blob
+       * resterait en mémoire jusqu'au rechargement de la page — mais
+       * **plus tard**, le test voisin disant pourquoi.
+       */
+      await new Promise((suite) => setTimeout(suite, 0));
+      expect(revoquerUrl).toHaveBeenCalledWith('blob:fabrique');
+    });
+
+    /**
+     * Le lien est **dans le document** au moment du clic.
+     *
+     * Firefox n'honore pas un clic sur un lien de téléchargement détaché :
+     * le geste ne fait rien, et le service annoncerait pourtant une
+     * réussite. C'est le pire des échecs pour un export — l'acheteur croit
+     * tenir sa copie, et ne le découvre qu'au moment d'en avoir besoin.
+     */
+    it('attache le lien au document avant de cliquer', async () => {
+      const { lien } = simulerNavigateur();
+      const attaches: Node[] = [];
+
+      vi.spyOn(document.body, 'appendChild').mockImplementation((noeud: Node) => {
+        attaches.push(noeud);
+        return noeud;
+      });
+
+      const retire = vi.spyOn(lien, 'remove');
+
+      await firstValueFrom(creerService({ get: () => of(reponse('{}')) }).exporter('json'));
+
+      expect(attaches).toContain(lien);
+      // Et il est retiré ensuite : un lien invisible laissé dans le
+      // document s'accumulerait à chaque export.
+      expect(retire).toHaveBeenCalledOnce();
+    });
+
+    /**
+     * L'URL du blob n'est **pas** révoquée dans le même tour que le clic.
+     *
+     * Le navigateur va chercher le contenu de l'URL de façon asynchrone ;
+     * la révoquer aussitôt court-circuite ce téléchargement sur Firefox et
+     * les Safari anciens. Le fichier n'arrive jamais, et le service annonce
+     * une réussite — le même mensonge que ci-dessus.
+     */
+    it('ne révoque pas l’URL dans le même tour que le clic', async () => {
+      const { revoquerUrl } = simulerNavigateur();
+
+      await firstValueFrom(creerService({ get: () => of(reponse('{}')) }).exporter('json'));
+
+      // Rien tout de suite : le téléchargement a besoin de l'URL.
+      expect(revoquerUrl).not.toHaveBeenCalled();
+
+      // Mais bien plus tard, sans quoi le blob resterait en mémoire.
+      await new Promise((suite) => setTimeout(suite, 0));
       expect(revoquerUrl).toHaveBeenCalledWith('blob:fabrique');
     });
 

@@ -101,9 +101,23 @@ function nomDuFichier(disposition: string | null, format: FormatExport): string 
  * proposer le corps reçu à l'enregistrement.
  *
  * Un lien fabriqué et cliqué, ce qui est la façon dont cela se fait — il n'y
- * a pas d'API dédiée que tous les navigateurs partagent. L'URL est révoquée
- * aussitôt : sans cela, le blob resterait en mémoire jusqu'au rechargement
- * de la page, et un acheteur qui exporte plusieurs fois les accumulerait.
+ * a pas d'API dédiée que tous les navigateurs partagent. Deux précautions
+ * l'entourent, et chacune répare un échec **silencieux** : le fichier
+ * n'arrive pas, et le service annonce pourtant une réussite. C'est le pire
+ * cas pour un export — l'acheteur croit tenir sa copie, et ne le découvre
+ * qu'au moment d'en avoir besoin.
+ *
+ * **Le lien est attaché au document avant le clic.** Firefox n'honore pas un
+ * clic sur un lien de téléchargement détaché ; Chrome et Safari s'en
+ * accommodent. Il est retiré ensuite, faute de quoi un lien invisible
+ * s'accumulerait à chaque export.
+ *
+ * **L'URL n'est révoquée qu'au tour suivant.** Le navigateur va chercher le
+ * contenu de façon asynchrone, et la révoquer dans le même tour que le clic
+ * court-circuite ce téléchargement — là encore sur Firefox et les Safari
+ * anciens. Elle l'est bien, cependant : sans cela le blob resterait en
+ * mémoire jusqu'au rechargement de la page, et un acheteur qui exporte
+ * plusieurs fois les accumulerait.
  */
 function enregistrer(contenu: Blob, nom: string): void {
   const url = URL.createObjectURL(contenu);
@@ -111,7 +125,10 @@ function enregistrer(contenu: Blob, nom: string): void {
 
   lien.href = url;
   lien.download = nom;
-  lien.click();
 
-  URL.revokeObjectURL(url);
+  document.body.appendChild(lien);
+  lien.click();
+  lien.remove();
+
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

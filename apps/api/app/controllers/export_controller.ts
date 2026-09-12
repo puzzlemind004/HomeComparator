@@ -95,14 +95,25 @@ async function photosParBien(biens: Bien[]): Promise<Map<number, Photo[]>> {
     return parBien
   }
 
-  const photos = await Photo.query()
-    .whereIn(
-      'bien_id',
-      biens.map(({ id }) => id)
-    )
-    .orderBy('bien_id', 'asc')
-    .orderBy('rang', 'asc')
-    .orderBy('id', 'asc')
+  /**
+   * L'ordre de la galerie vient de `Photo.ordreGalerie` et n'est pas
+   * réécrit ici : c'est une propriété des photos et non de l'écran qui les
+   * demande, et l'export doit les rendre dans le même ordre que la galerie.
+   * Réécrire les deux clauses les ferait diverger en silence le jour où cet
+   * ordre change.
+   *
+   * `bien_id` reste en tête, et lui seul appartient à cet appel : il groupe
+   * les galeries entre elles, là où `ordreGalerie` range l'intérieur de
+   * chacune.
+   */
+  const photos = await Photo.ordreGalerie(
+    Photo.query()
+      .whereIn(
+        'bien_id',
+        biens.map(({ id }) => id)
+      )
+      .orderBy('bien_id', 'asc')
+  )
 
   for (const photo of photos) {
     const galerie = parBien.get(photo.bienId)

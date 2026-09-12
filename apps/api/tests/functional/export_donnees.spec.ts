@@ -387,6 +387,93 @@ test.group('Export des données', (group) => {
   })
 
   /**
+   * Une valeur qui commence par `=`, `+`, `-` ou `@` est **neutralisée**
+   * avant d'entrer dans le CSV.
+   *
+   * Un tableur traite ces quatre caractères comme le début d'une formule, et
+   * l'évalue à l'ouverture. Deux choses en découlent, et l'une comme l'autre
+   * est inacceptable pour un carnet qu'on exporte précisément pour le
+   * conserver :
+   *
+   * - **La donnée est perdue à l'affichage.** Un Bien nommé « -15% négocié »
+   *   s'ouvre sur `#NAME?` : la note est toujours dans le fichier, mais
+   *   l'acheteur ne la voit plus, dans le seul artefact censé lui survivre.
+   * - **Le tableur peut proposer d'exécuter.** Un texte recopié d'une
+   *   annonce n'est pas de la saisie contrôlée, et le validateur n'impose
+   *   aucune contrainte sur le premier caractère (`bien.ts`).
+   *
+   * Encadrer ne suffit pas : `"=1+1"` s'évalue tout autant. C'est une
+   * apostrophe en tête qui fait lire la suite comme du texte.
+   *
+   * C'est le critère d'ADR-0019 lui-même — « le CSV s'ouvre correctement
+   * dans un tableur » — qui l'exige.
+   */
+  test('une valeur qui commence par un caractère de formule est neutralisée', async ({
+    client,
+    assert,
+  }) => {
+    await unBien({ libelle: '=1+1', notes: '@SUM(A1)' })
+
+    const response = await avecSession(client.get('/export?format=csv'), session)
+
+    response.assertStatus(200)
+
+    const texte = response.text()
+
+    assert.include(texte, "'=1+1")
+    assert.include(texte, "'@SUM(A1)")
+  })
+
+  test('les quatre caractères de formule sont neutralisés', async ({ client, assert }) => {
+    for (const depart of ['=', '+', '-', '@']) {
+      await db.from('biens').delete()
+      await unBien({ libelle: `${depart}danger` })
+
+      const response = await avecSession(client.get('/export?format=csv'), session)
+
+      response.assertStatus(200)
+      assert.include(response.text(), `'${depart}danger`)
+    }
+  })
+
+  /**
+   * La neutralisation ne touche que le premier caractère : un tiret au
+   * milieu d'une phrase est de la ponctuation ordinaire, et une valeur
+   * ordinaire ne gagne pas d'apostrophe.
+   */
+  test('une valeur ordinaire ne gagne pas d’apostrophe', async ({ client, assert }) => {
+    await unBien({ libelle: 'le T3 bien-placé', villeQuartier: 'Lyon 7e' })
+
+    const response = await avecSession(client.get('/export?format=csv'), session)
+
+    response.assertStatus(200)
+
+    const texte = response.text()
+
+    assert.include(texte, 'le T3 bien-placé')
+    assert.notInclude(texte, "'le T3")
+    assert.notInclude(texte, "'Lyon")
+  })
+
+  /**
+   * Un nombre négatif reste un nombre : `-15000` commence bien par un tiret,
+   * mais c'est un montant et non une formule, et une apostrophe en ferait
+   * du texte que le tableur ne saurait plus additionner.
+   *
+   * C'est la limite de la neutralisation, et elle se décide ici : ce qui
+   * ressemble à un nombre passe tel quel.
+   */
+  test('un nombre négatif reste un nombre', async ({ client, assert }) => {
+    await unBien({ montantDerniereOffre: -15000 })
+
+    const response = await avecSession(client.get('/export?format=csv'), session)
+
+    response.assertStatus(200)
+    assert.include(response.text(), '-15000')
+    assert.notInclude(response.text(), "'-15000")
+  })
+
+  /**
    * Le CSV porte les Photos par leur nombre, et non par leurs noms : le
    * tableur sert à comparer des Biens, et une colonne de noms de fichiers
    * tirés au sort n'y compare rien. Les noms sont dans le JSON, qui est le
