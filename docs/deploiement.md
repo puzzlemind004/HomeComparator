@@ -4,15 +4,27 @@ Ce document dit **quelle valeur remplir, où, et quand** pour que le carnet
 réponde en HTTPS sur son nom de domaine, puis décrit la bascule qui libère les
 ports du VPS.
 
-À ce stade le déploiement est **manuel** : c'est #70 qui l'automatise. Ce qui
-suit est donc à la fois la procédure d'aujourd'hui et l'inventaire de ce que ce
-workflow aura à porter.
+Le déploiement est **automatique** depuis #70 : l'acheteur pose une version
+depuis l'onglet Actions, et tout le reste s'enchaîne. Voir « Déployer une
+nouvelle version », plus bas, et ADR-0018 pour les décisions.
 
-## Deux scripts déroulent cette procédure
+Ce qui suit décrit d'abord la **mise en place** — ce qu'il faut avoir posé une
+fois pour que ce mécanisme tourne — puis la procédure manuelle, qui reste
+valable et sert de recours quand le workflow ne peut pas s'exécuter.
+
+## Trois scripts déroulent ces procédures
 
 Le document reste la référence — il explique *pourquoi* chaque geste —, mais on
-n'a pas à le suivre à la main : deux wizards l'exécutent pas à pas, en
+n'a pas à le suivre à la main : trois wizards l'exécutent pas à pas, en
 vérifiant à chaque étape.
+
+```bash
+# Mise en place du déploiement automatique (#70), une fois pour toutes.
+# Depuis la racine du dépôt, sur la machine de développement :
+bash scripts/preparer-deploiement.sh
+```
+
+Les deux autres servent à la première installation, et à la bascule :
 
 ```bash
 # 1. Sur la machine de développement, à la racine du dépôt :
@@ -46,10 +58,14 @@ qui compte est la dernière colonne : **ce qui ne quitte jamais le serveur**.
 | `DOMAINE` | `.env` du VPS | avant le premier démarrage | sans objet |
 | `COURRIEL_ACME` | `.env` du VPS | avant le premier démarrage | sans objet |
 | `GHCR_COMPTE` | `.env` du VPS | avant le premier démarrage | sans objet |
-| `VERSION` | `.env` du VPS | à chaque déploiement | sans objet |
+| `VERSION` | `.env` du VPS | écrite par le workflow à chaque déploiement | sans objet |
 | Enregistrement DNS `A` | zone du domaine | **avant** le premier démarrage de Caddy | sans objet |
-| Clé SSH de déploiement | secrets GitHub | à l'automatisation (#70) | la clé **privée** ne quitte pas GitHub ; la publique va sur le VPS |
+| `VPS_CLE_SSH` | secrets GitHub | à la mise en place (#70) | la clé **privée** ne quitte pas GitHub ; la publique va sur le VPS |
+| `VPS_HOTE`, `VPS_UTILISATEUR`, `VPS_DOMAINE`, `VPS_EMPREINTE` | secrets GitHub | à la mise en place (#70) | sans objet — ce ne sont pas des secrets, mais ils vivent là où le workflow les lit |
 | Jeton du registre | **nulle part** | jamais | n'existe pas — voir plus bas |
+
+`VERSION` est la seule ligne du `.env` que le workflow écrit. Tout le reste du
+fichier est posé à la main, une fois, et n'est jamais touché ensuite.
 
 ### Les trois secrets qui ne quittent jamais le serveur
 
@@ -86,6 +102,36 @@ expire, et son expiration casse un déploiement des mois plus tard sur un
 
 D'ici #70, le premier déploiement se fait à la main, et cette connexion aussi
 est éphémère — voir « Publier les images à la main », plus bas.
+
+### Les cinq secrets GitHub, et l'utilisateur qui va avec
+
+`scripts/preparer-deploiement.sh` les pose, et fait au passage le reste de la
+mise en place. Ce qu'il établit :
+
+| Secret | Ce qu'il vaut |
+| --- | --- |
+| `VPS_HOTE` | le nom ou l'IP du serveur |
+| `VPS_UTILISATEUR` | `deploy` — voir ci-dessous |
+| `VPS_DOMAINE` | le nom sur lequel la vérification finale interroge le carnet |
+| `VPS_CLE_SSH` | la moitié privée d'une clé ed25519 dédiée au déploiement |
+| `VPS_EMPREINTE` | la clé d'hôte du serveur, au format `known_hosts` |
+
+**Le workflow se connecte sous `deploy` et non sous root**, avec une clé propre
+au déploiement. Une clé dédiée se révoque seule, sans casser l'accès personnel ;
+un secret de CI vaut l'accès qu'il ouvre, et celui-ci n'ouvre que ce qu'un
+déploiement fait réellement (#76).
+
+Une limite à énoncer plutôt qu'à taire : `deploy` est membre du groupe `docker`,
+ce qui **équivaut en pratique à root sur l'hôte** — un conteneur privilégié
+monte le système de fichiers de la machine. C'est assumé, le déploiement
+pilotant Docker. « Non privilégié » désigne donc ici l'absence de `sudo` et de
+session root, et non une impossibilité d'escalade.
+
+`VPS_EMPREINTE` est posée depuis un secret plutôt que récoltée par le workflow
+au moment de se connecter. Demander sa clé à la machine à laquelle on s'apprête
+à faire confiance ne vérifie rien : un intermédiaire qui répondrait à sa place
+serait cru sur parole. Le wizard la relève et demande de la comparer à celle lue
+sur la console du serveur, chez l'hébergeur.
 
 ### Le DNS, qui doit précéder le reste
 
@@ -309,21 +355,52 @@ ADR-0016) — ajouter et prouver avant de retirer.
 
 ## Déployer une nouvelle version
 
-Une fois la bascule faite, une mise à jour tient en deux gestes : changer
-`VERSION` dans le `.env` du serveur, puis
+Un seul geste, depuis l'onglet **Actions** de GitHub : workflow « Poser une
+version », `Run workflow`, et le numéro — `0.1.0`. Ou, en ligne de commande :
 
 ```bash
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$COMPTE" --password-stdin
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
-docker logout ghcr.io
+gh workflow run poser-version.yml -f version=0.1.0
 ```
+
+Ce qui s'enchaîne ensuite, sans intervention (ADR-0018) :
+
+1. Le numéro est inscrit dans les deux `package.json`, commité sur `main`,
+   tagué `v0.1.0`. Le tag naît d'un `main` à jour, ce qui rend structurellement
+   impossible une version posée depuis un clone en retard.
+2. Le déploiement vérifie que le commit **descend de `main`** et s'arrête sinon.
+3. Lint, types, tests et construction des images sont **rejoués** sur ce commit.
+4. Les images partent sur GHCR, privées, taguées `0.1.0`.
+5. Le VPS les tire — session vers le registre ouverte avec le jeton de
+   l'exécution, refermée ensuite — et la pile démarre en attendant que **chaque
+   service soit sain**.
+6. Le workflow interroge `https://<domaine>/api/health` **depuis l'extérieur**,
+   par le vrai nom et le vrai certificat, jusqu'à réponse favorable ou
+   expiration. Il vérifie enfin que l'image qui tourne porte bien ce numéro.
 
 Les migrations sont jouées par l'entrypoint de l'image au démarrage, et sont
 idempotentes : un conteneur qui redémarre ne rejoue rien.
 
-Revenir en arrière, c'est remettre le numéro précédent et refaire ces mêmes
-gestes — à la réserve près qu'une migration déjà jouée ne se défait pas seule.
+### Si le déploiement échoue
 
-C'est ce geste-là que #70 automatisera, avec le jeton de l'exécution du
-workflow à la place de `$GITHUB_TOKEN`.
+**Rien n'est défait automatiquement**, et c'est une décision (ADR-0018) : les
+migrations ne se défont pas, et redescendre une image sur un schéma déjà migré
+casse plus sûrement que de rester en panne. Le workflow échoue bruyamment, et
+c'est à l'acheteur de décider.
+
+Revenir à une version antérieure, c'est reposer ce numéro par le même
+mécanisme — à la réserve près qu'une migration déjà jouée ne se défait pas, donc
+que l'image précédente doit savoir vivre avec le schéma en place.
+
+### À la main, en recours
+
+Si le workflow ne peut pas s'exécuter, les gestes qu'il fait restent jouables
+depuis le serveur :
+
+```bash
+cd /opt/homecomparator
+sed -i 's/^VERSION=.*/VERSION=0.1.0/' .env
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$COMPTE" --password-stdin
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d --wait
+docker logout ghcr.io
+```
