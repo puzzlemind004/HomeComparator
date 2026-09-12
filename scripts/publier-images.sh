@@ -289,21 +289,27 @@ if [[ -z "$GH_JETON" ]]; then
   exit 1
 fi
 say "Jeton reçu : ${#GH_JETON} caractères."
-note "Un jeton classic en fait typiquement 40 (ghp_…), un fine-grained bien plus."
-if printf '%s' "$GH_JETON" | docker login ghcr.io -u "$GHCR_COMPTE" --password-stdin 2>/tmp/login-err >/dev/null; then
+note "Un classic récent en fait 52 (ghp_ + 36) ; les plus anciens, 40. La"
+note "longueur ne dit donc rien des droits — seul le registre en juge."
+# La sortie de `docker login` n'est ni masquée ni redirigée : quand la
+# connexion échoue, ce qu'il dit est la seule chose utile à lire. Une version
+# antérieure de ce script la capturait dans un fichier, qui s'est trouvé vide
+# au pire moment — laissant l'utilisateur devant une liste de causes possibles
+# au lieu de la cause réelle.
+say "Tentative de connexion, la réponse du registre s'affiche telle quelle :"
+say ""
+if printf '%s' "$GH_JETON" | docker login ghcr.io -u "$GHCR_COMPTE" --password-stdin; then
+  say ""
   say "Session ouverte vers ghcr.io."
 else
-  warn "La connexion au registre a échoué. Erreur exacte :"
-  sed 's/^/      /' /tmp/login-err
+  say ""
+  warn "La connexion au registre a échoué : la raison est écrite juste au-dessus."
   note ""
-  note "Pistes, par ordre de probabilité :"
-  note "  - le jeton doit être un « classic », pas un « fine-grained »"
-  note "  - il lui faut le droit write:packages"
-  note "  - le compte saisi doit être celui du jeton (ici : $GHCR_COMPTE)"
-  rm -f /tmp/login-err
+  note "Si le message parle de scopes ou de permission, le jeton n'a pas"
+  note "write:packages. S'il parle d'authentification, c'est le jeton ou le"
+  note "compte ($GHCR_COMPTE) qui ne correspond pas."
   exit 1
 fi
-rm -f /tmp/login-err
 fi
 pause "Continuer vers la construction ?"
 

@@ -377,16 +377,15 @@ if [[ -z "$GH_JETON" ]]; then
   exit 1
 fi
 say "  Jeton reçu : ${#GH_JETON} caractères."
-if printf '%s' "$GH_JETON" | docker login ghcr.io -u "$GHCR_COMPTE" --password-stdin 2>/tmp/login-err >/dev/null; then
+# Sortie non masquée : ce que dit le registre est la seule chose utile quand
+# la connexion échoue, et la capturer dans un fichier l'a déjà fait perdre.
+if printf '%s' "$GH_JETON" | docker login ghcr.io -u "$GHCR_COMPTE" --password-stdin; then
   say "  [ok] session ouverte vers ghcr.io"
 else
-  warn "  [échec] connexion au registre refusée. Erreur exacte :"
-  sed 's/^/      /' /tmp/login-err
-  note "  Le jeton doit être un « classic » portant read:packages."
-  rm -f /tmp/login-err
+  warn "  [échec] connexion refusée : la raison est écrite juste au-dessus."
+  note "  Le jeton doit porter read:packages, et le compte être $GHCR_COMPTE."
   exit 1
 fi
-rm -f /tmp/login-err
 if docker compose -f docker-compose.prod.yml pull; then
   say "  [ok] images présentes sur la machine"
 else
