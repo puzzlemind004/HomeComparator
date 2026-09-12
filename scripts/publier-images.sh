@@ -250,6 +250,26 @@ confirm "C'est bien cela ?" || exit 1
 
 # ── 3 ─────────────────────────────────────────────────────────────────────
 stage "Ouvrir la session vers le registre"
+# La voie courte d'abord : si `gh` est authentifié, son jeton ouvre le
+# registre sans qu'aucun jeton n'ait à être créé, collé, ni révoqué. C'est
+# le geste le plus sûr — rien ne transite par le presse-papiers, où un
+# retour chariot invisible suffit à faire rendre un « denied » au registre.
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  say "GitHub CLI est authentifié sur cette machine."
+  note "Son jeton peut ouvrir la session vers le registre, sans en créer un."
+  if confirm "Utiliser le jeton de gh ?"; then
+    if gh auth token 2>/dev/null | docker login ghcr.io -u "$GHCR_COMPTE" --password-stdin >/dev/null 2>&1; then
+      say "Session ouverte vers ghcr.io."
+      JETON_PAR_GH=1
+    else
+      warn "Le jeton de gh a été refusé."
+      note "Il lui manque sans doute write:packages. Vous pouvez l'ajouter par :"
+      note "  gh auth refresh -h github.com -s write:packages,read:packages"
+      note "Ou continuer avec un jeton créé à la main, ci-dessous."
+    fi
+  fi
+fi
+if [[ "${JETON_PAR_GH:-0}" != "1" ]]; then
 say "Il faut un jeton GitHub (classic) portant les droits write:packages."
 open_url "https://github.com/settings/tokens/new?scopes=write:packages,read:packages&description=Publication%20manuelle%20des%20images%20HomeComparator"
 step "La page s'ouvre avec les droits déjà cochés : write:packages et read:packages."
@@ -284,6 +304,7 @@ else
   exit 1
 fi
 rm -f /tmp/login-err
+fi
 pause "Continuer vers la construction ?"
 
 # ── 4 ─────────────────────────────────────────────────────────────────────

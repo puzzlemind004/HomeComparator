@@ -365,6 +365,9 @@ say ""
 step "Tirer les images maintenant : c'est long, et l'ancien site répond encore."
 note "Un jeton GitHub est nécessaire (read:packages), les images étant privées."
 note "Il n'est pas écrit sur le disque : la session est refermée aussitôt après."
+note "Sur cette machine, `gh` n'est en principe pas installé : le jeton se"
+note "colle donc à la main. Attention au retour chariot invisible du collage,"
+note "que ce script retire de lui-même."
 ask_secret GH_JETON "Jeton GitHub (affichage vide) :"
 # Espaces et retour chariot parasites du collage : invisibles, ils font rendre
 # au registre un « denied » qui accuse le jeton plutôt que la saisie.
