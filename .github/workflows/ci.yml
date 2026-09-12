@@ -21,11 +21,20 @@ jobs:
     # Aucun argument : les valeurs par défaut sont celles de la CI — on
     # construit les images sans les publier, et elles portent `dev`, puisque
     # rien ici ne désigne une version à déployer.
-    # `packages: write` n'est pas accordé, et l'omission est la décision :
-    # la CI ne pousse pas, donc le jeton de ses exécutions — y compris celles
-    # des pull requests — n'a aucun droit sur le registre. Le workflow appelé
-    # le demande pour son job d'images ; un appelé ne peut qu'abaisser les
-    # droits de son appelant, jamais les élever, et l'étape qui pousse est de
-    # toute façon conditionnée à `publier`.
+    # **`packages: write` est accordé ici alors que la CI ne pousse jamais,
+    # et cette concession apparente demande son explication.**
+    #
+    # Le workflow appelé déclare ce droit sur son job `publier`. Les
+    # permissions sont validées au **chargement** du workflow, avant que le
+    # `if:` de ce job ne soit évalué : un appelant qui ne l'accorde pas fait
+    # donc échouer l'exécution entière au démarrage, sans qu'aucun job ne
+    # tourne. Mesuré sur cette branche : `startup_failure` en une seconde,
+    # sur un message qui ne nomme pas la cause.
+    #
+    # Ce que la CI accorde ne lui donne pour autant aucun accès au registre.
+    # `publier` est le seul job à s'y connecter, et son `if: inputs.publier`
+    # le saute intégralement ici — la CI appelle sans cet argument. Le droit
+    # est porté, jamais exercé.
     permissions:
       contents: read
+      packages: write
