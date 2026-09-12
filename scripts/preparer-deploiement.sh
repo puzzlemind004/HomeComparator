@@ -375,11 +375,26 @@ set_secret VPS_DOMAINE "$VPS_DOMAINE"
 set_secret VPS_CLE_SSH "$(cat "$CLE_TEMP")"
 set_secret VPS_EMPREINTE "$EMPREINTE"
 say ""
-# La clé privée est effacée d'ici : elle vit dans les secrets GitHub, et sa
-# moitié publique sur le VPS. La garder en ferait un troisième exemplaire,
-# sur la machine la moins protégée des trois.
-rm -f "$CLE_TEMP" "$CLE_TEMP.pub"
-say "  [ok] clé privée effacée de cette machine"
+# **La clé n'est effacée que si les cinq secrets sont bien posés, et cette
+# condition n'est pas une précaution de principe.** `set_secret` se contente
+# d'avertir quand `gh` échoue ; effacer inconditionnellement la clé privée
+# juste après laisserait alors un compte `deploy` dont la moitié publique est
+# installée sur le VPS et dont la moitié privée n'existe plus **nulle part**.
+# Rien ne la retrouverait, et il faudrait tout reprendre.
+if (( ${#SKIPPED[@]} )); then
+  warn "Des secrets n'ont pas été posés. La clé privée est CONSERVÉE ici :"
+  note "  $CLE_TEMP"
+  note ""
+  note "Posez le secret manquant vous-même, puis effacez-la :"
+  note "  gh secret set VPS_CLE_SSH < $CLE_TEMP"
+  note "  rm -f $CLE_TEMP $CLE_TEMP.pub"
+else
+  # La clé vit désormais dans les secrets GitHub, et sa moitié publique sur
+  # le VPS. La garder ici en ferait un troisième exemplaire, sur la machine
+  # la moins protégée des trois.
+  rm -f "$CLE_TEMP" "$CLE_TEMP.pub"
+  say "  [ok] clé privée effacée de cette machine"
+fi
 
 _clear
 printf '\n%s%s  ✓ Déploiement prêt%s\n\n' "$BOLD" "$GREEN" "$RESET"

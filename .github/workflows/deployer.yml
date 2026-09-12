@@ -290,10 +290,21 @@ jobs:
           # GitHub.
           docker compose -f docker-compose.prod.yml up -d --wait --wait-timeout 180
 
-          # Les images de la version précédente ne sont plus référencées par
-          # rien. `--filter until=168h` épargne celles de la semaine, qui
-          # sont ce qu'un retour en arrière rapide tirerait sans réseau.
-          docker image prune -af --filter until=168h >/dev/null 2>&1 || true
+          # **Aucun `docker image prune` ici, et son absence est délibérée.**
+          #
+          # Une version antérieure de ce script faisait le ménage des images
+          # devenues inutiles. C'était un piège : `prune` agit sur **tout le
+          # démon** et non sur cette pile, et il retire toute image que plus
+          # aucun conteneur ne référence — un conteneur supprimé, et non
+          # seulement arrêté, cesse d'en être un. Or d'autres piles vivent
+          # encore sur cette machine (#68, #72), et la bascule en a descendu
+          # une par `docker compose down`, qui supprime ses conteneurs. Leurs
+          # images seraient donc parties, en silence, depuis le déploiement
+          # d'un projet qui ne les connaît pas.
+          #
+          # Le disque du VPS mérite ce ménage, mais il appartient à qui
+          # connaît l'inventaire de la machine, et il se fait à froid — pas
+          # dans la fenêtre où un déploiement vient de changer la production.
 
           docker compose -f docker-compose.prod.yml ps
           SCRIPT
