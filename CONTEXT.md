@@ -58,6 +58,14 @@ _Avoid_: Photo principale, photo de couverture, miniature — la vignette est le
 Le texte libre attaché à un Bien, pour tout ce qui compte mais ne se compare pas en colonne : impressions de visite, travaux à prévoir, remarques sur le voisinage.
 _Avoid_: Commentaire, description, mémo
 
+**Sauvegarde** :
+Une copie datée de tout ce qui ne se retrouve pas : le contenu de la base et les fichiers des Photos, pris ensemble et sous le même horodatage. Les deux moitiés ne valent que réunies — la base ne porte que les noms des fichiers (ADR-0014), et une base restaurée sans ses Photos affiche des galeries vides.
+
+Elle existe parce que tout est saisi à la main (ADR-0001) : un Bien perdu ne se retrouve pas, et une Photo de visite encore moins. C'est une exigence et non une commodité (ADR-0007).
+
+Se distingue de l'**Export**, avec lequel elle se confond facilement : l'Export sort les données vers un tableur, à destination de l'acheteur, et ne contient pas les Photos ; la Sauvegarde sert à revenir en arrière, et personne ne la lit tant que rien n'a été perdu.
+_Avoid_: Backup, archive — l'archive désigne ici le fichier des Photos, qui n'est qu'une moitié de la Sauvegarde. Dump, qui n'en désigne que l'autre.
+
 **Propriétaire** :
 Celui à qui appartient un Bien dans le carnet. L'outil n'a qu'un utilisateur et n'offre aucune gestion de comptes : tous les Biens portent la même valeur constante. Le terme n'existe que pour rendre indolore un éventuel passage au multi-utilisateurs (ADR-0011), et ne désigne jamais le vendeur du logement.
 _Avoid_: Utilisateur, compte, vendeur

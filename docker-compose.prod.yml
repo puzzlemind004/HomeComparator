@@ -8,7 +8,7 @@
 # de la surcharge est héritée, ce qu'aucune ligne ne dit. La production se lit
 # donc ici, entière, au prix d'une redite que la divergence rend de toute
 # façon nécessaire : les services n'y construisent plus, ne publient plus les
-# mêmes ports, et il s'en ajoute un quatrième.
+# mêmes ports, et il s'en ajoute.
 #
 # Ce que la production change, en résumé :
 #   - `api` et `web` tirent des images du registre au lieu de les construire
@@ -18,6 +18,9 @@
 #   - `caddy` s'ajoute et détient 80 et 443 ; il termine le TLS.
 #   - `web` ne publie plus aucun port : voir son service.
 #   - `postgres` et `api` ne publient plus rien non plus.
+#   - `sauvegarde` reçoit ses scripts d'un conteneur d'initialisation
+#     (`sauvegarde-scripts`) au lieu de les monter depuis le dépôt, absent du
+#     serveur. C'est la seule divergence de ce service (#71).
 #
 # Lancement, depuis le dossier qui porte ce fichier et le `.env` du serveur :
 #   docker compose -f docker-compose.prod.yml up -d
@@ -105,14 +108,15 @@ services:
       # tirée (#67) ; au-dessus, la variable ne sert qu'à choisir le tag.
     volumes:
       - photos-data:/app/stockage/photos
-      # En lecture seule, et **personne n'écrit encore dans ce volume** : la
-      # sauvegarde quotidienne d'ADR-0007 est le ticket #71, et aucun service
-      # de cette pile ne la joue. La route de santé rendra donc une date de
-      # dernière sauvegarde absente en production, ce qui est exact (#67) et
-      # non une panne — mais il vaut mieux l'écrire que de le laisser
-      # découvrir. Le volume est déclaré dès maintenant pour que #71 n'ait
-      # qu'un service à ajouter, et non à retoucher le montage de l'API.
-      - sauvegardes-data:/app/sauvegardes:ro
+      # L'horodatage de la dernière sauvegarde, en lecture seule. Le service
+      # `sauvegarde` l'écrit chaque nuit, l'API le lit, et la route de santé
+      # le rend à un appelant muni d'une session (#67, #71).
+      #
+      # **C'est `sauvegardes-etat` et non `sauvegardes-data`** (#75) : l'API
+      # ne voit que cet horodatage, jamais les archives. Un dump porte le
+      # carnet entier, et le processus qui sert les requêtes publiques n'a
+      # aucune raison de l'avoir dans son système de fichiers.
+      - sauvegardes-etat:/app/sauvegardes:ro
     # Aucun `ports:`. En développement la publication sur la boucle locale
     # sert à jouer les tests contre l'API ; ici elle n'aurait aucun usage et
     # rouvrirait le chemin direct que la limitation des tentatives de
@@ -135,6 +139,84 @@ services:
     # TLS — un carnet protégé par un seul mot de passe (ADR-0011) n'a pas de
     # raison d'offrir un chemin où ce mot de passe circule en clair, et ce
     # chemin-là échapperait en outre à la redirection que Caddy pose.
+
+  # Les scripts de sauvegarde, extraits de l'image de l'API vers un volume
+  # que `sauvegarde` monte ensuite (#71).
+  #
+  # **Ce service ne tourne pas : il copie deux fichiers et s'arrête.** Le
+  # détour tient à ce que les deux moitiés vivent dans deux images : les
+  # scripts voyagent dans celle de l'API — le VPS ne reçoit que ce Compose,
+  # le Caddyfile et le `.env` (#69), donc rien ne peut être monté depuis un
+  # dépôt absent — tandis que `pg_dump`, qui doit être de la version du
+  # serveur, vit dans `postgres:17-alpine`.
+  #
+  # `volumes_from`, qui aurait fait cela d'une ligne, n'existe plus en
+  # Compose v2. Un conteneur d'initialisation est la forme qui reste, et elle
+  # a le mérite d'être explicite : on voit ce qui est copié et d'où.
+  #
+  # Il se rejoue à chaque `up`, donc à chaque déploiement, et **écrase** ce
+  # qu'il avait copié : les scripts suivent la version déployée sans geste
+  # particulier, ce qui est la promesse d'ADR-0018.
+  sauvegarde-scripts:
+    image: ghcr.io/${GHCR_COMPTE}/homecomparator-api:${VERSION}
+    # `no` et non `unless-stopped` : un conteneur qui a fini son travail et
+    # sort en 0 ne doit pas être relancé en boucle.
+    restart: 'no'
+    # **`root` le temps de la copie, et il le faut** : l'image de l'API se
+    # termine par `USER node` (#13), tandis qu'un volume Docker neuf
+    # appartient à root. Sans cette ligne la copie échoue sur un « Permission
+    # denied » — mesuré, et non supposé. La portée en est étroite : ce
+    # conteneur copie deux fichiers et sort ; celui qui les *exécute* ensuite
+    # les monte en lecture seule.
+    user: root
+    entrypoint: ['cp', '-r', '/usr/local/sauvegarde/.', '/destination/']
+    volumes:
+      - sauvegarde-scripts:/destination
+
+  sauvegarde:
+    # Le service qui sauvegarde le carnet chaque nuit (#71, ADR-0007).
+    #
+    # `postgres:17-alpine`, la **même image que la base** : `pg_dump` doit
+    # être d'une version au moins égale à celle du serveur, et partager
+    # l'image est la seule façon que les deux ne divergent jamais. Elle est
+    # déjà tirée sur la machine, le service ne coûte donc pas une image de
+    # plus.
+    image: postgres:17-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # La copie doit avoir abouti, sans quoi le volume des scripts serait
+      # vide et l'entrypoint introuvable.
+      sauvegarde-scripts:
+        condition: service_completed_successfully
+    environment:
+      TZ: UTC
+      PATH: /usr/local/sauvegarde:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      POSTGRES_HOTE: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # `PGPASSWORD` et non un argument : `pg_dump` lit cette variable
+      # d'office, et un mot de passe en argument serait lisible dans la liste
+      # des processus du conteneur.
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire (openssl rand -base64 24)}
+      SAUVEGARDE_HEURE: ${SAUVEGARDE_HEURE:-3}
+      SAUVEGARDE_MINUTE: ${SAUVEGARDE_MINUTE:-0}
+      SAUVEGARDE_QUOTIDIENNES: ${SAUVEGARDE_QUOTIDIENNES:-7}
+      SAUVEGARDE_HEBDOMADAIRES: ${SAUVEGARDE_HEBDOMADAIRES:-4}
+    volumes:
+      - sauvegarde-scripts:/usr/local/sauvegarde:ro
+      # Les archives, en écriture. **Ce volume n'est monté nulle part
+      # ailleurs** (#75) : ni l'API ni le front ne voient les dumps.
+      - sauvegardes-data:/sauvegardes/archives
+      # L'état, en écriture ici et en lecture seule dans l'API — le seul
+      # point de contact entre les deux services.
+      - sauvegardes-etat:/sauvegardes/etat
+      # Les Photos, en lecture seule : la base ne porte que leurs noms
+      # (ADR-0014), et une base restaurée sans elles affiche des galeries
+      # vides.
+      - photos-data:/photos:ro
+    entrypoint: ['/usr/local/sauvegarde/boucle.sh']
 
   caddy:
     # Le terminateur TLS, et le seul service à toucher le réseau public.
@@ -219,6 +301,15 @@ networks:
 volumes:
   postgres-data:
   photos-data:
+  # Les archives : dumps de la base et archives de Photos (#71, ADR-0007).
+  # Seul le service `sauvegarde` le monte (#75).
   sauvegardes-data:
+  # L'état de la sauvegarde : le seul horodatage de la dernière réussite,
+  # écrit par `sauvegarde` et lu par l'API (#67).
+  sauvegardes-etat:
+  # Les scripts extraits de l'image de l'API au démarrage, que `sauvegarde`
+  # exécute. Rempli à chaque `up` par `sauvegarde-scripts` ; son contenu est
+  # jetable et se reconstitue seul.
+  sauvegarde-scripts:
   caddy-data:
   caddy-config:
