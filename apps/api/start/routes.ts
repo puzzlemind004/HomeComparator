@@ -14,6 +14,7 @@ const HealthController = () => import('#controllers/health_controller')
 const BiensController = () => import('#controllers/biens_controller')
 const AuthController = () => import('#controllers/auth_controller')
 const PhotosController = () => import('#controllers/photos_controller')
+const ExportController = () => import('#controllers/export_controller')
 
 /**
  * Les quatre routes qui se passent d'authentification, et la raison de
@@ -75,6 +76,21 @@ router
     router.post('/biens/:bienId/photos', [PhotosController, 'store'])
     router.get('/biens/:bienId/photos/:id', [PhotosController, 'show'])
     router.delete('/biens/:bienId/photos/:id', [PhotosController, 'destroy'])
+
+    /**
+     * L'export du carnet, en JSON ou en CSV (#14).
+     *
+     * Sa place dans ce groupe est la plus évidente de toutes : c'est la
+     * seule adresse qui rende le carnet entier en un appel, Notes
+     * comprises, et donc ce que l'API a de plus sensible à laisser
+     * ouvert (ADR-0011).
+     *
+     * Le format se demande en paramètre plutôt que par deux adresses ou
+     * par négociation de contenu : c'est un bouton à deux choix côté
+     * écran, et `Accept` ne se règle pas depuis un lien de
+     * téléchargement.
+     */
+    router.get('/export', [ExportController])
   })
   .use(middleware.authentification())
 
