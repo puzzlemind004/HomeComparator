@@ -246,9 +246,16 @@ export function versCsv({ biens }: ExportCarnet, champs: string[]): string {
   ]
 
   /**
-   * `\r\n` en fin de ligne, ce que RFC 4180 prescrit et ce qu'attendent les
-   * tableurs sous Windows. Les lecteurs qui n'en ont pas besoin l'ignorent ;
-   * l'inverse n'est pas vrai.
+   * `\r\n` **en fin de ligne**, ce que RFC 4180 prescrit et ce qu'attendent
+   * les tableurs sous Windows. Les lecteurs qui n'en ont pas besoin
+   * l'ignorent ; l'inverse n'est pas vrai.
+   *
+   * À l'intérieur d'une cellule, en revanche, le saut de ligne reste celui
+   * que les Notes portent — un `\n` nu, que rien ne réécrit. RFC 4180
+   * voudrait là aussi du CRLF, et c'est un écart assumé : réécrire les
+   * sauts de ligne de l'acheteur pour satisfaire le standard modifierait ce
+   * qu'il a saisi, alors qu'Excel, LibreOffice et les analyseurs CSV lisent
+   * tous un `\n` nu dans un champ encadré.
    */
   return BOM + lignes.join('\r\n') + '\r\n'
 }
@@ -325,11 +332,32 @@ function echapper(valeur: unknown): string {
  * Un nombre en est exempté : `-15000` est un montant que le tableur doit
  * pouvoir additionner, et une apostrophe en ferait du texte. C'est la limite
  * assumée du geste — ce qui ressemble à un nombre passe tel quel.
+ *
+ * **Une apostrophe de tête est doublée** (#89). Le marqueur qui protège les
+ * quatre autres caractères est aussi ce qui abîme une valeur qui en portait
+ * un pour de bon : le tableur le consomme à la lecture, et « 'tit studio »
+ * s'afficherait « tit studio ». C'est la même altération silencieuse que le
+ * `#NAME?` qu'on vient d'empêcher, et elle se répare du même geste.
+ *
+ * Le cas composé est ce qui rend le doublement nécessaire et pas seulement
+ * soigné : « '=pas une formule », saisi tel quel, verrait son apostrophe
+ * mangée et le reste évalué. La neutralisation produirait ce qu'elle existe
+ * pour empêcher.
  */
 function neutraliserFormule(texte: string): string {
   const premier = texte[0]
 
-  if (premier === undefined || !DEBUTS_DE_FORMULE.has(premier) || NOMBRE.test(texte)) {
+  if (premier === undefined) {
+    return texte
+  }
+
+  // L'apostrophe d'abord : elle se double même devant un nombre, `'-15000`
+  // n'étant pas un nombre mais un texte qui commence par une apostrophe.
+  if (premier === "'") {
+    return `'${texte}`
+  }
+
+  if (!DEBUTS_DE_FORMULE.has(premier) || NOMBRE.test(texte)) {
     return texte
   }
 

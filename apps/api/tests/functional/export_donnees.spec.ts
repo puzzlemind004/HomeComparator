@@ -437,6 +437,52 @@ test.group('Export des données', (group) => {
   })
 
   /**
+   * Une valeur qui commence **déjà** par une apostrophe la voit doublée
+   * (#89).
+   *
+   * L'apostrophe de tête est le marqueur que le tableur **consomme** à la
+   * lecture : c'est ce qui fait tout l'intérêt de la neutralisation
+   * ci-dessus, et c'est aussi ce qui abîme une valeur qui en portait une
+   * pour de bon. Sans ce doublement, « 'tit studio » s'affiche « tit
+   * studio » — la donnée altérée en silence, très exactement le grief
+   * qu'ADR-0019 formule contre le `#NAME?`.
+   *
+   * Le cas composé est le pire des deux : « '=pas une formule », saisi tel
+   * quel par l'acheteur, verrait son apostrophe mangée et le reste évalué
+   * comme une formule. La neutralisation produirait alors ce qu'elle
+   * existe pour empêcher.
+   */
+  test('une apostrophe de tête est doublée', async ({ client, assert }) => {
+    await unBien({ libelle: "'tit studio", notes: "'=pas une formule" })
+
+    const response = await avecSession(client.get('/export?format=csv'), session)
+
+    response.assertStatus(200)
+
+    const texte = response.text()
+
+    assert.include(texte, "''tit studio")
+    assert.include(texte, "''=pas une formule")
+  })
+
+  /**
+   * Une apostrophe ailleurs qu'en tête ne bouge pas : « l'appartement » est
+   * du texte ordinaire, et le tableur n'en fait rien de particulier.
+   */
+  test('une apostrophe au milieu n’est pas touchée', async ({ client, assert }) => {
+    await unBien({ libelle: "l'appartement d'angle" })
+
+    const response = await avecSession(client.get('/export?format=csv'), session)
+
+    response.assertStatus(200)
+
+    const texte = response.text()
+
+    assert.include(texte, "l'appartement d'angle")
+    assert.notInclude(texte, "''appartement")
+  })
+
+  /**
    * La neutralisation ne touche que le premier caractère : un tiret au
    * milieu d'une phrase est de la ponctuation ordinaire, et une valeur
    * ordinaire ne gagne pas d'apostrophe.

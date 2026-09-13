@@ -46,6 +46,10 @@ Encadrer de guillemets n'y suffit pas — `"=1+1"` s'évalue tout autant —, ce
 
 **Un nombre en est exempté.** `-15000` commence par un tiret sans être une formule : c'est un montant, et une apostrophe en ferait du texte que le tableur ne saurait plus additionner. C'est la limite assumée du geste — ce qui ressemble à un nombre passe tel quel, et le cas restant (une valeur non numérique commençant par un tiret) est du texte, où l'apostrophe ne coûte rien.
 
+**Une apostrophe de tête est doublée** (#89). Le marqueur qui protège les quatre autres caractères est aussi ce qui abîme une valeur qui en portait un pour de bon : le tableur le consomme à la lecture, et « 'tit studio » s'afficherait « tit studio » — la même altération silencieuse que le `#NAME?` qu'on vient d'empêcher.
+
+Le cas composé est ce qui rend ce doublement nécessaire et pas seulement soigné. « '=pas une formule », saisi tel quel par l'acheteur, verrait son apostrophe mangée et le reste évalué : la neutralisation produirait très exactement ce qu'elle existe pour empêcher. Le doublement s'applique donc même devant un nombre, `'-15000` n'étant pas un nombre mais un texte qui commence par une apostrophe.
+
 ## Le front passe par une requête, pas par un lien
 
 Un simple `<a href="/api/export">` aurait suffi à télécharger, et c'était plus court.
