@@ -133,6 +133,15 @@ au moment de se connecter. Demander sa clé à la machine à laquelle on s'appr�
 serait cru sur parole. Le wizard la relève et demande de la comparer à celle lue
 sur la console du serveur, chez l'hébergeur.
 
+**Cette comparaison est la première chose que le wizard fait, avant sa première
+connexion, et l'ordre fait partie de la mesure** (#86). Le même raisonnement qui
+interdit de récolter l'empreinte à la volée interdit de parler au serveur
+d'abord et de le vérifier ensuite : une empreinte confirmée après que
+l'utilisateur `deploy` a été créé, la clé publique installée et un mot de passe
+d'administration présenté ne protège plus rien. Une fois confirmée, elle est
+**opposée** à chacune des connexions du wizard — qui refusent donc l'hôte
+qu'elles ne reconnaissent pas, exactement comme le fera le workflow.
+
 ### Le DNS, qui doit précéder le reste
 
 L'enregistrement `A` du domaine doit pointer vers l'IP du VPS **avant** le
