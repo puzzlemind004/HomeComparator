@@ -16,7 +16,33 @@
 -->
 <ul class="cartes">
   @for (carte of cartes(); track carte.bien.id) {
-    <li class="carte">
+    <li class="carte" [class.carte--choisie]="carte.selectionne">
+      <!--
+        La case qui retient le Bien pour le face-à-face (#12).
+
+        Elle est posée au-dessus du lien qui couvre la carte (voir la
+        feuille) : sans cela, le pseudo-élément du Libellé la recouvrirait et
+        cocher mènerait à la fiche. C'est le seul élément de la carte qui
+        passe devant lui, et c'est voulu — les deux gestes sont distincts.
+
+        Sur un téléphone le plafond est de deux (ADR-0006), donc il s'atteint
+        vite : c'est précisément ici que `disabled` ferait le plus de dégâts.
+        Il retirerait les cases du parcours clavier, et dès le deuxième Bien
+        coché la quasi-totalité de la liste deviendrait introuvable à qui
+        navigue à la tabulation ou au lecteur d'écran (ADR-0005).
+        `aria-disabled` annonce l'état en laissant la case atteignable ;
+        c'est le gestionnaire qui refuse le clic.
+      -->
+      <label class="carte__choix" [class.carte__choix--bloque]="carte.selectionBloquee">
+        <input
+          type="checkbox"
+          [checked]="carte.selectionne"
+          [attr.aria-disabled]="carte.selectionBloquee"
+          (click)="choisir($event, carte)"
+        />
+        <span class="carte__lecture">Comparer {{ carte.bien.libelle }}</span>
+      </label>
+
       <!--
         Le Libellé en tête, et c'est lui qui mène à la fiche : c'est ce sous
         quoi l'acheteur reconnaît un Bien.

@@ -8,10 +8,17 @@ import type { Bien, CreationBien } from './bien';
 import type { CreationBienResultat, ListeBiens } from './bien.service';
 import { unBien } from './bien.test-helper';
 import type { Statut } from '../criteres/statut';
+import { LargeurEcran } from '../criteres/largeur-ecran';
+import { MAXIMUM_DESKTOP, MAXIMUM_MOBILE } from '../criteres/selection-comparaison';
 
 /**
- * Le composant est construit sans TestBed : seul son service est injecté,
- * et les assertions portent sur ses signaux plutôt que sur le DOM rendu.
+ * Le composant est construit sans TestBed : seuls ses services sont
+ * injectés, et les assertions portent sur ses signaux plutôt que sur le DOM
+ * rendu.
+ *
+ * `maximum` fixe ce que l'écran permet de comparer (#12) : les tests qui ne
+ * portent pas sur la sélection prennent le plafond du bureau, qui est le cas
+ * le plus permissif et ne borne donc rien par surprise.
  */
 function creerPage(
   service: {
@@ -19,6 +26,7 @@ function creerPage(
     creer?: (saisie: CreationBien) => Observable<CreationBienResultat>;
   },
   exportService: { exporter?: (format: FormatExport) => Observable<ExportResultat> } = {},
+  maximum = MAXIMUM_DESKTOP,
 ) {
   const injector = Injector.create({
     providers: [
@@ -29,6 +37,10 @@ function creerPage(
       {
         provide: ExportService,
         useValue: { exporter: () => of<ExportResultat>({ exporte: true }), ...exportService },
+      },
+      {
+        provide: LargeurEcran,
+        useValue: { maximumComparaison: () => maximum },
       },
     ],
   });
@@ -461,6 +473,136 @@ describe('BiensPage', () => {
 
       page.exporter('csv');
       expect(page.erreurExport()).toBeNull();
+    });
+  });
+
+  describe('la sélection pour la comparaison', () => {
+    /** Trois Biens listés, de quoi éprouver le plafond du téléphone. */
+    const trois = [
+      unBien({ id: 1, libelle: 'anatole' }),
+      unBien({ id: 2, libelle: 'bérénice' }),
+      unBien({ id: 3, libelle: 'clotilde' }),
+    ];
+
+    function pageAvec(biens: Bien[], maximum = MAXIMUM_DESKTOP) {
+      return creerPage({ lister: () => of(chargee(biens)) }, {}, maximum);
+    }
+
+    it('ne retient aucun Bien à l’ouverture', () => {
+      // Ouvrir le carnet ne compare rien : la vue paraît sur un geste de
+      // l'acheteur, jamais d'elle-même (#12).
+      const page = pageAvec(trois);
+
+      expect(page.selection()).toEqual([]);
+      expect(page.comparaisonAffichee()).toBe(false);
+    });
+
+    it('retient les Biens cochés, dans l’ordre des clics', () => {
+      // C'est cet ordre qui fixe celui des colonnes : le seul que l'acheteur
+      // ait demandé, et le seul qui ne fasse pas bouger les colonnes déjà
+      // posées quand il en ajoute une.
+      const page = pageAvec(trois);
+
+      page.basculerComparaison(3);
+      page.basculerComparaison(1);
+
+      expect(page.selection()).toEqual([3, 1]);
+    });
+
+    it('n’affiche la comparaison qu’à partir de deux Biens', () => {
+      // Un Bien seul ne se compare à rien, et sa fiche est déjà là pour le
+      // montrer (#12).
+      const page = pageAvec(trois);
+
+      page.basculerComparaison(1);
+      expect(page.comparaisonAffichee()).toBe(false);
+
+      page.basculerComparaison(2);
+      expect(page.comparaisonAffichee()).toBe(true);
+    });
+
+    it('décoche un Bien déjà retenu', () => {
+      const page = pageAvec(trois);
+
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+      page.basculerComparaison(1);
+
+      expect(page.selection()).toEqual([2]);
+    });
+
+    it('limite la sélection à deux Biens sur mobile', () => {
+      // Deux colonnes étroites restent lisibles sur un téléphone, ce qui
+      // permet de trancher pendant une visite (#12, ADR-0006).
+      const page = pageAvec(trois, MAXIMUM_MOBILE);
+
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+      page.basculerComparaison(3);
+
+      expect(page.selection()).toEqual([1, 2]);
+      expect(page.selectionPleine()).toBe(true);
+    });
+
+    it('laisse retirer un Bien alors même que le plafond est atteint', () => {
+      // Le plafond borne l'ajout, jamais le retrait : sans quoi la sélection
+      // pleine serait un cul-de-sac.
+      const page = pageAvec(trois, MAXIMUM_MOBILE);
+
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+      page.basculerComparaison(1);
+
+      expect(page.selection()).toEqual([2]);
+    });
+
+    it('en autorise davantage sur desktop', () => {
+      const page = pageAvec(trois, MAXIMUM_DESKTOP);
+
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+      page.basculerComparaison(3);
+
+      expect(page.selection()).toEqual([1, 2, 3]);
+    });
+
+    it('rend les Biens à comparer dans l’ordre de la sélection', () => {
+      // Et non dans celui de la liste : c'est l'ordre des colonnes.
+      const page = pageAvec(trois);
+
+      page.basculerComparaison(3);
+      page.basculerComparaison(1);
+
+      expect(page.biensCompares().map((bien) => bien.libelle)).toEqual(['clotilde', 'anatole']);
+    });
+
+    it('retire de la sélection un Bien que le filtre ne montre plus', () => {
+      // Un Bien masqué par un filtre ne doit pas rester une colonne dont on
+      // n'a plus les valeurs à afficher.
+      const liste = new Subject<ListeBiens>();
+      const page = creerPage({ lister: () => liste });
+
+      liste.next(chargee(trois));
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+      expect(page.selection()).toEqual([1, 2]);
+
+      // Le filtre ne rend plus que le second.
+      liste.next(chargee([trois[1]]));
+
+      expect(page.selection()).toEqual([2]);
+      expect(page.comparaisonAffichee()).toBe(false);
+    });
+
+    it('vide la comparaison sans toucher à la liste', () => {
+      const page = pageAvec(trois);
+
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+      page.viderComparaison();
+
+      expect(page.selection()).toEqual([]);
+      expect(biensAffiches(page.liste())).toHaveLength(3);
     });
   });
 });

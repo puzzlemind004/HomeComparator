@@ -50,10 +50,12 @@ export interface Colonne {
    * par la colonne calculée. Le tri s'en sert pour savoir dans quel sens
    * partir.
    *
-   * Il ne suffit pas encore à la comparaison (#12) : `meilleureValeur` exige
-   * un `Critere`, que la colonne calculée n'a pas. Le prix au m² devra donc
-   * lui être présenté autrement — c'est à ce ticket de trancher, et le tri
-   * s'en tire ici par une branche à part.
+   * Il suffit à la comparaison face-à-face (#12), qui appelle
+   * `meilleureValeurColonne` sur la Colonne et non `meilleureValeur` sur le
+   * Critère : c'est ce qui permet au prix au m² d'être mis en évidence comme
+   * les autres, sans que l'écran sache qu'il est calculé (ADR-0013). Le tri
+   * garde sa branche à part, parce qu'il classe aussi des textes — que la
+   * comparaison, elle, ne classe pas.
    */
   sensComparaison: SensComparaison;
 

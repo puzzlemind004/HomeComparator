@@ -361,4 +361,76 @@ describe('TableauBiens, commandes de pliage', () => {
     tableau.basculerGroupe('confort');
     expect(tableau.lignes()[0].cases.length).toBe(tableau.colonnesVisibles().length);
   });
+
+  describe('la sélection pour la comparaison', () => {
+    /** Deux Biens d'identifiants distincts : la sélection porte sur l'`id`. */
+    const deux = [
+      unBien({ id: 1, libelle: 'anatole' }),
+      unBien({ id: 2, libelle: 'bérénice' }),
+    ];
+
+    it('laisse les cases actives avant que le parent ait posé le plafond', () => {
+      // Le composant se rend une première fois avant que la liaison ne
+      // l'alimente. Un plafond à zéro y désactiverait toutes les cases le
+      // temps d'une frame, et la première tentative de sélection ne
+      // répondrait pas (#12).
+      const tableau = creerTableau(deux);
+
+      expect(tableau.lignes().every((ligne) => !ligne.selectionBloquee)).toBe(true);
+    });
+
+    it('marque les Biens retenus', () => {
+      const tableau = creerTableau(deux);
+
+      tableau.selection.set([1]);
+
+      expect(tableau.lignes().map((ligne) => ligne.selectionne)).toEqual([true, false]);
+    });
+
+    it('bloque les cases des Biens non retenus quand le plafond est atteint', () => {
+      // Un Bien déjà retenu garde sa case active : le plafond borne l'ajout,
+      // jamais le retrait.
+      const tableau = creerTableau(deux);
+
+      tableau.maximum.set(1);
+      tableau.selection.set([1]);
+
+      expect(tableau.lignes().map((ligne) => ligne.selectionBloquee)).toEqual([false, true]);
+    });
+
+    it('refuse le clic sur une case bloquée, sans la retirer du clavier', () => {
+      // La case porte `aria-disabled` et reste atteignable à la tabulation
+      // (ADR-0005) : c'est donc ici que le clic doit être annulé, faute de
+      // quoi le plafond ne tiendrait plus.
+      const tableau = creerTableau(deux);
+
+      tableau.maximum.set(1);
+      tableau.selection.set([1]);
+
+      const bloquee = tableau.lignes()[1];
+      const bascules: number[] = [];
+      let annule = false;
+
+      tableau.selectionBasculee.subscribe((id) => bascules.push(id));
+      tableau.choisir({ preventDefault: () => (annule = true) } as unknown as Event, bloquee);
+
+      expect(annule).toBe(true);
+      expect(bascules).toEqual([]);
+    });
+
+    it('laisse passer le clic sur une case libre', () => {
+      const tableau = creerTableau(deux);
+      const bascules: number[] = [];
+      let annule = false;
+
+      tableau.selectionBasculee.subscribe((id) => bascules.push(id));
+      tableau.choisir(
+        { preventDefault: () => (annule = true) } as unknown as Event,
+        tableau.lignes()[0],
+      );
+
+      expect(annule).toBe(false);
+      expect(bascules).toEqual([1]);
+    });
+  });
 });

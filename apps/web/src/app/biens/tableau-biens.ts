@@ -1,4 +1,4 @@
-import { Component, Input, computed, signal } from '@angular/core';
+import { Component, Input, Output, EventEmitter, computed, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Bien } from './bien';
 import {
@@ -10,6 +10,7 @@ import {
 } from '../criteres/colonnes';
 import { TRI_INITIAL, basculer, trier, type Tri } from '../criteres/tri';
 import { libelleStatut, type Statut } from '../criteres/statut';
+import { MAXIMUM_MOBILE } from '../criteres/selection-comparaison';
 import type { GroupeCritere } from '../criteres/critere';
 
 /**
@@ -45,6 +46,20 @@ export interface LigneTableau {
 
   /** Une case par colonne visible, dans l'ordre où l'en-tête les pose. */
   cases: CaseColonne[];
+
+  /** Vrai quand le Bien fait partie de ceux qu'on compare face à face (#12). */
+  selectionne: boolean;
+
+  /**
+   * Vrai quand la case de sélection ne répond plus : le plafond est atteint
+   * et ce Bien n'en fait pas partie.
+   *
+   * La case est désactivée plutôt que masquée : elle reste à sa place, et
+   * l'acheteur voit que la sélection est pleine au lieu de cliquer dans le
+   * vide. Ce que le plafond vaut, et pourquoi, est dit au-dessus du tableau
+   * par la page — le tableau n'en sait rien.
+   */
+  selectionBloquee: boolean;
 }
 
 /**
@@ -98,6 +113,42 @@ export class TableauBiens {
   set biensAAfficher(biens: readonly Bien[]) {
     this.biens.set(biens);
   }
+
+  /**
+   * Les Biens retenus pour la comparaison face-à-face (#12), tels que la
+   * page les tient.
+   *
+   * Le tableau ne décide pas de la sélection : il la montre et signale les
+   * clics. C'est la page qui la détient, parce que les cartes la montrent
+   * aussi et que les deux présentations doivent s'accorder — passer du
+   * téléphone au bureau ne doit pas vider ce qu'on avait choisi.
+   */
+  readonly selection = signal<readonly number[]>([]);
+
+  @Input()
+  set selectionCourante(selection: readonly number[]) {
+    this.selection.set(selection);
+  }
+
+  /**
+   * Le plafond de la sélection, que la largeur de l'écran décide (ADR-0006).
+   * Le tableau ne l'applique pas — la page s'en charge — mais il a besoin de
+   * le connaître pour désactiver les cases qui ne répondraient plus.
+   *
+   * Il part du plafond le plus bas et non de zéro : le composant se rend une
+   * première fois avant que la liaison du parent ne l'alimente, et un
+   * plafond nul y désactiverait toutes les cases le temps d'une frame.
+   */
+  readonly maximum = signal(MAXIMUM_MOBILE);
+
+  @Input()
+  set maximumSelection(maximum: number) {
+    this.maximum.set(maximum);
+  }
+
+  /** Le clic sur une case de sélection : la page en tire la nouvelle liste. */
+  @Output()
+  readonly selectionBasculee = new EventEmitter<number>();
 
   /** Les groupes de colonnes, dans l'ordre où la définition les ordonne (ADR-0004). */
   readonly groupes: readonly GroupeColonnes[] = GROUPES_COLONNES;
@@ -160,14 +211,26 @@ export class TableauBiens {
    * formatées — celles d'un groupe masqué ne s'affichent pas, et les
    * calculer ne se verrait nulle part.
    */
-  readonly lignes = computed<LigneTableau[]>(() =>
-    trier(this.biens(), this.tri()).map((bien) => ({
-      bien,
-      statut: bien.statut,
-      libelleStatut: libelleStatut(bien.statut),
-      cases: this.colonnesVisibles().map((colonne) => caseDe(colonne, bien.criteres)),
-    })),
-  );
+  readonly lignes = computed<LigneTableau[]>(() => {
+    const selection = this.selection();
+    const pleine = selection.length >= this.maximum();
+
+    return trier(this.biens(), this.tri()).map((bien) => {
+      const selectionne = selection.includes(bien.id);
+
+      return {
+        bien,
+        statut: bien.statut,
+        libelleStatut: libelleStatut(bien.statut),
+        cases: this.colonnesVisibles().map((colonne) => caseDe(colonne, bien.criteres)),
+        selectionne,
+        // Un Bien déjà retenu garde sa case active : le plafond borne
+        // l'ajout, jamais le retrait, sans quoi la sélection pleine serait
+        // un cul-de-sac.
+        selectionBloquee: pleine && !selectionne,
+      };
+    });
+  });
 
   /**
    * Vrai quand le groupe est affiché. C'est de là que sa bascule tire son
@@ -204,6 +267,28 @@ export class TableauBiens {
 
       return suivant;
     });
+  }
+
+  /**
+   * Le clic sur une case de sélection.
+   *
+   * Au plafond, le clic est **annulé** plutôt que la case désactivée :
+   * `disabled` la retirerait du parcours clavier, et l'acheteur qui navigue
+   * à la tabulation ne la rencontrerait plus (ADR-0005). `preventDefault`
+   * empêche la case de se cocher, ce que `aria-disabled` seul ne fait pas —
+   * l'attribut annonce un état, il n'a aucun effet sur le comportement.
+   *
+   * L'événement est `click` et non `change` : seul le premier est annulable
+   * avant que la case n'ait changé d'état. Au clavier, la barre d'espace sur
+   * une case émet elle aussi un `click`, donc les deux chemins passent ici.
+   */
+  choisir(evenement: Event, ligne: LigneTableau): void {
+    if (ligne.selectionBloquee) {
+      evenement.preventDefault();
+      return;
+    }
+
+    this.selectionBasculee.emit(ligne.bien.id);
   }
 
   /** Le clic sur un en-tête : trier sur cette colonne, ou renverser le sens. */

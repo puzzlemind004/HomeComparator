@@ -1,4 +1,4 @@
-import type { Critere } from './critere';
+import type { Critere, SensComparaison } from './critere';
 
 /**
  * Ce qui permet de départager plusieurs Biens sur un Critère : la fonction
@@ -27,18 +27,45 @@ export function meilleureValeur(
   critere: Critere,
   valeurs: readonly ValeurCritere[],
 ): ValeurCritere {
-  if (critere.sensComparaison === 'aucun') {
+  return meilleureSurEchelle(critere.sensComparaison, valeurs, (valeur) => rang(critere, valeur));
+}
+
+/**
+ * La meilleure valeur d'une liste, sur l'échelle que `rangDe` en donne.
+ *
+ * C'est l'algorithme nu, sans rien savoir de ce qu'il classe : un sens de
+ * comparaison, et une façon de placer une valeur sur une échelle. Ce qui
+ * varie d'un appelant à l'autre est cette échelle, et elle seule — un
+ * Critère la tire de la définition (`meilleureValeur`), une Colonne y ajoute
+ * le cas de la valeur calculée, qui n'a pas de Critère
+ * (`meilleureValeurColonne`, dans `face-a-face.ts`).
+ *
+ * Écrit une fois plutôt que deux : deux façons de désigner le meilleur
+ * finiraient par diverger, et l'écran mettrait alors en évidence un Bien que
+ * le tri ne met pas en tête — ce que `rang` dit déjà redouter.
+ *
+ * Les valeurs sans rang sont écartées avant le choix : elles ne gagnent ni ne
+ * perdent, elles sont absentes (#12).
+ */
+export function meilleureSurEchelle(
+  sensComparaison: SensComparaison,
+  valeurs: readonly ValeurCritere[],
+  rangDe: (valeur: ValeurCritere) => number | null,
+): ValeurCritere {
+  if (sensComparaison === 'aucun') {
     return null;
   }
 
-  const plusPetitEstMeilleur = critere.sensComparaison === 'plusPetitEstMeilleur';
+  const plusPetitEstMeilleur = sensComparaison === 'plusPetitEstMeilleur';
 
   // Chaque valeur est ramenée à un rang comparable, ce qui met les nombres
   // et les énumérations ordonnées sur le même pied : un DPE se classe par sa
   // place dans la définition, pas par sa lettre.
   const classables = valeurs
-    .map((valeur) => ({ valeur, rang: rang(critere, valeur) }))
-    .filter((candidat): candidat is { valeur: ValeurCritere; rang: number } => candidat.rang !== null);
+    .map((valeur) => ({ valeur, rang: rangDe(valeur) }))
+    .filter(
+      (candidat): candidat is { valeur: ValeurCritere; rang: number } => candidat.rang !== null,
+    );
 
   if (classables.length === 0) {
     return null;
