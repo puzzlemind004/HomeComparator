@@ -91,6 +91,12 @@ while true; do
   # pas déposé — la route de santé continue d'annoncer la date d'avant, qui
   # vieillit. C'est la boucle fermée du ticket : une date ancienne se voit,
   # là où un conteneur mort passerait inaperçu.
+  # Appelé par son nom, le PATH du service portant le dossier des scripts.
+  # **Celui-ci a donc besoin de son bit d'exécution**, que Git enregistre
+  # (mode 100755) et que le `Dockerfile` repose de son côté pour la
+  # production, où les scripts arrivent par l'image. Les deux chemins sont
+  # couverts ; c'est l'appel par le PATH qui l'exige, là où `boucle.sh`
+  # lui-même est lancé par `sh` et s'en passerait.
   if sauvegarder.sh; then
     :
   else

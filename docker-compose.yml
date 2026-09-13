@@ -189,7 +189,14 @@ services:
     # attend de démarrer un serveur — initialisation du volume de données,
     # attente d'un mot de passe — et qui n'a aucun sens ici. On le remplace
     # entièrement plutôt que de lui passer un argument qu'il ne comprend pas.
-    entrypoint: ['/usr/local/sauvegarde/boucle.sh']
+    #
+    # `sh <script>` et non le script seul : celui-ci arrive par un montage
+    # depuis le dépôt, et le bit d'exécution d'un fichier monté dépend du
+    # système hôte — Docker Desktop sous Windows le rend exécutable quoi
+    # qu'il arrive, un clone Linux respecte le mode enregistré par Git. Passer
+    # par l'interpréteur rend le démarrage indifférent à cette différence, qui
+    # ne se verrait autrement que sur la machine de quelqu'un d'autre.
+    entrypoint: ['sh', '/usr/local/sauvegarde/boucle.sh']
 
 volumes:
   postgres-data:

@@ -216,7 +216,11 @@ services:
       # (ADR-0014), et une base restaurée sans elles affiche des galeries
       # vides.
       - photos-data:/photos:ro
-    entrypoint: ['/usr/local/sauvegarde/boucle.sh']
+    # `sh <script>`, comme en développement : ici le bit d'exécution est
+    # garanti par le `chmod` du `Dockerfile`, mais garder la même forme des
+    # deux côtés évite qu'une divergence s'installe entre les deux fichiers
+    # sur un détail qui ne se verrait qu'au démarrage.
+    entrypoint: ['sh', '/usr/local/sauvegarde/boucle.sh']
 
   caddy:
     # Le terminateur TLS, et le seul service à toucher le réseau public.
