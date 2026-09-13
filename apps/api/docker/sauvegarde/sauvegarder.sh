@@ -84,6 +84,23 @@ journal "Sauvegarde $nom"
 
 mkdir -p "$ARCHIVES" "$ETAT"
 
+# Les restes d'une tentative interrompue sont balayés avant de commencer.
+#
+# Ils ne se suppriment pas tout seuls : un conteneur tué net, ou une nuit de
+# disque plein, laisse un `.partiel` que rien ne reprend — et le glob de la
+# rétention ne le voit pas, puisqu'il ne finit pas par `.sql.gz`. Sans ce
+# balayage ils s'accumulent, un par nuit, sur le volume que la sauvegarde a
+# précisément besoin de garder libre (#95).
+#
+# Les supprimer ici plutôt qu'en sortie est ce qui les rattrape *tous*, y
+# compris ceux d'une exécution qui n'a jamais atteint sa sortie. Aucun n'a de
+# valeur : un `.partiel` est par définition ce qui n'a pas été mené à terme.
+for reste in "$ARCHIVES"/*.partiel "$ARCHIVES"/.code-pg_dump.*; do
+  [ -e "$reste" ] || continue
+  journal "Reste d'une tentative interrompue, supprimé : $(basename "$reste")"
+  rm -f "$reste"
+done
+
 # --- Le dump de la base -----------------------------------------------------
 #
 # Écrit d'abord sous un nom temporaire, renommé seulement une fois `pg_dump`
@@ -123,8 +140,28 @@ journal "Dump de $POSTGRES_DB"
 # D'où ce fichier temporaire portant le code : c'est la façon portable de
 # faire remonter le statut d'un maillon de tête hors du sous-shell où le
 # tube l'enferme.
+#
+# **Il est effacé avant d'être testé**, et non seulement après. Son épreuve
+# est son *existence*, et les PID d'un conteneur sont de très petits nombres
+# qui se recyclent en quelques dizaines de lancements (mesuré : 7, 8, 9…).
+# Un résidu laissé par un échec antérieur au même PID ferait rejeter un dump
+# parfaitement bon en accusant la base — le pire des diagnostics, puisqu'il
+# envoie chercher la panne là où elle n'est pas.
 code_dump="$ARCHIVES/.code-pg_dump.$$"
+rm -f "$code_dump"
 
+# **`set -e` est neutralisé le temps de ce tube, et c'est ce qui permet au
+# reste de tourner.** Sous `set -e`, un `gzip` qui bute sur ENOSPC — disque
+# plein — tue le script *ici*, avant le nettoyage et avant la rétention. Les
+# trois effets se renforcent : le `.partiel` survit, la rétention qui aurait
+# libéré de la place ne tourne jamais, et le résidu s'ajoute à celui de la
+# veille. Une seule nuit de disque plein arrêtait ainsi la sauvegarde
+# définitivement (#95) : le volume ne redescendait plus.
+#
+# La panne se voyait — l'horodatage n'est pas déposé, donc la route de santé
+# vieillit — mais se voir ne suffit pas : la sauvegarde doit pouvoir repartir
+# seule dès que la place revient.
+set +e
 {
   pg_dump \
     --host="${POSTGRES_HOTE:-postgres}" \
@@ -133,12 +170,28 @@ code_dump="$ARCHIVES/.code-pg_dump.$$"
     --clean --if-exists --no-owner --no-privileges \
     || echo "$?" > "$code_dump"
 } | gzip -9 > "$dump_partiel"
+code_gzip=$?
+set -e
 
-if [ -f "$code_dump" ]; then
+# **L'écriture est jugée avant `pg_dump`, et l'ordre compte.** Le disque
+# plein fait échouer les deux — `gzip` sur le dump, et `echo` sur le fichier
+# de code, qui reste alors vide. Diagnostiquer d'abord `pg_dump` accuserait
+# la base d'une panne du serveur, en affichant un code de retour vide
+# (mesuré). Le volume saturé est la cause commune : il se nomme en premier.
+if [ "$code_gzip" -ne 0 ]; then
+  rm -f "$code_dump" "$dump_partiel"
+  echoue "l'écriture du dump a rendu $code_gzip — le volume des sauvegardes est probablement plein ; rien n'a été déposé"
+fi
+
+# Le fichier de code **et son contenu** : vide, il ne dit rien d'exploitable,
+# et le lire quand même produirait un message nommant un code absent.
+if [ -s "$code_dump" ]; then
   echec_pg_dump=$(cat "$code_dump")
   rm -f "$code_dump" "$dump_partiel"
   echoue "pg_dump a rendu $echec_pg_dump — base injoignable ou refus d'authentification ; rien n'a été déposé"
 fi
+
+rm -f "$code_dump"
 
 # Le contenu est vérifié en plus du code de retour, et les deux ne couvrent
 # pas le même risque. Le bloc ci-dessus attrape le `pg_dump` qui **échoue** ;
