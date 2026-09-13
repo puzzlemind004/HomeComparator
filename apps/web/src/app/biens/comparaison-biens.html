@@ -13,10 +13,17 @@
 -->
 <div class="comparaison">
   <table>
+    <!--
+      Le mot est « Colonne » et non « Critère » : les lignes viennent de
+      `COLONNES`, qui porte le Prix au mètre carré — lequel n'est pas un
+      Critère (ADR-0013). Dire « Critère » ici exclurait littéralement de la
+      phrase le seul cas que le glossaire prend soin de distinguer, et c'est
+      le seul texte qui décrive ce tableau à un lecteur d'écran.
+    -->
     <caption class="comparaison__lecture">
-      Les Biens comparés côte à côte, un par colonne, un Critère par ligne. La meilleure valeur de
-      chaque Critère est mise en évidence ; un Critère non renseigné ne l'est jamais, et plusieurs
-      Biens à égalité le sont tous.
+      Les Biens comparés côte à côte, un par colonne, une Colonne comparée par ligne. La meilleure
+      valeur de chaque Colonne est mise en évidence ; une valeur non renseignée ne l'est jamais, et
+      plusieurs Biens à égalité le sont tous.
     </caption>
 
     <thead>
@@ -56,7 +63,23 @@
     <tbody>
       @for (ligne of lignes(); track ligne.colonne.id) {
         <tr>
-          <th scope="row" class="comparaison__critere">{{ ligne.colonne.libelle }}</th>
+          <th scope="row" class="comparaison__critere">
+            {{ ligne.colonne.libelle }}
+
+            <!--
+              Ce que la ligne ne compare pas, dit à qui ne voit pas la
+              couleur. Une ligne sans mise en évidence se lit d'un coup d'œil
+              — rien n'y ressort —, mais au lecteur d'écran elle se parcourt
+              case par case sans que rien n'explique l'absence (ADR-0005).
+
+              Le mot vaut pour les trois cas que `compare` rassemble : la
+              Colonne ne se compare pas (une ville), personne ne l'a
+              renseignée, ou aucune valeur ne se place sur l'échelle.
+            -->
+            @if (!ligne.compare) {
+              <span class="comparaison__lecture"> — sans comparaison</span>
+            }
+          </th>
 
           @for (donnee of ligne.cases; track $index) {
             <!--

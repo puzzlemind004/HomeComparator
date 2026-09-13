@@ -269,6 +269,28 @@ export class TableauBiens {
     });
   }
 
+  /**
+   * Le clic sur une case de sélection.
+   *
+   * Au plafond, le clic est **annulé** plutôt que la case désactivée :
+   * `disabled` la retirerait du parcours clavier, et l'acheteur qui navigue
+   * à la tabulation ne la rencontrerait plus (ADR-0005). `preventDefault`
+   * empêche la case de se cocher, ce que `aria-disabled` seul ne fait pas —
+   * l'attribut annonce un état, il n'a aucun effet sur le comportement.
+   *
+   * L'événement est `click` et non `change` : seul le premier est annulable
+   * avant que la case n'ait changé d'état. Au clavier, la barre d'espace sur
+   * une case émet elle aussi un `click`, donc les deux chemins passent ici.
+   */
+  choisir(evenement: Event, ligne: LigneTableau): void {
+    if (ligne.selectionBloquee) {
+      evenement.preventDefault();
+      return;
+    }
+
+    this.selectionBasculee.emit(ligne.bien.id);
+  }
+
   /** Le clic sur un en-tête : trier sur cette colonne, ou renverser le sens. */
   basculerTri(colonne: string): void {
     this.tri.update((tri) => basculer(tri, colonne));

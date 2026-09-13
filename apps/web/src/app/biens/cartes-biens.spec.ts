@@ -194,5 +194,41 @@ describe('CartesBiens', () => {
 
       expect(cartes.cartes().map((carte) => carte.selectionBloquee)).toEqual([false, true]);
     });
+
+    it('refuse le clic sur une case bloquée, sans la retirer du clavier', () => {
+      // C'est sur un téléphone que `disabled` ferait le plus de dégâts : au
+      // plafond de deux, presque toutes les cases sortiraient du parcours
+      // clavier (ADR-0005). Elles restent donc atteignables, et c'est le
+      // clic qui est annulé.
+      const cartes = creerCartes(deux);
+
+      cartes.maximum.set(1);
+      cartes.selection.set([1]);
+
+      const bloquee = cartes.cartes()[1];
+      const bascules: number[] = [];
+      let annule = false;
+
+      cartes.selectionBasculee.subscribe((id) => bascules.push(id));
+      cartes.choisir({ preventDefault: () => (annule = true) } as unknown as Event, bloquee);
+
+      expect(annule).toBe(true);
+      expect(bascules).toEqual([]);
+    });
+
+    it('laisse passer le clic sur une case libre', () => {
+      const cartes = creerCartes(deux);
+      const bascules: number[] = [];
+      let annule = false;
+
+      cartes.selectionBasculee.subscribe((id) => bascules.push(id));
+      cartes.choisir(
+        { preventDefault: () => (annule = true) } as unknown as Event,
+        cartes.cartes()[0],
+      );
+
+      expect(annule).toBe(false);
+      expect(bascules).toEqual([1]);
+    });
   });
 });

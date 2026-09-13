@@ -142,33 +142,43 @@
           moment où il coche, et non en découvrant des cases qui ne
           répondent plus (#12, ADR-0005).
         -->
-        <p class="comparaison-etat" role="status">
-          @if (selection().length) {
-            {{ selection().length }} Bien{{ selection().length > 1 ? 's' : '' }} retenu{{
-              selection().length > 1 ? 's' : ''
-            }}
-            pour la comparaison, sur {{ maximumSelection() }} possible{{
-              maximumSelection() > 1 ? 's' : ''
-            }}.
+        <div class="comparaison-etat">
+          <!--
+            La région vivante ne porte que le texte, et surtout pas le bouton
+            qui le suit : `role="status"` fait relire tout son contenu à
+            chaque changement, et un bouton à l'intérieur se ferait annoncer
+            à chaque coche alors qu'il n'a pas bougé (ADR-0005).
+          -->
+          <p class="comparaison-etat__texte" role="status">
+            @if (selection().length) {
+              {{ selection().length }} Bien{{ selection().length > 1 ? 's' : '' }} retenu{{
+                selection().length > 1 ? 's' : ''
+              }}
+              pour la comparaison, sur {{ maximumSelection() }} possible{{
+                maximumSelection() > 1 ? 's' : ''
+              }}.
 
-            @if (selectionPleine()) {
-              <!--
-                Le plafond dépend de la largeur de l'écran, et ce n'est pas
-                évident : le dire évite de chercher pourquoi une case ne
-                répond plus (ADR-0006).
-              -->
-              Retirez-en un pour en choisir un autre.
-            } @else if (!comparaisonAffichee()) {
-              Choisissez-en un second pour les comparer.
+              @if (selectionPleine()) {
+                <!--
+                  Le plafond dépend de la largeur de l'écran, et ce n'est pas
+                  évident : le dire évite de chercher pourquoi une case ne
+                  répond plus (ADR-0006).
+                -->
+                Retirez-en un pour en choisir un autre.
+              } @else if (!comparaisonAffichee()) {
+                Choisissez-en un second pour les comparer.
+              }
+            } @else {
+              Cochez deux Biens pour les comparer face à face.
             }
+          </p>
 
+          @if (selection().length) {
             <button type="button" class="comparaison-etat__vider" (click)="viderComparaison()">
               Vider la comparaison
             </button>
-          } @else {
-            Cochez deux Biens pour les comparer face à face.
           }
-        </p>
+        </div>
 
         <app-tableau-biens
           class="vue-desktop"

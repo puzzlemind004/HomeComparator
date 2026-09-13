@@ -109,18 +109,21 @@
             apprendre (ADR-0005). Son intitulé porte le Libellé, sans quoi
             une page de vingt cases en annoncerait vingt identiques.
 
-            Désactivée quand le plafond est atteint et que ce Bien n'en fait
-            pas partie : elle reste à sa place plutôt que de disparaître, et
-            l'acheteur voit que la sélection est pleine au lieu de cliquer
-            dans le vide.
+            Au plafond, la case porte `aria-disabled` et non `disabled` :
+            `disabled` la retirerait du parcours clavier, et l'acheteur qui
+            navigue à la tabulation ou au lecteur d'écran ne la rencontrerait
+            plus du tout — dès deux Biens cochés, la quasi-totalité des cases
+            de la liste deviendrait introuvable, sans que rien ne dise
+            pourquoi (ADR-0005). `aria-disabled` annonce l'état en laissant
+            la case atteignable ; c'est le gestionnaire qui refuse le clic.
           -->
           <td class="tableau__choix">
-            <label>
+            <label [class.tableau__choix--bloque]="ligne.selectionBloquee">
               <input
                 type="checkbox"
                 [checked]="ligne.selectionne"
-                [disabled]="ligne.selectionBloquee"
-                (change)="selectionBasculee.emit(ligne.bien.id)"
+                [attr.aria-disabled]="ligne.selectionBloquee"
+                (click)="choisir($event, ligne)"
               />
               <span class="tableau__lecture">Comparer {{ ligne.bien.libelle }}</span>
             </label>

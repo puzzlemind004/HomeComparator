@@ -261,15 +261,18 @@ tbody tr:hover {
     display: block;
   }
 
-  // Une case désactivée dit que le plafond est atteint : le curseur le
-  // confirme au survol, avant le clic qui ne ferait rien.
-  input:disabled {
-    cursor: not-allowed;
-  }
+}
 
-  label:has(input:disabled) {
-    cursor: not-allowed;
-  }
+// Une case que le plafond bloque. Elle reste atteignable au clavier
+// (`aria-disabled`, non `disabled`) : seule son allure dit qu'elle ne
+// répondra pas, et le curseur le confirme avant le clic.
+//
+// L'opacité plutôt qu'une couleur : la case est dessinée par le navigateur,
+// et c'est le seul levier qui vaille sur tous les moteurs sans la redessiner
+// entièrement.
+.tableau__choix--bloque {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 // La ligne d'un Bien retenu pour la comparaison.

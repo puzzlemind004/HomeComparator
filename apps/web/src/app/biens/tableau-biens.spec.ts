@@ -397,5 +397,40 @@ describe('TableauBiens, commandes de pliage', () => {
 
       expect(tableau.lignes().map((ligne) => ligne.selectionBloquee)).toEqual([false, true]);
     });
+
+    it('refuse le clic sur une case bloquée, sans la retirer du clavier', () => {
+      // La case porte `aria-disabled` et reste atteignable à la tabulation
+      // (ADR-0005) : c'est donc ici que le clic doit être annulé, faute de
+      // quoi le plafond ne tiendrait plus.
+      const tableau = creerTableau(deux);
+
+      tableau.maximum.set(1);
+      tableau.selection.set([1]);
+
+      const bloquee = tableau.lignes()[1];
+      const bascules: number[] = [];
+      let annule = false;
+
+      tableau.selectionBasculee.subscribe((id) => bascules.push(id));
+      tableau.choisir({ preventDefault: () => (annule = true) } as unknown as Event, bloquee);
+
+      expect(annule).toBe(true);
+      expect(bascules).toEqual([]);
+    });
+
+    it('laisse passer le clic sur une case libre', () => {
+      const tableau = creerTableau(deux);
+      const bascules: number[] = [];
+      let annule = false;
+
+      tableau.selectionBasculee.subscribe((id) => bascules.push(id));
+      tableau.choisir(
+        { preventDefault: () => (annule = true) } as unknown as Event,
+        tableau.lignes()[0],
+      );
+
+      expect(annule).toBe(false);
+      expect(bascules).toEqual([1]);
+    });
   });
 });

@@ -136,6 +136,28 @@ export class CartesBiens {
   readonly selectionBasculee = new EventEmitter<number>();
 
   /**
+   * Le clic sur une case de sélection.
+   *
+   * Au plafond, le clic est **annulé** plutôt que la case désactivée :
+   * `disabled` la retirerait du parcours clavier, et sur un téléphone — où
+   * le plafond est de deux (ADR-0006) — la quasi-totalité des cases
+   * deviendrait introuvable dès le deuxième Bien coché. `preventDefault`
+   * empêche la case de se cocher, ce que `aria-disabled` seul ne fait pas.
+   *
+   * L'événement est `click` et non `change` : seul le premier est annulable
+   * avant que la case n'ait changé d'état, et la barre d'espace au clavier
+   * en émet un aussi.
+   */
+  choisir(evenement: Event, carte: Carte): void {
+    if (carte.selectionBloquee) {
+      evenement.preventDefault();
+      return;
+    }
+
+    this.selectionBasculee.emit(carte.bien.id);
+  }
+
+  /**
    * Les Colonnes que porte une carte. Exposé pour le gabarit, qui écrit leur
    * libellé à côté de la valeur : sur une carte, aucune en-tête de colonne ne
    * dit ce qu'un nombre représente.

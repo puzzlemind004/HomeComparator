@@ -250,6 +250,12 @@
   padding: 0.5rem 0.75rem;
 }
 
+// Le texte seul porte la région vivante : le bouton est son voisin et non
+// son contenu, faute de quoi il serait relu à chaque coche.
+.comparaison-etat__texte {
+  margin: 0;
+}
+
 // Le bouton qui vide la comparaison : discret, parce qu'il défait un choix
 // et n'est pas ce que l'acheteur vient faire.
 .comparaison-etat__vider {

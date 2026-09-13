@@ -200,9 +200,21 @@ export class BiensPage {
    * que dit `basculerSelection`, et la page l'annonce au-dessus de la liste.
    */
   basculerComparaison(bienId: number): void {
-    // Le plafond s'applique à la sélection effective et non au choix brut :
-    // un Bien coché au bureau puis masqué par le rétrécissement de la
+    // La bascule repart de la sélection **effective** et non du choix brut :
+    // un Bien coché au bureau puis écarté par le rétrécissement de la
     // fenêtre ne doit pas occuper une place sur le téléphone.
+    //
+    // Conséquence assumée, et qui va plus loin que le seul plafond : ce que
+    // `selectionAjustee` a retiré est abandonné pour de bon au clic suivant,
+    // **y compris ce qu'un filtre par Statut masquait**. Filtrer puis cocher
+    // perd donc les finalistes que le filtre cachait, et revenir à « Tous »
+    // ne les rend pas.
+    //
+    // C'est le prix d'une sélection qui ne retient jamais de colonne
+    // invisible : la retenir ferait resurgir, au changement de filtre, des
+    // Biens que l'acheteur croyait avoir remplacés. Entre les deux surprises,
+    // celle-ci se voit au moment où elle se produit — la liste est sous les
+    // yeux — là où l'autre frappe plus tard.
     this.choix.update(() => basculerSelection(this.selection(), bienId, this.maximumSelection()));
   }
 
