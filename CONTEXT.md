@@ -64,7 +64,9 @@ Une copie datée de tout ce qui ne se retrouve pas : le contenu de la base et le
 Elle existe parce que tout est saisi à la main (ADR-0001) : un Bien perdu ne se retrouve pas, et une Photo de visite encore moins. C'est une exigence et non une commodité (ADR-0007).
 
 Se distingue de l'**Export**, avec lequel elle se confond facilement : l'Export sort les données vers un tableur, à destination de l'acheteur, et ne contient pas les Photos ; la Sauvegarde sert à revenir en arrière, et personne ne la lit tant que rien n'a été perdu.
-_Avoid_: Backup, archive — l'archive désigne ici le fichier des Photos, qui n'est qu'une moitié de la Sauvegarde. Dump, qui n'en désigne que l'autre.
+
+Ses deux moitiés se nomment le **dump** (le fichier de la base) et l'**archive des Photos**. Les deux ensemble, sur le volume qui les porte, sont les _archives_ — c'est le mot du pluriel, et il ne désigne jamais une seule des deux moitiés.
+_Avoid_: Backup. « Archive » au singulier pour désigner une Sauvegarde entière, qui en compte deux.
 
 **Propriétaire** :
 Celui à qui appartient un Bien dans le carnet. L'outil n'a qu'un utilisateur et n'offre aucune gestion de comptes : tous les Biens portent la même valeur constante. Le terme n'existe que pour rendre indolore un éventuel passage au multi-utilisateurs (ADR-0011), et ne désigne jamais le vendeur du logement.

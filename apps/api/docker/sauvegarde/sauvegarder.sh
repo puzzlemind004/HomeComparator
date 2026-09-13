@@ -28,9 +28,16 @@ set -eu
 #             fichiers, fût-ce en lecture seule.
 #   ETAT      le seul horodatage de la dernière réussite. C'est ce que l'API
 #             monte, en lecture seule, et tout ce qu'elle monte.
-ARCHIVES="${SAUVEGARDE_ARCHIVES:-/sauvegardes/archives}"
-ETAT="${SAUVEGARDE_ETAT:-/sauvegardes/etat}"
-PHOTOS="${SAUVEGARDE_PHOTOS:-/photos}"
+#
+# Ces trois chemins sont **écrits en dur et non paramétrables**, à la
+# différence de la rétention et de l'heure. Ce ne sont pas des réglages :
+# ce sont les points de montage que les deux fichiers Compose déclarent, et
+# les rendre variables donnerait deux endroits où dire la même chose, qui
+# finiraient par diverger. Le jour où ils changent, ils changent dans le
+# Compose et ici, ensemble.
+ARCHIVES=/sauvegardes/archives
+ETAT=/sauvegardes/etat
+PHOTOS=/photos
 
 # Rétention, en nombre de sauvegardes gardées de chaque sorte (ADR-0007).
 # Un dump compressé pèse quelques dizaines de kilo-octets pour ce volume : la
@@ -38,9 +45,11 @@ PHOTOS="${SAUVEGARDE_PHOTOS:-/photos}"
 QUOTIDIENNES="${SAUVEGARDE_QUOTIDIENNES:-7}"
 HEBDOMADAIRES="${SAUVEGARDE_HEBDOMADAIRES:-4}"
 
-# Le jour de la semaine qui fait d'une quotidienne une hebdomadaire.
-# 7 = dimanche, au sens de `date +%u`.
-JOUR_HEBDOMADAIRE="${SAUVEGARDE_JOUR_HEBDOMADAIRE:-7}"
+# Le jour qui fait d'une sauvegarde une hebdomadaire : le dimanche, au sens
+# de `date +%u`. En dur pour la même raison que les chemins — rien dans
+# ADR-0007 ne fait dépendre la rétention du jour retenu, et un réglage de
+# plus serait un réglage que personne ne touche.
+JOUR_HEBDOMADAIRE=7
 
 journal() {
   # L'horodatage est écrit par le script et non laissé au collecteur : ces
@@ -131,13 +140,12 @@ if [ -f "$code_dump" ]; then
   echoue "pg_dump a rendu $echec_pg_dump — base injoignable ou refus d'authentification ; rien n'a été déposé"
 fi
 
-# `pg_dump` en tête d'un tube : son code de retour est celui du tube entier
-# sous `sh`, donc celui de `gzip`. Un `pg_dump` qui échoue après avoir écrit
-# quelques octets sortirait ici en succès, `gzip` ayant bien compressé ce
-# qu'il a reçu. Un dump complet porte en fin de fichier un marqueur que
-# `pg_dump` n'écrit qu'une fois tout rendu : le chercher est ce qui distingue
-# un dump entier d'un début de dump, et c'est la seule vérification qui porte
-# sur le contenu.
+# Le contenu est vérifié en plus du code de retour, et les deux ne couvrent
+# pas le même risque. Le bloc ci-dessus attrape le `pg_dump` qui **échoue** ;
+# celui-ci attrape le dump qui **s'arrête sans échouer** — disque plein au
+# milieu de l'écriture, conteneur arrêté, tube rompu. Un dump complet porte
+# en fin de fichier un marqueur que `pg_dump` n'écrit qu'une fois tout rendu,
+# et c'est la seule vérification qui porte sur ce qui a réellement été écrit.
 #
 # Les **vingt** dernières lignes et non les trois : le marqueur n'est pas
 # garanti dernier. PostgreSQL 17 fait suivre d'une ligne `\unrestrict`, et
@@ -198,6 +206,22 @@ journal "Photos déposées : $(basename "$archive") ($(du -h "$archive" | cut -f
 elaguer() {
   sorte_a_elaguer="$1"
   garder="$2"
+
+  # **Garder zéro ne veut pas dire tout supprimer, et sans cette ligne c'est
+  # exactement ce qui arriverait.** `head -n -0` rend *toutes* les lignes au
+  # lieu d'aucune — mesuré dans BusyBox —, si bien qu'un
+  # `SAUVEGARDE_QUOTIDIENNES=0` effacerait chaque dump et chaque archive de
+  # Photos au lieu de ne rien élaguer. Les réglages sont annoncés comme
+  # modifiables dans `.env.example`, donc ce zéro est atteignable par
+  # quelqu'un qui cherche précisément à éprouver la rétention.
+  #
+  # Une valeur nulle ou négative est traitée comme « ne rien supprimer » :
+  # c'est le sens le plus sûr des deux, une rétention mal réglée devant au
+  # pire garder trop.
+  [ "$garder" -gt 0 ] 2>/dev/null || {
+    journal "Rétention $sorte_a_elaguer : « $garder » n'est pas un nombre de sauvegardes à garder, rien n'est supprimé"
+    return 0
+  }
 
   # Un dump et son archive de Photos portent le même préfixe : la liste est
   # faite sur les dumps, et chaque suppression emporte les deux. Les compter

@@ -1,3 +1,10 @@
+# Le nom du projet, et donc le préfixe des volumes. Fixé ici comme dans
+# `docker-compose.prod.yml` : le défaut est le nom du dossier courant, qui
+# varie d'un clone à l'autre — et un worktree Git le fait varier chez la même
+# personne. Les commandes de `docs/sauvegarde.md` qui nomment un volume
+# tombent ainsi juste partout.
+name: homecomparator
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -171,8 +178,8 @@ services:
       # En développement ils sont **montés**, ce qui les rend modifiables sans
       # reconstruire d'image. En production ils viennent de l'image de l'API,
       # qui les transporte (`apps/api/Dockerfile`) : le VPS n'a pas le dépôt.
-      # Les deux Compose diffèrent donc ici, et c'est la seule divergence de
-      # ce service.
+      # Les deux Compose diffèrent donc ici, et sur le `depends_on` que cette
+      # copie impose là-bas. Le reste du service est identique.
       - ./apps/api/docker/sauvegarde:/usr/local/sauvegarde:ro
       # Les archives, en écriture. **Ce volume n'est monté nulle part
       # ailleurs** (#75) : ni l'API ni le front ne voient les dumps.

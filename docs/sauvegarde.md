@@ -24,6 +24,14 @@ restaurée sans elles affiche des galeries vides.
 garde **7 quotidiennes et 4 hebdomadaires** et supprime le reste ; chaque
 suppression emporte le dump et son archive de Photos ensemble.
 
+Une sauvegarde du dimanche est hebdomadaire **et rien d'autre** : elle ne
+consomme pas de place parmi les quotidiennes. Les 7 quotidiennes couvrent
+donc les sept derniers jours *ouvrés au sens large* — soit un peu plus de
+huit jours calendaires — et les dimanches de cette période restent
+récupérables par les hebdomadaires. C'est un peu plus que ce qu'ADR-0007
+demande, pour le même coût : un dump compressé pèse quelques dizaines de
+kilo-octets.
+
 Un service de la pile plutôt qu'un `crontab` posé sur le serveur, et ce n'est
 pas un détail de goût : ce qui décrit la production vit dans le dépôt et se
 déploie d'un geste, tandis qu'une sauvegarde qui vit dans un crontab que
@@ -136,8 +144,13 @@ docker run --rm \
   alpine tar -xzf /archives/20260913-030000-quotidienne-photos.tar.gz -C /photos
 ```
 
-Le préfixe des volumes est celui du projet Compose — `docker volume ls` le
-donne.
+Le préfixe `homecomparator_` est fixé par le `name:` des deux fichiers
+Compose, et ne dépend donc pas du dossier depuis lequel on lance la commande.
+`docker volume ls` les liste si un doute subsiste.
+
+**Vérifier que le volume existe avant de lancer cette commande** : Docker crée
+un volume vide au lieu d'échouer quand le nom ne correspond à rien, et
+l'extraction « réussirait » sans rien restaurer.
 
 L'archive porte des chemins **relatifs** : elle se déverse dans n'importe quel
 dossier, et n'impose pas son point de montage d'origine.
@@ -147,11 +160,18 @@ dossier, et n'impose pas son point de montage d'origine.
 ```bash
 # Les Biens sont revenus.
 docker compose -f docker-compose.prod.yml exec postgres \
-  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 'SELECT count(*) FROM biens;'
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT count(*) FROM biens;"'
 
 # Les Photos aussi.
 docker compose -f docker-compose.prod.yml exec sauvegarde ls /photos
 ```
+
+> Les variables sont entre **guillemets simples**, donc lues _dans_ le
+> conteneur, où Compose les a posées. Écrites en guillemets doubles elles
+> seraient développées par le shell du serveur, qui ne les connaît pas — le
+> `.env` est lu par Compose, pas exporté dans la session. `psql` se
+> rabattrait alors sur l'utilisateur du système et échouerait sur un message
+> parlant d'un rôle inexistant, sans rapport visible avec la cause.
 
 Puis ouvrir le carnet dans un navigateur et vérifier qu'une fiche de Bien
 affiche bien ses Photos — c'est la vérification qui couvre les deux moitiés à
@@ -193,7 +213,7 @@ aucun orphelin.
 
 ```bash
 docker compose -f docker-compose.prod.yml exec postgres \
-  psql -U "$POSTGRES_USER" -c 'CREATE DATABASE verification;'
+  sh -c 'psql -U "$POSTGRES_USER" -c "CREATE DATABASE verification;"'
 
 docker compose -f docker-compose.prod.yml exec sauvegarde sh -c \
   'gzip -dc /sauvegardes/archives/<la-sauvegarde>.sql.gz \
@@ -201,10 +221,10 @@ docker compose -f docker-compose.prod.yml exec sauvegarde sh -c \
           -v ON_ERROR_STOP=1'
 
 docker compose -f docker-compose.prod.yml exec postgres \
-  psql -U "$POSTGRES_USER" -d verification -c 'SELECT count(*) FROM biens;'
+  sh -c 'psql -U "$POSTGRES_USER" -d verification -c "SELECT count(*) FROM biens;"'
 
 docker compose -f docker-compose.prod.yml exec postgres \
-  psql -U "$POSTGRES_USER" -c 'DROP DATABASE verification;'
+  sh -c 'psql -U "$POSTGRES_USER" -c "DROP DATABASE verification;"'
 ```
 
 Restaurer dans une base jetable plutôt que dans la vraie : la vérification ne

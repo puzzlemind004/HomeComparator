@@ -24,6 +24,32 @@ journal() {
   echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] boucle : $*"
 }
 
+# L'heure est validée au démarrage, et le conteneur refuse de partir si elle
+# n'a pas de sens. Sans cela une valeur vide ou fautive vaut zéro en
+# arithmétique shell : la sauvegarde passerait silencieusement à minuit, ce
+# qui tourne très bien et n'est simplement pas ce qui était demandé. Une
+# panne franche au démarrage se voit ; un horaire déplacé, non.
+valide_ou_refuse() {
+  nom="$1"
+  valeur="$2"
+  maximum="$3"
+
+  case "$valeur" in
+    '' | *[!0-9]*)
+      echo "$nom doit être un nombre entier, reçu « $valeur »" >&2
+      exit 1
+      ;;
+  esac
+
+  if [ "$valeur" -gt "$maximum" ]; then
+    echo "$nom doit être compris entre 0 et $maximum, reçu « $valeur »" >&2
+    exit 1
+  fi
+}
+
+valide_ou_refuse SAUVEGARDE_HEURE "$HEURE" 23
+valide_ou_refuse SAUVEGARDE_MINUTE "$MINUTE" 59
+
 # Les secondes à attendre jusqu'au prochain passage à HEURE:MINUTE UTC.
 #
 # Calculé à partir de l'heure courante plutôt qu'en dormant 24 h entre deux
@@ -39,8 +65,6 @@ journal() {
 # ne rend une heure plus favorable qu'une autre — il n'est consulté par
 # personne à 3 h du matin, quel que soit le fuseau.
 secondes_jusqua_lheure() {
-  maintenant=$(date -u '+%s')
-
   # `date -d` n'existe pas dans BusyBox sous la forme qui parserait une date
   # arbitraire. Le calcul se fait donc à la main, en secondes depuis minuit,
   # ce qui ne demande rien d'autre que l'heure courante.
@@ -59,9 +83,6 @@ secondes_jusqua_lheure() {
   [ "$attente" -gt 0 ] || attente=$((attente + 86400))
 
   echo "$attente"
-  # `maintenant` n'est lu que pour forcer l'échec si `date` ne répond pas ;
-  # le calcul, lui, ne s'en sert pas.
-  : "$maintenant"
 }
 
 journal "démarrée — sauvegarde quotidienne à ${HEURE}h${MINUTE} UTC"
@@ -97,9 +118,5 @@ while true; do
   # production, où les scripts arrivent par l'image. Les deux chemins sont
   # couverts ; c'est l'appel par le PATH qui l'exige, là où `boucle.sh`
   # lui-même est lancé par `sh` et s'en passerait.
-  if sauvegarder.sh; then
-    :
-  else
-    journal "la sauvegarde de cette nuit a échoué ; la boucle continue"
-  fi
+  sauvegarder.sh || journal "la sauvegarde de cette nuit a échoué ; la boucle continue"
 done

@@ -18,14 +18,27 @@
 #   - `caddy` s'ajoute et détient 80 et 443 ; il termine le TLS.
 #   - `web` ne publie plus aucun port : voir son service.
 #   - `postgres` et `api` ne publient plus rien non plus.
-#   - `sauvegarde` reçoit ses scripts d'un conteneur d'initialisation
-#     (`sauvegarde-scripts`) au lieu de les monter depuis le dépôt, absent du
-#     serveur. C'est la seule divergence de ce service (#71).
+#   - `sauvegarde` s'ajoute (#71), et diverge de son jumeau de développement
+#     sur deux points, tous deux dus à l'absence du dépôt sur le serveur : il
+#     reçoit ses scripts d'un conteneur d'initialisation (`sauvegarde-scripts`)
+#     au lieu de les monter, et attend donc que celui-ci ait fini.
 #
 # Lancement, depuis le dossier qui porte ce fichier et le `.env` du serveur :
 #   docker compose -f docker-compose.prod.yml up -d
 #
 # Voir `docs/deploiement.md` pour ce qu'il faut avoir renseigné avant.
+
+# Le nom du projet, et donc le préfixe de **tous les volumes**
+# (`homecomparator_postgres-data`, `homecomparator_sauvegardes-data`…).
+#
+# Fixé ici plutôt que laissé au nom du dossier courant, qui est ce que
+# Compose prend par défaut. Le déploiement se fait depuis `/opt/homecomparator`
+# et le défaut tomberait juste — mais par coïncidence, et une restauration
+# lancée depuis un autre dossier viserait des volumes qui n'existent pas.
+# Docker les créerait vides au lieu d'échouer, ce qui est la pire des
+# réponses le jour où l'on restaure : la commande réussit et ne restaure
+# rien. Les noms de `docs/sauvegarde.md` sont ceux-ci.
+name: homecomparator
 
 services:
   postgres:
