@@ -56,10 +56,30 @@ describe('selectionAjustee', () => {
     expect(selectionAjustee([7, 3, 9], MAXIMUM_MOBILE)).toEqual([7, 3]);
   });
 
-  it('retire les Biens qui ne sont plus dans la liste', () => {
-    // Un Bien supprimé, ou qu'un filtre par Statut ne montre plus, ne doit
-    // pas rester une colonne fantôme.
-    expect(selectionAjustee([1, 2, 3], MAXIMUM_DESKTOP, [1, 3])).toEqual([1, 3]);
+  it('retire les Biens qui ont cessé d’exister', () => {
+    // Un Bien supprimé ne reviendra dans aucune liste : le retenir en ferait
+    // une colonne fantôme, dont l'écran n'a plus les valeurs.
+    expect(selectionAjustee([1, 2, 3], MAXIMUM_DESKTOP, [2])).toEqual([1, 3]);
+  });
+
+  it('garde un Bien absent de la liste tant qu’il n’est pas retiré', () => {
+    // C'est toute la distinction : un filtre par Statut ne dit rien de plus
+    // que « pas ici, pas maintenant ». Le Bien existe, il est comparable, et
+    // il garde sa place — la fonction ne l'apprend que de `retires`, jamais
+    // de son absence d'une liste.
+    expect(selectionAjustee([1, 2, 3], MAXIMUM_DESKTOP, [])).toEqual([1, 2, 3]);
+  });
+
+  it('compte les Biens retenus mais masqués dans le plafond', () => {
+    // Un Bien retenu occupe une place, qu'il soit visible ou non : sans
+    // quoi jouer sur les filtres ferait dépasser le maximum.
+    expect(selectionAjustee([1, 2, 3], MAXIMUM_MOBILE, [])).toEqual([1, 2]);
+  });
+
+  it('laisse un Bien retiré libérer sa place avant le plafond', () => {
+    // Le tri des Biens disparus se fait avant la coupe : un Bien retiré
+    // rend une place plutôt que d'en laisser une vide.
+    expect(selectionAjustee([1, 2, 3], MAXIMUM_MOBILE, [1])).toEqual([2, 3]);
   });
 });
 

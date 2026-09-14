@@ -116,14 +116,23 @@ export class BiensPage {
 
   /**
    * La sélection telle que l'écran peut réellement l'honorer : ce que
-   * l'acheteur a coché, ramené au plafond et aux Biens encore listés.
+   * l'acheteur a coché, ramené au plafond et aux Biens qui existent encore.
    *
    * Elle est **dérivée** et non écrite, là où un `effect` qui corrigerait le
    * signal aurait fait la même chose : deux choses la rendent caduque sans
-   * qu'on y touche — la fenêtre qui rétrécit sous le seuil, et un Bien qui
-   * quitte la liste, supprimé ou masqué par un filtre. Un état corrigé après
-   * coup existe brièvement faux, et cette page-là se lirait avec une colonne
-   * dont elle n'a plus les valeurs.
+   * qu'on y touche — la fenêtre qui rétrécit sous le seuil, et un Bien
+   * supprimé. Un état corrigé après coup existe brièvement faux, et cette
+   * page-là se lirait avec une colonne dont elle n'a plus les valeurs.
+   *
+   * Ce dont elle ne dépend **pas** : la liste affichée. Un filtre par Statut
+   * est un geste de lecture, et un Bien qu'il masque reste retenu (#93) —
+   * il garde sa place, compte sous le plafond, et revient tel quel à
+   * l'ouverture du filtre. C'est `biensCompares` qui s'occupe de ne pas lui
+   * faire de colonne tant que l'écran n'a pas ses valeurs.
+   *
+   * Un Bien supprimé, lui, sort par `oublier`, qui le retire du choix : la
+   * disparition se déclare, elle ne se déduit pas d'une liste — laquelle ne
+   * distinguerait pas une suppression d'un filtrage.
    *
    * Rétrécir la fenêtre puis l'élargir rend les Biens que le plafond avait
    * mis de côté, tant qu'aucun clic n'est venu entre-temps : le premier
@@ -132,15 +141,20 @@ export class BiensPage {
    * colonnes invisibles ferait resurgir, à l'élargissement, des Biens que
    * l'acheteur croyait avoir remplacés.
    */
-  readonly selection = computed<readonly number[]>(() => {
-    const liste = this.liste();
-    const disponibles = liste?.chargee ? liste.biens.map((bien) => bien.id) : undefined;
+  readonly selection = computed<readonly number[]>(() =>
+    selectionAjustee(this.choix(), this.maximumSelection()),
+  );
 
-    return selectionAjustee(this.choix(), this.maximumSelection(), disponibles);
-  });
-
-  /** Vrai dès que deux Biens sont retenus : la vue a alors de quoi s'afficher. */
-  readonly comparaisonAffichee = computed(() => comparaisonPossible(this.selection()));
+  /**
+   * Vrai dès que deux Biens **comparables** sont retenus : la vue a alors de
+   * quoi s'afficher.
+   *
+   * Elle se lit sur `biensCompares` et non sur `selection`, dont les deux
+   * peuvent différer depuis #93 : un Bien retenu que le filtre masque garde
+   * sa place, mais l'écran n'a pas ses valeurs. Compter sur la sélection
+   * ferait paraître un face-à-face à une seule colonne, qui ne compare rien.
+   */
+  readonly comparaisonAffichee = computed(() => comparaisonPossible(this.biensCompares()));
 
   /**
    * Vrai quand le plafond est atteint : la page le dit au-dessus de la
@@ -158,9 +172,36 @@ export class BiensPage {
     const liste = this.liste();
     const biens = liste?.chargee ? liste.biens : [];
 
+    // Un Bien retenu mais que la liste courante ne rend pas n'a pas de
+    // colonne : l'écran n'a pas ses valeurs, et une colonne vide ne
+    // comparerait rien (#93). Il n'est pas abandonné pour autant — il reste
+    // dans `selection`, et `retenusMasques` le dit à l'acheteur.
     return this.selection()
       .map((bienId) => biens.find((bien) => bien.id === bienId))
       .filter((bien): bien is Bien => bien !== undefined);
+  });
+
+  /**
+   * Combien de Biens la comparaison retient que la liste ne montre pas
+   * (#93).
+   *
+   * Sans ce compte, l'acheteur qui filtre verrait sa comparaison maigrir
+   * sans explication, et croirait avoir perdu une sélection qui est en
+   * réalité intacte. La page le dit dans la région d'état, avec le reste de
+   * ce qu'elle annonce aux lecteurs d'écran (ADR-0005).
+   *
+   * Zéro tant que la liste n'a pas été chargée : pendant le chargement,
+   * rien n'est masqué — tout est simplement en route, ce que la page dit
+   * déjà par ailleurs.
+   */
+  readonly retenusMasques = computed(() => {
+    const liste = this.liste();
+
+    if (!liste?.chargee) {
+      return 0;
+    }
+
+    return this.selection().length - this.biensCompares().length;
   });
 
   /**
@@ -202,20 +243,51 @@ export class BiensPage {
   basculerComparaison(bienId: number): void {
     // La bascule repart de la sélection **effective** et non du choix brut :
     // un Bien coché au bureau puis écarté par le rétrécissement de la
-    // fenêtre ne doit pas occuper une place sur le téléphone.
+    // fenêtre ne doit pas occuper une place sur le téléphone. Ce que le
+    // plafond a mis de côté est donc abandonné pour de bon au clic suivant,
+    // et c'est voulu — la place n'existe pas, et retenir indéfiniment des
+    // colonnes invisibles les ferait resurgir à l'élargissement, longtemps
+    // après le geste qui les a choisies.
     //
-    // Conséquence assumée, et qui va plus loin que le seul plafond : ce que
-    // `selectionAjustee` a retiré est abandonné pour de bon au clic suivant,
-    // **y compris ce qu'un filtre par Statut masquait**. Filtrer puis cocher
-    // perd donc les finalistes que le filtre cachait, et revenir à « Tous »
-    // ne les rend pas.
+    // Ce que la sélection effective ne retranche **plus** : les Biens qu'un
+    // filtre par Statut masque (#93). Un filtre est un geste de lecture, pas
+    // une décision sur la comparaison, et rien à l'écran n'annonce qu'en
+    // filtrant on renonce à ce qu'on avait retenu. Le Bien masqué existe, il
+    // est comparable, il est seulement hors du filtre courant : il garde sa
+    // place ici et revient tel quel quand le filtre s'ouvre.
     //
-    // C'est le prix d'une sélection qui ne retient jamais de colonne
-    // invisible : la retenir ferait resurgir, au changement de filtre, des
-    // Biens que l'acheteur croyait avoir remplacés. Entre les deux surprises,
-    // celle-ci se voit au moment où elle se produit — la liste est sous les
-    // yeux — là où l'autre frappe plus tard.
+    // Les deux causes de retrait sont donc séparées : le plafond ici, et la
+    // suppression par `oublier`, qui se déclare et retire du choix.
     this.choix.update(() => basculerSelection(this.selection(), bienId, this.maximumSelection()));
+  }
+
+  /**
+   * Le constat qu'un Bien a été supprimé : il quitte la comparaison (#93).
+   *
+   * C'est le seul chemin par lequel un Bien sort de la sélection sans que
+   * l'acheteur l'ait décoché ni que le plafond s'en mêle. La disparition se
+   * **déclare** plutôt que de se déduire de l'absence du Bien dans la
+   * liste : cette absence-là ne distingue pas une suppression d'un
+   * filtrage, et c'est précisément la confusion que ce ticket défait.
+   *
+   * Le Bien est **retiré du choix**, et rien n'est mémorisé de lui. Une
+   * liste des oubliés rejouée à chaque recalcul rendrait l'identifiant
+   * non-cochable pour toujours : un appelant qui se tromperait — un Bien
+   * déclaré supprimé trop tôt, ou recréé depuis — laisserait une case qui
+   * ne répond plus sans que rien ne le dise, la panne muette même que la
+   * page prend soin d'éviter ailleurs. Ce qui est supprimé ne revenant dans
+   * aucune liste, le retrait suffit ; et si le Bien revient, c'est qu'il
+   * n'était pas supprimé, et le recocher doit marcher.
+   *
+   * La suppression elle-même se joue sur la fiche du Bien (#9), qui est un
+   * autre écran : la page y navigue et se reconstruit au retour, sélection
+   * comprise. Cette méthode est donc aujourd'hui sans appelant — elle est
+   * le point d'entrée que devra emprunter tout écran qui supprimerait un
+   * Bien sans quitter la liste, et sans lequel il n'aurait d'autre recours
+   * que de reconclure « supprimé » d'une liste filtrée.
+   */
+  oublier(bienId: number): void {
+    this.choix.update((choix) => choix.filter((candidat) => candidat !== bienId));
   }
 
   /** Le bouton qui vide la comparaison, sans toucher à la liste. */

@@ -4,8 +4,8 @@
  *
  * Le module ne fait aucune entrée-sortie et ne dépend pas d'Angular, comme
  * ses voisins de `criteres/` : les règles de la sélection — le plafond, ce
- * que devient un Bien en trop, ce qui arrive à un Bien disparu de la liste —
- * se vérifient sans monter d'écran.
+ * que devient un Bien en trop, ce qui arrive à un Bien qui a cessé
+ * d'exister — se vérifient sans monter d'écran.
  *
  * La sélection est une liste d'identifiants et non un ensemble : **l'ordre
  * porte une information**, celui des colonnes du face-à-face. Un `Set`
@@ -78,30 +78,43 @@ export function basculerSelection(
  * La sélection ramenée à ce que l'écran peut réellement comparer : dans le
  * plafond, et sur des Biens qui existent encore.
  *
- * Deux choses la rendent caduque sans qu'on y touche.
+ * Deux choses la rendent caduque sans qu'on y touche, et **elles ne se
+ * valent pas** (#93).
  *
  * Le **plafond se resserre** quand la fenêtre rétrécit sous le seuil : trois
  * colonnes choisies au bureau ne tiennent plus sur un téléphone. Les
  * premières choisies restent — couper par la fin laisse en place les
  * colonnes qui n'ont pas bougé, là où couper par le début les ferait toutes
- * glisser d'un cran.
+ * glisser d'un cran. Ce qui dépasse est écarté pour de bon : la place
+ * n'existe pas, et retenir des colonnes invisibles les ferait resurgir à
+ * l'élargissement, longtemps après le geste qui les a choisies.
  *
- * La **liste change** quand un Bien est supprimé, ou qu'un filtre par Statut
- * ne le montre plus : il ne doit pas rester une colonne fantôme, dont
- * l'écran n'aurait plus les valeurs à afficher. Le tri des Biens disparus se
- * fait avant le plafond, pour qu'un Bien retiré libère une place plutôt que
- * d'en laisser une vide.
+ * Un **Bien cesse d'exister** quand il est supprimé : il ne reviendra dans
+ * aucune liste, et le retenir en ferait une colonne fantôme dont l'écran
+ * n'a plus les valeurs. Le tri des Biens retirés se fait avant le plafond,
+ * pour qu'un Bien disparu libère une place plutôt que d'en laisser une vide.
  *
- * `disponibles` est facultatif : l'appel qui ne fait que replier le plafond
- * n'a pas de liste à fournir.
+ * Ce que la fonction ne fait **pas** : conclure à la disparition d'un Bien
+ * de son absence d'une liste. Un filtre par Statut est un geste de lecture,
+ * pas une décision sur la comparaison — il ne dit rien de plus que « pas
+ * ici, pas maintenant ». Un Bien qu'il masque garde donc sa place, revient
+ * tel quel à l'ouverture du filtre, et occupe entre-temps une place sous le
+ * plafond : sans cela, jouer sur les filtres ferait dépasser le maximum.
+ * C'est pourquoi le paramètre nomme les Biens **retirés** et non ceux qui
+ * sont disponibles ; l'appelant doit savoir qu'un Bien a disparu pour le
+ * dire, là où une liste de disponibles laissait le filtrage le prétendre
+ * sans que rien ne l'en empêche.
+ *
+ * `retires` est facultatif : l'appel qui ne fait que replier le plafond n'a
+ * aucune disparition à signaler.
  */
 export function selectionAjustee(
   selection: readonly number[],
   maximum: number,
-  disponibles?: readonly number[],
+  retires?: readonly number[],
 ): number[] {
-  const existants = disponibles
-    ? selection.filter((bienId) => disponibles.includes(bienId))
+  const existants = retires
+    ? selection.filter((bienId) => !retires.includes(bienId))
     : [...selection];
 
   return existants.slice(0, maximum);
@@ -114,7 +127,13 @@ export function selectionAjustee(
  * valeurs en regard d'aucune autre n'apprendrait rien — c'est la fiche du
  * Bien, qui existe déjà. L'écran dit alors ce qu'il attend plutôt que
  * d'afficher un face-à-face qui n'en est pas un.
+ *
+ * Le paramètre ne dit que sa longueur, et c'est tout ce dont la règle a
+ * besoin : l'appelant compte tantôt des identifiants retenus, tantôt les
+ * Biens dont il a réellement les valeurs à mettre en colonne — et depuis
+ * #93 les deux peuvent différer, un Bien masqué par un filtre restant
+ * retenu sans être affichable.
  */
-export function comparaisonPossible(selection: readonly number[]): boolean {
-  return selection.length >= MINIMUM_COMPARAISON;
+export function comparaisonPossible(colonnes: readonly unknown[]): boolean {
+  return colonnes.length >= MINIMUM_COMPARAISON;
 }
