@@ -135,11 +135,42 @@ jobs:
       # être lancé depuis n'importe quelle branche par le menu de l'onglet
       # Actions, et une version posée depuis une branche de travail est très
       # exactement ce que ce workflow existe pour empêcher.
-      # Le commit vérifié, et non `main` à nouveau : c'est ce qui rend le
-      # tag solidaire de ce que les vérifications ont réellement exercé.
+      #
+      # **La branche est récupérée, puis ramenée sur le commit vérifié.**
+      # Un `checkout` sur un SHA place le dépôt en *detached HEAD* : il n'y a
+      # alors plus de branche locale `main`, et le `git push origin main` de
+      # la fin échoue sur « src refspec main does not match any » — après
+      # avoir commité et tagué dans le vide. Mesuré sur le run 34895003070.
+      #
+      # La branche est donc ramenée sur le commit vérifié à l'étape
+      # suivante : elle existe localement, son sommet est le commit que les
+      # vérifications ont exercé, le `push` a de quoi pousser, et le tag
+      # reste solidaire de ce qui a été vérifié.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resoudre-le-commit.outputs.sha }}
+          ref: main
+
+      - name: Se placer sur le commit vérifié
+        env:
+          ATTENDU: ${{ needs.resoudre-le-commit.outputs.sha }}
+        run: |
+          # **`switch` et non `checkout`** : c'est la commande dédiée au
+          # changement de branche depuis Git 2.23, là où `checkout` mêle
+          # aussi la restauration de fichiers. Elle refuse de détacher HEAD
+          # sans `--detach` explicite — et un HEAD détaché en silence est
+          # très exactement le défaut que cette étape répare.
+          #
+          # `reset --hard` et non `git branch -f main "$ATTENDU"` : Git
+          # refuse de forcer une branche occupée par un arbre de travail, et
+          # `actions/checkout` nous a précisément laissés **sur** `main`.
+          #
+          # Remonter le temps si `main` avait avancé ? L'étape suivante
+          # l'interdit : elle compare `origin/main` au commit vérifié et
+          # s'arrête s'ils diffèrent. Ici, `$ATTENDU` est donc la tête de
+          # `main`, et ce `reset` ne fait que la confirmer.
+          git switch main
+          git reset --hard "$ATTENDU"
+          echo "Sur main, au commit $(git rev-parse HEAD)."
 
       # **`main` a-t-il bougé pendant les vérifications ?**
       #
