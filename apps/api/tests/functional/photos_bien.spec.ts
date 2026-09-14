@@ -1,7 +1,8 @@
 import { test } from '@japa/runner'
-import { mkdir, readdir, rm, stat } from 'node:fs/promises'
+import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import sharp from 'sharp'
 import db from '@adonisjs/lucid/services/db'
 import Bien from '#models/bien'
@@ -10,6 +11,7 @@ import { avecSession, ouvrirSession, type Session } from '#tests/session'
 import { PROPRIETAIRE_UNIQUE } from '#services/proprietaire'
 import { STATUT_INITIAL } from '#services/statut'
 import { TAILLE_MAX_MO, cheminPhoto, racineStockage } from '#services/stockage_photos'
+import { PREFIXE_TEMPORAIRE_ENVOI } from '#config/bodyparser'
 
 /**
  * Les photos d'un Bien (#13).
@@ -65,15 +67,20 @@ test.group('Photos d’un Bien', (group) => {
   }
 
   /**
-   * Les fichiers du dossier temporaire du système, à l'exclusion de ce qui
-   * ne vient pas des envois : on compare un avant et un après, et les
-   * dossiers voisins n'ont pas à entrer dans la comparaison.
+   * Les fichiers du dossier temporaire du système **issus des envois**, et
+   * eux seuls : on compare un avant et un après, et ni les dossiers voisins
+   * ni les fichiers des autres processus n'ont à entrer dans la comparaison.
+   *
+   * Le dossier temporaire est partagé, et rien ne s'y tient tranquille le
+   * temps d'un test : sur l'exécuteur GitHub, `runc` y crée et y supprime
+   * ses propres fichiers en parallèle (#99). Les nôtres se reconnaissent au
+   * préfixe que `config/bodyparser.ts` leur donne sous `NODE_ENV=test`.
    */
   async function temporaires(): Promise<string[]> {
     const entrees = await readdir(tmpdir(), { withFileTypes: true })
 
     return entrees
-      .filter((entree) => entree.isFile())
+      .filter((entree) => entree.isFile() && entree.name.startsWith(PREFIXE_TEMPORAIRE_ENVOI))
       .map(({ name }) => name)
       .sort()
   }
@@ -357,6 +364,44 @@ test.group('Photos d’un Bien', (group) => {
     )
 
     assert.deepEqual(await temporaires(), avant)
+  })
+
+  test('ignore les fichiers temporaires des autres processus', async ({ client, assert }) => {
+    /**
+     * Le dossier temporaire du système est partagé. Sur l'exécuteur GitHub,
+     * `runc` — le moteur de conteneurs — y crée et y supprime ses propres
+     * fichiers pendant que les tests tournent (#99). Un relevé qui les
+     * compte fait échouer la comparaison avant/après au hasard de leur
+     * apparition, et comme ces tests sont sur le chemin du déploiement,
+     * chaque échec coûte un numéro de version.
+     *
+     * Les deux sens sont reproduits ici, tels qu'ils sont tombés sur le
+     * runner : un fichier tiers qui apparaît pendant la fenêtre
+     * d'observation, et un autre qui en disparaît.
+     */
+    const bien = await unBien()
+
+    const disparait = join(tmpdir(), `runc-process${Date.now()}`)
+    await writeFile(disparait, 'un fichier tiers déjà là')
+
+    const avant = await temporaires()
+
+    const apparait = join(tmpdir(), `runc-process${Date.now() + 1}`)
+    await writeFile(apparait, 'un fichier tiers surgi entre les deux relevés')
+    await rm(disparait, { force: true })
+
+    await avecSession(
+      client
+        .post(`/biens/${bien.id}/photos`)
+        .file('photos', await uneImage(), { filename: 'salon.jpg' }),
+      session
+    )
+
+    try {
+      assert.deepEqual(await temporaires(), avant)
+    } finally {
+      await rm(apparait, { force: true })
+    }
   })
 
   test('ne laisse aucun temporaire quand le lot est refusé', async ({ client, assert }) => {

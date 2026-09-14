@@ -1,4 +1,23 @@
 import { defineConfig } from '@adonisjs/core/bodyparser'
+import string from '@adonisjs/core/helpers/string'
+import env from '#start/env'
+
+/**
+ * Le préfixe que portent les temporaires d'envoi **pendant les tests seuls**
+ * (#99).
+ *
+ * Le dossier temporaire du système est partagé : sur l'exécuteur GitHub,
+ * `runc` y crée et y supprime ses propres fichiers pendant que les tests
+ * tournent. Les tests des photos vérifient qu'aucun original n'y survit
+ * (ADR-0014) en comparant un avant et un après ; sans marque distinguant les
+ * nôtres, ils comptaient ceux des autres et échouaient au hasard — ce qui,
+ * sur le chemin du déploiement, coûte un numéro de version à chaque fois.
+ *
+ * Le préfixe ne s'applique qu'à `NODE_ENV=test`, que le lanceur de tests
+ * pose. En production le nom reste l'UUID nu que le bodyparser génère de
+ * lui-même : `tmpFileName` n'y est pas appelé du tout.
+ */
+export const PREFIXE_TEMPORAIRE_ENVOI = 'homecomparator-envoi-'
 
 const bodyParserConfig = defineConfig({
   /**
@@ -64,6 +83,22 @@ const bodyParserConfig = defineConfig({
      */
     limit: '60mb',
     types: ['multipart/form-data'],
+
+    /**
+     * Le nom des temporaires d'envoi, **en test uniquement** (#99).
+     *
+     * Hors test, la clé vaut `undefined` : le bodyparser reprend alors sa
+     * branche par défaut — `join(tmpdir(), string.uuid())` — et le nommage
+     * en production est inchangé, au caractère près.
+     *
+     * En test, le même UUID est simplement précédé du préfixe : l'unicité
+     * qui fait la sûreté du nom reste celle de l'UUID, et le préfixe n'y
+     * ajoute qu'une marque à laquelle les tests peuvent se fier.
+     */
+    tmpFileName:
+      env.get('NODE_ENV') === 'test'
+        ? () => `${PREFIXE_TEMPORAIRE_ENVOI}${string.uuid()}`
+        : undefined,
   },
 })
 
