@@ -52,6 +52,32 @@ RUN mkdir -p /app/stockage/photos && chown -R node:node /app/stockage
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+# Les scripts de la sauvegarde quotidienne (#71, ADR-0007), **transportés par
+# cette image alors qu'ils ne s'y exécutent pas** : le service `sauvegarde`
+# tourne sur `postgres:17-alpine`, où vit le `pg_dump` de la bonne version, et
+# monte ce dossier depuis l'image de l'API.
+#
+# Le détour paraît curieux et il est nécessaire. Le Compose de développement
+# monte `./docker/sauvegarde` depuis le dépôt ; la production ne le peut pas,
+# le VPS ne recevant que le Compose, le Caddyfile et le `.env` (#69, #70).
+# Il faut donc que les scripts arrivent par une image, et une image déjà
+# tirée, déjà versionnée avec le code qu'elle sauvegarde, vaut mieux qu'une
+# quatrième image à construire et à publier pour deux fichiers shell.
+#
+# Ce qui se paie en échange : les scripts sont figés à la version déployée,
+# et les corriger demande de publier une version. C'est cohérent avec le
+# reste (ADR-0018) — la sauvegarde fait partie de ce qui se déploie, pas de
+# ce qui se retouche sur le serveur.
+#
+# Ils vivent sous `apps/api/` et non à la racine du dépôt à côté de
+# `docker/postgres/` : le contexte de construction de cette image est
+# `./apps/api` (`docker-compose.yml`, `verifications.yml`), et un `COPY` ne
+# remonte pas au-dessus de son contexte. Élargir le contexte à la racine
+# pour deux fichiers shell ferait payer à chaque construction l'envoi du
+# dépôt entier au démon.
+COPY docker/sauvegarde/ /usr/local/sauvegarde/
+RUN chmod +x /usr/local/sauvegarde/*.sh
+
 USER node
 EXPOSE 3333
 

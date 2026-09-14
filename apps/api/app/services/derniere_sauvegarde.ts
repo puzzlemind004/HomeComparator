@@ -6,20 +6,27 @@ import env from '#start/env'
 /**
  * La date de la dernière sauvegarde réussie (#67).
  *
- * La sauvegarde quotidienne tourne hors de l'API — un `pg_dump` par cron
- * dans la pile (ADR-0007) —, et l'API n'a aucun moyen de l'observer : elle
- * ne la déclenche pas, ne la supervise pas, et un carnet redémarré ne se
- * souvient de rien. L'horodatage est donc **déposé** par qui sauvegarde et
- * **lu** ici, sur le volume que les deux partagent.
+ * La sauvegarde quotidienne tourne hors de l'API — le service `sauvegarde`
+ * de la pile, qui produit un `pg_dump` et une archive des Photos chaque nuit
+ * (#71, ADR-0007) —, et l'API n'a aucun moyen de l'observer : elle ne la
+ * déclenche pas, ne la supervise pas, et un carnet redémarré ne se souvient
+ * de rien. L'horodatage est donc **déposé** par qui sauvegarde et **lu**
+ * ici, sur le volume que les deux partagent.
+ *
+ * Ce volume ne porte que cet horodatage : les archives vivent dans un second
+ * volume que l'API ne monte pas (#75). Un dump porte le carnet entier, et
+ * rien dans le besoin de l'API ne justifie qu'elle le voie.
  *
  * Ce module est le seul à savoir qu'un fichier est derrière. Le contrôleur
  * pose une question — quand, ou jamais — et reçoit une date ou son absence ;
  * le jour où l'horodatage vivrait ailleurs, en base ou dans un service de
  * supervision, c'est ici seulement que cela se verrait.
  *
- * Rien ne dépose encore ce fichier : c'est le ticket de sauvegarde qui le
- * fera. D'ici là la réponse est l'absence, ce qui est exact — aucune
- * sauvegarde n'a eu lieu — et non un aveu d'ignorance.
+ * L'absence garde un sens après #71, et ce n'est plus le même : elle
+ * signifiait « rien ne sauvegarde encore », elle signifie désormais
+ * « aucune sauvegarde n'a réussi » — le service tourne, mais il n'a pas
+ * encore abouti une fois, ou plus rien n'aboutit. C'est la même réponse et
+ * elle reste exacte ; c'est ce qu'elle doit déclencher qui a changé.
  */
 
 /**

@@ -1,3 +1,10 @@
+# Le nom du projet, et donc le préfixe des volumes. Fixé ici comme dans
+# `docker-compose.prod.yml` : le défaut est le nom du dossier courant, qui
+# varie d'un clone à l'autre — et un worktree Git le fait varier chez la même
+# personne. Les commandes de `docs/sauvegarde.md` qui nomment un volume
+# tombent ainsi juste partout.
+name: homecomparator
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -69,12 +76,10 @@ services:
       # (#13). Les fichiers ne vivent pas en base : `pg_dump` n'est pas fait
       # pour transporter des mégaoctets de binaire.
       STOCKAGE_PHOTOS: /app/stockage/photos
-      # L'horodatage que la sauvegarde quotidienne déposera et que la route
-      # de santé lit (#67, ADR-0007). L'API ne sauvegarde pas et n'observe
+      # L'horodatage que la sauvegarde quotidienne dépose et que la route de
+      # santé lit (#67, #71, ADR-0007). L'API ne sauvegarde pas et n'observe
       # pas qui sauvegarde : elle lit un fichier que l'autre écrit, sur le
-      # volume que les deux montent. Rien ne l'écrit encore — c'est le
-      # ticket de sauvegarde qui le fera —, et d'ici là la route rend
-      # l'absence, ce qui est exact.
+      # volume que les deux montent.
       HORODATAGE_SAUVEGARDE: /app/sauvegardes/derniere-sauvegarde
     volumes:
       # Les photos survivent au redémarrage et à la reconstruction des
@@ -85,17 +90,20 @@ services:
       # L'horodatage des sauvegardes, en lecture seule : l'API le lit, elle
       # n'a aucune raison de pouvoir l'écrire.
       #
-      # Un volume à part et non un coin de `photos-data`, et la raison n'est
-      # pas la nature de ce qui y vit — les archives que #71 y déposera sont
-      # des données du carnet autant que les Photos. C'est le sens de la
-      # lecture qui sépare : l'API doit pouvoir lire cet horodatage sans que
-      # le volume des Photos, qu'elle écrit, lui soit ouvert deux fois.
+      # **C'est `sauvegardes-etat` et non `sauvegardes-data`, et l'écart
+      # entre les deux est ce que #75 a tranché.** L'API ne voit que l'état
+      # de la sauvegarde ; les archives vivent dans un volume qu'elle ne
+      # monte pas du tout. Un dump porte le carnet entier, et le processus
+      # qui sert les requêtes HTTP publiques n'a aucun besoin de l'avoir
+      # dans son système de fichiers — une traversée de chemin y donnerait
+      # accès à tout ce que la sauvegarde existe pour protéger, en plus des
+      # données vives.
       #
-      # Le montage porte sur le dossier alors qu'un seul fichier est lu, ce
-      # qui exposera les archives à l'API le jour où elles arriveront. Le
-      # resserrer est une décision ouverte (#75), à prendre avant que #71
-      # n'écrive le service, et non après.
-      - sauvegardes-data:/app/sauvegardes:ro
+      # Deux volumes plutôt qu'un `subpath` sur un seul : le sous-chemin
+      # d'un volume nommé est créé par Docker s'il manque, et créé en root,
+      # ce qui casse silencieusement selon l'ordre de démarrage des deux
+      # services. Deux volumes n'ont pas cet ordre à respecter.
+      - sauvegardes-etat:/app/sauvegardes:ro
     ports:
       # Lié à la boucle locale, pour deux raisons (#18). En production nginx
       # joint l'API par le réseau interne Compose et cette publication n'a
@@ -124,11 +132,94 @@ services:
     ports:
       - '${WEB_PORT:-4200}:80'
 
+  sauvegarde:
+    # Le service qui sauvegarde le carnet chaque nuit (#71, ADR-0007).
+    #
+    # `postgres:17-alpine`, la **même image que la base** et non une image
+    # bâtie pour l'occasion. `pg_dump` doit être d'une version au moins égale
+    # à celle du serveur, et la partager est la seule façon que les deux ne
+    # divergent jamais : monter la base en 18 sans y penser ici donnerait un
+    # `pg_dump` refusant de tourner, la nuit, en silence. L'image est déjà
+    # tirée sur la machine, et le service ne coûte donc rien de plus.
+    image: postgres:17-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TZ: UTC
+      # Les scripts montés s'ajoutent au PATH, qui porte déjà les binaires
+      # PostgreSQL. C'est ce qui rend `sauvegarder.sh` appelable par son seul
+      # nom — depuis `boucle.sh`, et surtout depuis la commande manuelle
+      # `docker compose exec sauvegarde sauvegarder.sh`, qui est le geste de
+      # la sauvegarde à la demande et de la vérification de restauration.
+      PATH: /usr/local/sauvegarde:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      POSTGRES_HOTE: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # `PGPASSWORD` et non un argument de ligne de commande : `pg_dump` lit
+      # cette variable d'office, et un mot de passe en argument serait
+      # lisible dans la liste des processus du conteneur.
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire (openssl rand -base64 24)}
+      # L'heure de la sauvegarde, en UTC — toute la pile tourne en `TZ: UTC`,
+      # et l'heure ne se décale donc pas deux fois l'an.
+      SAUVEGARDE_HEURE: ${SAUVEGARDE_HEURE:-3}
+      SAUVEGARDE_MINUTE: ${SAUVEGARDE_MINUTE:-0}
+      # La rétention d'ADR-0007. Paramétrable pour que le développement
+      # puisse l'éprouver sans attendre onze jours, pas pour être réglée
+      # autrement en production.
+      SAUVEGARDE_QUOTIDIENNES: ${SAUVEGARDE_QUOTIDIENNES:-7}
+      SAUVEGARDE_HEBDOMADAIRES: ${SAUVEGARDE_HEBDOMADAIRES:-4}
+    volumes:
+      # Les scripts, montés depuis le dépôt : ce qui décrit la production vit
+      # dans le dépôt et se déploie d'un geste, là où un crontab posé à la
+      # main sur le serveur ne se relit jamais (#71).
+      #
+      # En développement ils sont **montés**, ce qui les rend modifiables sans
+      # reconstruire d'image. En production ils viennent de l'image de l'API,
+      # qui les transporte (`apps/api/Dockerfile`) : le VPS n'a pas le dépôt.
+      # Les deux Compose diffèrent donc ici, et sur le `depends_on` que cette
+      # copie impose là-bas. Le reste du service est identique.
+      - ./apps/api/docker/sauvegarde:/usr/local/sauvegarde:ro
+      # Les archives, en écriture. **Ce volume n'est monté nulle part
+      # ailleurs** (#75) : ni l'API ni le front ne voient les dumps.
+      - sauvegardes-data:/sauvegardes/archives
+      # L'état, en écriture ici et en lecture seule dans l'API. C'est le seul
+      # point de contact entre les deux services, et il porte un fichier.
+      - sauvegardes-etat:/sauvegardes/etat
+      # Les Photos, en **lecture seule** : la sauvegarde les lit, elle n'a
+      # aucune raison de pouvoir les écrire. La base ne porte que leurs noms
+      # (ADR-0014) — une base restaurée sans elles affiche des galeries
+      # vides, d'où leur présence dans le même mouvement.
+      - photos-data:/photos:ro
+    # `entrypoint` et non `command` : l'image PostgreSQL a le sien, qui
+    # attend de démarrer un serveur — initialisation du volume de données,
+    # attente d'un mot de passe — et qui n'a aucun sens ici. On le remplace
+    # entièrement plutôt que de lui passer un argument qu'il ne comprend pas.
+    #
+    # `sh <script>` et non le script seul : celui-ci arrive par un montage
+    # depuis le dépôt, et le bit d'exécution d'un fichier monté dépend du
+    # système hôte — Docker Desktop sous Windows le rend exécutable quoi
+    # qu'il arrive, un clone Linux respecte le mode enregistré par Git. Passer
+    # par l'interpréteur rend le démarrage indifférent à cette différence, qui
+    # ne se verrait autrement que sur la machine de quelqu'un d'autre.
+    entrypoint: ['sh', '/usr/local/sauvegarde/boucle.sh']
+
 volumes:
   postgres-data:
   photos-data:
-  # Ce que la sauvegarde quotidienne dépose et que l'API lit (#67) : pour
-  # l'instant le seul horodatage de la dernière réussite, et demain les
-  # archives elles-mêmes, quand le ticket de sauvegarde montera ce volume
-  # dans le service qui les produit (ADR-0007).
+  # Les archives : les dumps de la base et les archives de Photos que le
+  # service `sauvegarde` produit chaque nuit (#71, ADR-0007). **Seul ce
+  # service le monte**, et c'est la décision de #75 : un dump porte le
+  # carnet entier, l'API n'a aucun besoin de le voir.
+  #
+  # Il survit à la reconstruction des conteneurs, comme `postgres-data` et
+  # `photos-data` — c'est même sa raison d'être : il porte ce qui permet de
+  # les retrouver.
   sauvegardes-data:
+  # L'état de la sauvegarde, séparé des archives ci-dessus : le seul
+  # horodatage de la dernière réussite, écrit par le service et lu par l'API
+  # (#67). Deux volumes et non un, parce que les deux n'ont pas les mêmes
+  # lecteurs — c'est le sens de la lecture qui sépare, et non la nature de
+  # ce qui y vit.
+  sauvegardes-etat:

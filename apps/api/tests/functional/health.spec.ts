@@ -133,9 +133,11 @@ test.group('Route de santé', (group) => {
   })
 
   test('dit l’absence de sauvegarde plutôt que de se taire', async ({ client, assert }) => {
-    // Rien ne dépose encore cet horodatage — c'est le ticket de sauvegarde
-    // qui le fera. D'ici là la route rend l'absence, et l'absence dite se
-    // distingue d'une route qui ne saurait pas : la clé est là, à `null`.
+    // Le service `sauvegarde` dépose cet horodatage chaque nuit (#71), mais
+    // il peut manquer : carnet fraîchement déployé dont la première nuit
+    // n'est pas passée, ou sauvegardes qui échouent depuis le début. La
+    // route rend alors l'absence, et l'absence dite se distingue d'une route
+    // qui ne saurait pas : la clé est là, à `null`.
     const session = await ouvrirSession(client)
 
     const response = await avecSession(client.get('/health'), session)

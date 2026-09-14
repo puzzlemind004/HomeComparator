@@ -345,7 +345,24 @@ lourd d'un seul fichier doit recevoir le message de l'API, qui nomme le
 fichier, et non le 413 muet d'un proxy. Mesuré à la mise au point : 20 Mo
 atteignent l'API et reçoivent son message, 182 Mo sont arrêtés avant.
 
-### 5. Ce qui reste ouvert
+### 5. Vérifier la sauvegarde, une fois
+
+La pile porte un service de sauvegarde quotidienne depuis #71, et il démarre
+avec le reste. Sa vérification est **manuelle et se fait une fois**, au
+premier déploiement : un dump qu'on n'a jamais restauré n'est pas une
+sauvegarde.
+
+```bash
+docker compose -f docker-compose.prod.yml exec sauvegarde sauvegarder.sh
+curl -sS https://home-comparator.puzzlemind.fr/api/health   # session ouverte
+```
+
+La route doit rendre une `derniereSauvegarde` fraîche. La procédure complète —
+restaurer dans une base jetable et compter les Biens — est dans
+`docs/sauvegarde.md`, qui est aussi le document à ouvrir le jour où l'on
+restaure pour de vrai.
+
+### 6. Ce qui reste ouvert
 
 Les volumes de l'ancienne pile sont **conservés** et non supprimés : leur sort
 se décide une fois passée la période où l'on s'aperçoit qu'on en avait besoin.

@@ -12,6 +12,12 @@ apps/web/    Front Angular, tests Vitest
 docker/      Scripts d'initialisation des conteneurs
 ```
 
+Les scripts de la sauvegarde quotidienne font exception et vivent sous
+`apps/api/docker/sauvegarde/`, et non dans `docker/` : ils voyagent dans
+l'image de l'API — le VPS n'ayant pas le dépôt — et un `COPY` ne remonte pas
+au-dessus de son contexte de construction. Ils s'exécutent ailleurs, dans le
+conteneur qui porte `pg_dump` (#71).
+
 ## Démarrer
 
 Prérequis : Docker et Node 24.
@@ -63,6 +69,25 @@ Le conteneur expose PostgreSQL sur le port **5433** de la machine hôte,
 et non 5432 : une instance PostgreSQL installée localement occupe souvent
 ce port et gagnerait la course à la liaison, ce qui produit des erreurs
 d'authentification déroutantes. Ajuster `POSTGRES_PORT` si besoin.
+
+## Sauvegarder
+
+Un service de la pile produit chaque nuit un `pg_dump` de la base et une
+archive des Photos, avec une rétention de 7 quotidiennes et 4 hebdomadaires
+(ADR-0007). Les données étant saisies à la main (ADR-0001), elles sont
+irrécupérables autrement.
+
+Chaque réussite dépose un horodatage que la route de santé rend, session
+ouverte : **une date qui vieillit se voit**, là où un conteneur mort
+passerait inaperçu.
+
+La procédure de restauration — et c'est elle qui compte — est dans
+[docs/sauvegarde.md](docs/sauvegarde.md).
+
+```bash
+# Sauvegarder maintenant, sans attendre la nuit.
+docker compose exec sauvegarde sauvegarder.sh
+```
 
 ## Déployer
 
