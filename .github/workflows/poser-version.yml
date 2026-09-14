@@ -142,10 +142,10 @@ jobs:
       # la fin échoue sur « src refspec main does not match any » — après
       # avoir commité et tagué dans le vide. Mesuré sur le run 34895003070.
       #
-      # `git checkout <sha>` ensuite, plutôt qu'un `ref:` direct : la branche
-      # locale existe, et son sommet est le commit que les vérifications ont
-      # exercé. Le `push` a de quoi pousser, et le tag reste solidaire de ce
-      # qui a été vérifié.
+      # La branche est donc ramenée sur le commit vérifié à l'étape
+      # suivante : elle existe localement, son sommet est le commit que les
+      # vérifications ont exercé, le `push` a de quoi pousser, et le tag
+      # reste solidaire de ce qui a été vérifié.
       - uses: actions/checkout@v4
         with:
           ref: main
@@ -154,10 +154,22 @@ jobs:
         env:
           ATTENDU: ${{ needs.resoudre-le-commit.outputs.sha }}
         run: |
-          # `git branch -f` déplace `main` sans quitter la branche, là où un
-          # `git checkout <sha>` nu la détacherait de nouveau.
-          git branch -f main "$ATTENDU"
-          git checkout main
+          # **`switch` et non `checkout`** : c'est la commande dédiée au
+          # changement de branche depuis Git 2.23, là où `checkout` mêle
+          # aussi la restauration de fichiers. Elle refuse de détacher HEAD
+          # sans `--detach` explicite — et un HEAD détaché en silence est
+          # très exactement le défaut que cette étape répare.
+          #
+          # `reset --hard` et non `git branch -f main "$ATTENDU"` : Git
+          # refuse de forcer une branche occupée par un arbre de travail, et
+          # `actions/checkout` nous a précisément laissés **sur** `main`.
+          #
+          # Remonter le temps si `main` avait avancé ? L'étape suivante
+          # l'interdit : elle compare `origin/main` au commit vérifié et
+          # s'arrête s'ils diffèrent. Ici, `$ATTENDU` est donc la tête de
+          # `main`, et ce `reset` ne fait que la confirmer.
+          git switch main
+          git reset --hard "$ATTENDU"
           echo "Sur main, au commit $(git rev-parse HEAD)."
 
       # **`main` a-t-il bougé pendant les vérifications ?**
