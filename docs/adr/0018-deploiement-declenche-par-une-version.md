@@ -4,10 +4,36 @@ ADR-0007 avait tranché le principe — « GitHub Actions plutôt qu'un `git pul
 manuel » — et s'arrêtait là. Cet ADR consigne le mécanisme (#70).
 
 L'acheteur pose une version depuis l'onglet Actions en saisissant un numéro.
-Un premier workflow l'inscrit dans les deux `package.json`, commite sur `main`,
-pose le tag. Un second vérifie la provenance, rejoue toutes les vérifications,
-publie les images sur GHCR, fait tourner la pile sur le VPS, puis interroge le
-carnet **par son URL publique** jusqu'à réponse favorable.
+Un premier workflow éprouve `main`, puis inscrit le numéro dans les deux
+`package.json`, commite sur `main`, pose le tag. Un second vérifie la
+provenance, rejoue toutes les vérifications, publie les images sur GHCR, fait
+tourner la pile sur le VPS, puis interroge le carnet **par son URL publique**
+jusqu'à réponse favorable.
+
+## Rien n'est écrit avant que `main` ne soit vert
+
+Le numéro est consommé dès que le tag est poussé : reposer un tag existant
+déplacerait un numéro publié sur un autre commit, ce que le workflow refuse.
+Tout échec postérieur à la pose du tag coûte donc le numéro, et non une
+relance.
+
+Les vérifications passent pour cette raison **avant** le job qui commite et
+tague, sur `main` tel qu'il est — le code qu'on s'apprête à publier, au
+numéro près. Elles construisent les images sans les pousser : la publication
+appartient au déploiement, où le numéro est figé dans l'image de l'API.
+
+C'est ce qui a coûté `v0.2.1` : des tests instables (#99) ont fait échouer le
+déploiement après la pose du tag, et le numéro a été perdu pour un défaut
+sans rapport avec la version qu'il désignait.
+
+**Cette barrière ne couvre pas tout, et c'est assumé.** Un échec du
+déploiement lui-même — le VPS, le registre, les contrôles d'après-déploiement
+— survient après la pose du tag et brûle encore le numéro ; `v0.2.2` à
+`v0.2.4` y sont passées (#104). Le fermer demanderait de ne taguer qu'après
+un déploiement réussi, donc de déployer un commit que le tag ne désigne pas
+encore : le `checkout` du déploiement, la vérification d'ascendance et le
+nom des images s'appuient tous sur ce tag. L'ordre retenu couvre ce qui se
+couvre sans défaire celui dont le reste de cet ADR dépend.
 
 ## Le tag désigne la version, mais ne déclenche pas le déploiement
 

@@ -1,7 +1,12 @@
 name: Poser une version
 
-# Le premier des deux workflows de déploiement (#70). Il inscrit un numéro
-# dans le dépôt, pose le tag, puis appelle `deployer.yml`.
+# Le premier des deux workflows de déploiement (#70). Il éprouve `main`,
+# inscrit un numéro dans le dépôt, pose le tag, puis appelle `deployer.yml`.
+#
+# **Les vérifications passent avant l'écriture, et non après** (#105) : le
+# numéro est consommé dès que le tag est poussé, donc rien ne doit être
+# écrit tant qu'on ignore si le code tient. Le job `verifications-prealables`
+# plus bas détaille ce que cet ordre couvre, et ce qu'il ne couvre pas.
 #
 # **L'appel est explicite et non déclenché par le tag**, pour une raison que
 # le job `deployer` plus bas détaille : GitHub ne réveille aucun workflow sur
@@ -35,8 +40,53 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ── Première barrière : tout passe-t-il, avant d'écrire quoi que ce soit ? ─
+  #
+  # **Ces vérifications tournent avant la pose du numéro, et l'ordre est le
+  # point (#105).** Le job `poser` commite sur `main` et pousse le tag ; une
+  # fois le tag poussé, l'étape « Refuser une version déjà posée » interdit
+  # de reprendre le même numéro — à raison, puisque reposer un tag
+  # déplacerait un numéro publié sur un autre commit. Tout échec postérieur
+  # au job `poser` consomme donc définitivement le numéro.
+  #
+  # C'est ce qui a coûté `v0.2.1` : des tests instables (#99) ont fait échouer
+  # le déploiement après la pose du tag, et le numéro a été perdu pour un
+  # défaut qui n'avait rien à voir avec la version qu'il désignait.
+  #
+  # Elles tournent sur `main` tel qu'il est, donc **avant** la montée de
+  # version : c'est le code qu'on s'apprête à publier, au numéro près.
+  # `publier: false` — les images partent plus tard, du déploiement, où le
+  # numéro est figé dans l'image de l'API (#67). Les construire ici sans les
+  # pousser vérifie qu'elles se construisent, ce qui est tout ce qu'on
+  # demande à ce stade.
+  #
+  # **Ce que cette barrière ne couvre pas**, et qu'il faut savoir en la
+  # lisant : un échec du déploiement lui-même — le VPS, le registre, les
+  # contrôles d'après-déploiement — survient toujours après la pose du tag
+  # et brûle encore le numéro. C'est ce qui est arrivé à `v0.2.2` jusqu'à
+  # `v0.2.4` (#104). Fermer ce reste demanderait de ne taguer qu'après un
+  # déploiement réussi, ce qui défait l'ordre dont ADR-0018 dépend — le tag
+  # y est ce qui désigne la version, et la vérification d'ascendance porte
+  # sur le commit qu'il désigne. Le choix retenu est donc de couvrir ce qui
+  # se couvre sans toucher à cet ordre.
+  verifications-prealables:
+    name: Vérifications préalables
+    uses: ./.github/workflows/verifications.yml
+    with:
+      ref: main
+      publier: false
+    # `packages: write` alors que `publier: false` : le workflow appelé
+    # déclare ce droit sur son job de publication, et les permissions sont
+    # validées au **chargement**, avant que le `if:` de ce job ne soit
+    # évalué. Un appelant qui ne l'accorde pas fait échouer l'exécution
+    # entière au démarrage. Même raison qu'en CI, où c'est déjà expliqué.
+    permissions:
+      contents: read
+      packages: write
+
   poser:
     name: Inscrire le numéro, commiter, taguer
+    needs: verifications-prealables
     runs-on: ubuntu-latest
 
     permissions:
