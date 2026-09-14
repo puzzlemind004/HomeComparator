@@ -244,9 +244,57 @@ note "C'est par lui que l'utilisateur de déploiement sera créé."
 note "Ce n'est PAS le compte que le workflow utilisera ensuite."
 ask ADMIN_UTILISATEUR "Compte d'administration (ex. root) :"
 ADMIN_UTILISATEUR="${ADMIN_UTILISATEUR:-root}"
+
+# ── 3 ─────────────────────────────────────────────────────────────────────
+# **Cette étape précède toute connexion, et l'ordre est le fond du sujet.**
+# Le raisonnement qui la justifie — on ne vérifie rien en demandant sa clé à
+# la machine à laquelle on s'apprête à faire confiance — condamne tout autant
+# de lui parler d'abord et de la vérifier ensuite. Une empreinte confirmée
+# après que l'utilisateur `deploy` a été créé, la clé publique installée et un
+# mot de passe d'administration présenté ne protège plus rien : tout a déjà
+# été dit à l'interlocuteur, quel qu'il soit (#86).
+stage "Relever et confirmer l'empreinte du serveur"
+say "Avant de parler au serveur, il faut savoir que c'est bien lui."
+note "Le workflow refuse de se connecter à un hôte qu'il ne reconnaît pas."
+note "L'empreinte est posée depuis un secret, et non récoltée à la volée par"
+note "le workflow : demander sa clé à la machine à laquelle on s'apprête à"
+note "faire confiance ne vérifie rien — un intermédiaire serait cru sur parole."
+say ""
+EMPREINTE=$(ssh-keyscan -t ed25519 "$VPS_HOTE" 2>/dev/null)
+if [[ -z "$EMPREINTE" ]]; then
+  warn "Impossible de relever l'empreinte de $VPS_HOTE."
+  note "Vérifiez le nom d'hôte, et que le port 22 répond."
+  exit 1
+fi
+say "Empreinte relevée :"
+note "  $(printf '%s' "$EMPREINTE" | ssh-keygen -lf - 2>/dev/null || echo '?')"
+say ""
+warn "Comparez-la à celle lue sur la CONSOLE du serveur, chez l'hébergeur."
+note "C'est le seul moment où la comparaison a un sens : elle vient d'être"
+note "relevée par le réseau, donc par le canal même dont elle doit protéger."
+note "Sur le VPS : ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub"
+if ! confirm "L'empreinte correspond-elle ?"; then
+  warn "Arrêt : l'empreinte n'a pas été confirmée."
+  note "Rien n'a été créé sur le serveur, et aucun secret n'a été posé."
+  exit 1
+fi
+say ""
+# L'empreinte confirmée est **opposée** aux connexions qui suivent, et non
+# simplement gardée pour le secret : sans cela le wizard vérifierait une
+# empreinte pour n'en exiger aucune, et `known_hosts` de la machine de
+# développement — qui peut déjà porter une entrée pour cet hôte, jamais
+# vérifiée — trancherait à sa place. Le fichier est temporaire : il ne vaut
+# que pour cette exécution, et ne modifie pas le `known_hosts` de l'opérateur.
+HOTES_CONNUS=$(mktemp)
+printf '%s\n' "$EMPREINTE" > "$HOTES_CONNUS"
+# `trap` plutôt qu'un `rm` en fin de script : les sorties d'erreur sont
+# nombreuses ici, et chacune devrait sinon penser à nettoyer.
+trap 'rm -f "$HOTES_CONNUS"' EXIT
+say "  [ok] empreinte confirmée, opposée aux connexions de ce wizard"
 say ""
 say "Vérification de l'accès…"
 if ! ssh -o BatchMode=yes -o ConnectTimeout=10 \
+     -o UserKnownHostsFile="$HOTES_CONNUS" -o StrictHostKeyChecking=yes \
      "$ADMIN_UTILISATEUR@$VPS_HOTE" true 2>/dev/null; then
   warn "Connexion SSH impossible sans interaction."
   note "Vérifiez que « ssh $ADMIN_UTILISATEUR@$VPS_HOTE » aboutit sans mot de passe."
@@ -254,7 +302,7 @@ if ! ssh -o BatchMode=yes -o ConnectTimeout=10 \
 fi
 say "  [ok] $ADMIN_UTILISATEUR@$VPS_HOTE répond"
 
-# ── 3 ─────────────────────────────────────────────────────────────────────
+# ── 4 ─────────────────────────────────────────────────────────────────────
 stage "Créer l'utilisateur de déploiement"
 say "Le workflow se connectera sous « deploy », et non sous root."
 note "Un secret de CI vaut l'accès qu'il ouvre (#76) : celui-ci n'ouvrira que"
@@ -270,7 +318,8 @@ confirm "Créer l'utilisateur « deploy » sur $VPS_HOTE ?" || exit 1
 # La sortie du script distant est **relayée et retenue** : l'absence de `.env`
 # qu'il constate doit survivre au `_clear` des étapes suivantes, sans quoi le
 # seul avertissement disparaît quatre écrans avant le verdict final.
-SORTIE_DISTANTE=$(ssh "$ADMIN_UTILISATEUR@$VPS_HOTE" bash -s <<'DISTANT'
+SORTIE_DISTANTE=$(ssh -o UserKnownHostsFile="$HOTES_CONNUS" \
+  -o StrictHostKeyChecking=yes "$ADMIN_UTILISATEUR@$VPS_HOTE" bash -s <<'DISTANT'
 set -euo pipefail
 if id deploy >/dev/null 2>&1; then
   echo "  [ok] l'utilisateur deploy existe déjà"
@@ -281,13 +330,26 @@ fi
 usermod -aG docker deploy
 echo "  [ok] deploy est membre du groupe docker"
 mkdir -p /opt/homecomparator
-chown -R deploy:deploy /opt/homecomparator
+# **Sans `-R`, et c'est délibéré.** La cible réelle est le dossier ; un `-R`
+# traverserait par effet de bord le `.env` posé lors de #69, qui porte les
+# trois secrets ne quittant jamais la machine, et demain les sauvegardes de
+# #71. Un changement de propriétaire sur un fichier de secrets se décide, il
+# ne s'attrape pas en passant (#86).
+chown deploy:deploy /opt/homecomparator
 echo "  [ok] /opt/homecomparator appartient à deploy"
 # Le .env n'est PAS créé ni modifié : il porte les trois secrets qui ne
 # quittent jamais la machine, et rien ici ne doit pouvoir les écraser.
 if [ -f /opt/homecomparator/.env ]; then
+  # **Le propriétaire est posé avant le mode, et les deux vont ensemble.**
+  # Le `chown` du dossier ci-dessus ne descend volontairement pas jusqu'ici,
+  # mais `600` sans propriétaire `deploy` rendrait le fichier illisible par
+  # le compte qui lance la pile — `docker compose` échouerait sur le garde
+  # `POSTGRES_PASSWORD:?`, et la cause serait à trois écrans de l'effet.
+  # C'est bien un changement délibéré sur ce fichier, et non un effet de
+  # bord de `-R` : `deploy` doit le lire, lui seul, et personne d'autre.
+  chown deploy:deploy /opt/homecomparator/.env
   chmod 600 /opt/homecomparator/.env
-  echo "  [ok] .env existant conservé, droits resserrés"
+  echo "  [ok] .env existant conservé, lisible par deploy seul"
 else
   echo "  [!] aucun .env dans /opt/homecomparator"
   echo "      à renseigner avant le premier déploiement (docs/deploiement.md)"
@@ -302,10 +364,23 @@ if printf '%s' "$SORTIE_DISTANTE" | grep -q '^SANS_ENV$'; then
   ENV_MANQUANT=1
 fi
 
-# ── 4 ─────────────────────────────────────────────────────────────────────
+# ── 5 ─────────────────────────────────────────────────────────────────────
 stage "Générer la clé de déploiement"
 say "Une clé DÉDIÉE, qui se révoque sans casser votre propre accès."
-CLE_TEMP=$(mktemp -u)
+# **Un dossier réservé, et non un nom libre.** `mktemp -u` rendait un nom en
+# supprimant le fichier qui le réservait, laissant un nom prévisible et
+# occupable entre ce retour et l'écriture par `ssh-keygen`. Sur une machine
+# de développement où `/tmp` est partagé, cela ouvrait un déni de service par
+# occupation du nom — `ssh-keygen` refusant d'écraser. Le dossier, lui, est
+# réservé par `mktemp` et porte 700 avant que rien n'y soit écrit (#86).
+CLE_DOSSIER=$(mktemp -d)
+chmod 700 "$CLE_DOSSIER"
+CLE_TEMP="$CLE_DOSSIER/id_deploiement"
+# Le nettoyage rejoint celui de l'empreinte, posé à l'étape 3. Les sorties
+# d'erreur qui suivent n'ont donc plus à effacer la clé elles-mêmes ; celle
+# du verdict final, qui la CONSERVE délibérément quand un secret a échoué,
+# est traitée à part.
+trap 'rm -f "$HOTES_CONNUS"; rm -rf "$CLE_DOSSIER"' EXIT
 # Ed25519 : clé courte et sans le choix de taille que RSA impose. Sans
 # passphrase, le workflow n'ayant personne pour la saisir.
 ssh-keygen -t ed25519 -N '' -C "github-actions-homecomparator-deploy" \
@@ -336,44 +411,23 @@ chmod 600 /home/deploy/.ssh/authorized_keys
 chown -R deploy:deploy /home/deploy/.ssh
 echo "  [ok] clé publique installée pour deploy"
 DISTANT
-} | ssh "$ADMIN_UTILISATEUR@$VPS_HOTE" \
+} | ssh -o UserKnownHostsFile="$HOTES_CONNUS" -o StrictHostKeyChecking=yes \
+      "$ADMIN_UTILISATEUR@$VPS_HOTE" \
       "read -r cle; export cle; bash -s"
 say ""
 step "Vérification : la clé ouvre-t-elle une session deploy qui joint Docker ?"
+# **L'empreinte confirmée sert ici aussi.** Cette vérification passait
+# `StrictHostKeyChecking=no` sur `/dev/null` : elle acceptait donc n'importe
+# quel hôte, au moment précis où elle prétend éprouver la clé de déploiement.
+# Le workflow, lui, opposera l'empreinte du secret — la vérification et ce
+# qu'elle vérifie doivent se faire dans les mêmes conditions (#86).
 if ssh -i "$CLE_TEMP" -o BatchMode=yes -o ConnectTimeout=10 \
-     -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
+     -o UserKnownHostsFile="$HOTES_CONNUS" -o StrictHostKeyChecking=yes \
      "deploy@$VPS_HOTE" 'docker ps >/dev/null && echo ok' 2>/dev/null \
      | grep -q ok; then
   say "  [ok] deploy@$VPS_HOTE répond et joint Docker"
 else
   warn "La clé ne fonctionne pas, ou deploy ne joint pas le socket Docker."
-  rm -f "$CLE_TEMP" "$CLE_TEMP.pub"
-  exit 1
-fi
-
-# ── 5 ─────────────────────────────────────────────────────────────────────
-stage "Relever l'empreinte du serveur"
-say "Le workflow refuse de se connecter à un hôte qu'il ne reconnaît pas."
-note "L'empreinte est posée depuis un secret, et non récoltée à la volée par"
-note "le workflow : demander sa clé à la machine à laquelle on s'apprête à"
-note "faire confiance ne vérifie rien — un intermédiaire serait cru sur parole."
-say ""
-EMPREINTE=$(ssh-keyscan -t ed25519 "$VPS_HOTE" 2>/dev/null)
-if [[ -z "$EMPREINTE" ]]; then
-  warn "Impossible de relever l'empreinte de $VPS_HOTE."
-  rm -f "$CLE_TEMP" "$CLE_TEMP.pub"
-  exit 1
-fi
-say "Empreinte relevée :"
-note "  $(printf '%s' "$EMPREINTE" | ssh-keygen -lf - 2>/dev/null || echo '?')"
-say ""
-warn "Comparez-la à celle lue sur la CONSOLE du serveur, chez l'hébergeur."
-note "C'est le seul moment où la comparaison a un sens : elle vient d'être"
-note "relevée par le réseau, donc par le canal même dont elle doit protéger."
-note "Sur le VPS : ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub"
-if ! confirm "L'empreinte correspond-elle ?"; then
-  warn "Arrêt : l'empreinte n'a pas été confirmée."
-  rm -f "$CLE_TEMP" "$CLE_TEMP.pub"
   exit 1
 fi
 
@@ -393,17 +447,26 @@ say ""
 # installée sur le VPS et dont la moitié privée n'existe plus **nulle part**.
 # Rien ne la retrouverait, et il faudrait tout reprendre.
 if (( ${#SKIPPED[@]} )); then
+  # **Le nettoyage automatique est désarmé ici, et c'est tout l'objet de la
+  # branche.** Le `trap` posé à l'étape 5 efface le dossier de la clé à la
+  # sortie ; le laisser agir dans ce cas précis détruirait la clé privée que
+  # ce message annonce comme conservée, et tiendrait le pire des deux
+  # mondes — l'opérateur croirait la retrouver là où plus rien ne serait.
+  # L'empreinte, elle, reste nettoyée : elle se relève à la relance.
+  trap 'rm -f "$HOTES_CONNUS"' EXIT
   warn "Des secrets n'ont pas été posés. La clé privée est CONSERVÉE ici :"
   note "  $CLE_TEMP"
   note ""
   note "Posez le secret manquant vous-même, puis effacez-la :"
   note "  gh secret set VPS_CLE_SSH < $CLE_TEMP"
-  note "  rm -f $CLE_TEMP $CLE_TEMP.pub"
+  note "  rm -rf $CLE_DOSSIER"
 else
   # La clé vit désormais dans les secrets GitHub, et sa moitié publique sur
   # le VPS. La garder ici en ferait un troisième exemplaire, sur la machine
-  # la moins protégée des trois.
-  rm -f "$CLE_TEMP" "$CLE_TEMP.pub"
+  # la moins protégée des trois. Le `trap` s'en chargerait à la sortie ; le
+  # faire ici permet de l'annoncer, et de ne pas laisser la clé traverser
+  # l'affichage du verdict.
+  rm -rf "$CLE_DOSSIER"
   say "  [ok] clé privée effacée de cette machine"
 fi
 
