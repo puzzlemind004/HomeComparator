@@ -375,7 +375,44 @@ jobs:
           # `--wait-timeout` borne l'attente : sans borne, une pile qui ne
           # devient jamais saine tiendrait le job jusqu'au plafond de
           # GitHub.
-          docker compose -f docker-compose.prod.yml up -d --wait --wait-timeout 180
+          #
+          # **300 s, et le nombre se calcule au lieu de se choisir (#85).**
+          # Les services démarrent en série, chacun attendant que le
+          # précédent soit *sain* (`depends_on: condition: service_healthy`),
+          # et chacun s'autorise son propre délai :
+          #
+          #   postgres   5 s × 10 essais                    →  50 s
+          #   api        start-period 60 s + 3 × 30 s       → 150 s
+          #   web, caddy healthchecks courts, puis démarrage →  ~20 s
+          #                                                   ------
+          #                                        pire cas légitime ≈ 220 s
+          #
+          # Les valeurs viennent de `docker-compose.prod.yml` (postgres) et
+          # du `HEALTHCHECK` d'`apps/api/Dockerfile` (api). **Les changer
+          # là-bas oblige à revoir ce nombre-ci** : les 180 s précédentes
+          # étaient déjà plus courtes que ce pire cas, et ne tenaient que
+          # parce qu'une base vide migre instantanément. Le jour où le carnet
+          # sert, une migration d'une minute suffisait à faire expirer
+          # l'attente sur une pile en parfaite santé.
+          #
+          # 300 s laisse la marge, tout en gardant une borne franche : au
+          # delà, la pile ne deviendra pas saine d'elle-même.
+          #
+          # L'expiration est distinguée d'un service malade, car les deux
+          # n'appellent pas la même décision : une pile qui monte encore
+          # n'est pas une pile en panne, et `docker compose ps` ci-dessous
+          # dit laquelle des deux on regarde.
+          if ! docker compose -f docker-compose.prod.yml up -d --wait --wait-timeout 300; then
+            echo "::error::La pile n'est pas devenue saine dans les 300 s imparties."
+            echo "État des services au moment de l'abandon :"
+            docker compose -f docker-compose.prod.yml ps
+            echo ""
+            echo "Un service encore en « starting » signale une expiration, pas une panne :"
+            echo "la pile finissait peut-être de monter. Un service « unhealthy » ou sorti"
+            echo "est une panne réelle, dont les journaux disent la cause :"
+            echo "  docker compose -f docker-compose.prod.yml logs --tail=50"
+            exit 1
+          fi
 
           # **Aucun `docker image prune` ici, et son absence est délibérée.**
           #
@@ -506,10 +543,18 @@ jobs:
             else
               echo "### Le déploiement de $VERSION a échoué"
               echo
+              echo "**Regarder le carnet avant d'agir** (#85). L'étape qui a échoué"
+              echo "peut être une simple expiration d'attente, sur une pile qui"
+              echo "finissait de monter : dans ce cas la production va bien, et"
+              echo "\`https://<domaine>\` répond. Le journal du job dit laquelle des"
+              echo "deux situations s'est produite."
+              echo
               echo "**Aucun retour en arrière n'a été tenté** (ADR-0018) : les migrations"
-              echo "ne se défont pas. La version précédente se remet à la main en"
-              echo "changeant \`VERSION\` dans le \`.env\` du serveur — voir"
-              echo "\`docs/deploiement.md\`."
+              echo "ne se défont pas. Si le carnet est bien en panne, la version"
+              echo "précédente se remet à la main en changeant \`VERSION\` dans le"
+              echo "\`.env\` du serveur — voir \`docs/deploiement.md\`. Le faire sur une"
+              echo "production saine redescendrait l'image **sous un schéma déjà"
+              echo "migré**, soit précisément ce qu'ADR-0018 s'emploie à éviter."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 

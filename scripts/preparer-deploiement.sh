@@ -264,12 +264,23 @@ note "L'empreinte est posée depuis un secret, et non récoltée à la volée pa
 note "le workflow : demander sa clé à la machine à laquelle on s'apprête à"
 note "faire confiance ne vérifie rien — un intermédiaire serait cru sur parole."
 say ""
-EMPREINTE=$(ssh-keyscan -t ed25519 "$VPS_HOTE" 2>/dev/null)
+# La sortie d'erreur sert ici aussi (#100) : `ssh-keyscan` distingue un nom
+# qui ne résout pas d'un port qui ne répond pas, et les deux se corrigent
+# ailleurs — l'un dans la saisie de l'étape précédente, l'autre sur le
+# serveur ou son pare-feu.
+erreur_scan=$(mktemp)
+EMPREINTE=$(ssh-keyscan -t ed25519 "$VPS_HOTE" 2>"$erreur_scan")
 if [[ -z "$EMPREINTE" ]]; then
   warn "Impossible de relever l'empreinte de $VPS_HOTE."
+  if [[ -s "$erreur_scan" ]]; then
+    warn "Ce que ssh-keyscan a répondu :"
+    while IFS= read -r ligne; do warn "  $ligne"; done < "$erreur_scan"
+  fi
   note "Vérifiez le nom d'hôte, et que le port 22 répond."
+  rm -f "$erreur_scan"
   exit 1
 fi
+rm -f "$erreur_scan"
 say "Empreinte relevée :"
 note "  $(printf '%s' "$EMPREINTE" | ssh-keygen -lf - 2>/dev/null || echo '?')"
 say ""
@@ -297,11 +308,36 @@ trap 'rm -f "$HOTES_CONNUS"' EXIT
 say "  [ok] empreinte confirmée, opposée aux connexions de ce wizard"
 say ""
 say "Vérification de l'accès…"
-if ! ssh -o BatchMode=yes -o ConnectTimeout=10 \
+# **La sortie d'erreur de `ssh` est retenue, pas jetée (#100).** Les causes
+# d'échec appellent des gestes opposés — poser une clé, corriger un nom,
+# ouvrir un port, ou **s'arrêter** parce que l'hôte n'est pas celui qu'on
+# croit — et `ssh` vient précisément de dire laquelle. La jeter renvoyait
+# l'opérateur relancer à la main pour découvrir ce que le script savait
+# déjà.
+if ! erreur_ssh=$(ssh -o BatchMode=yes -o ConnectTimeout=10 \
      -o UserKnownHostsFile="$HOTES_CONNUS" -o StrictHostKeyChecking=yes \
-     "$ADMIN_UTILISATEUR@$VPS_HOTE" true 2>/dev/null; then
+     "$ADMIN_UTILISATEUR@$VPS_HOTE" true 2>&1); then
   warn "Connexion SSH impossible sans interaction."
-  note "Vérifiez que « ssh $ADMIN_UTILISATEUR@$VPS_HOTE » aboutit sans mot de passe."
+  if [ -n "$erreur_ssh" ]; then
+    warn "Ce que ssh a répondu :"
+    while IFS= read -r ligne; do warn "  $ligne"; done <<< "$erreur_ssh"
+  fi
+
+  # **`Host key verification failed` est la seule des causes où relancer est
+  # le mauvais conseil.** Les autres se corrigent et se réessaient ; celle-ci
+  # dit que la machine au bout du fil ne présente pas la clé attendue, et
+  # insister reviendrait à passer outre l'avertissement.
+  if printf '%s' "$erreur_ssh" | grep -qi "host key verification failed"; then
+    warn ""
+    warn "L'empreinte présentée ne correspond pas à celle confirmée à l'étape 2."
+    warn "Ne relancez pas : la machine au bout du fil n'est peut-être pas la"
+    warn "vôtre. Vérifiez l'empreinte sur la console de l'hébergeur avant tout."
+  else
+    note "Vérifiez que « ssh $ADMIN_UTILISATEUR@$VPS_HOTE » aboutit sans mot de passe."
+    note "Si cette commande réussit dans votre terminal alors qu'elle échoue"
+    note "ici, deux « ssh » coexistent peut-être sur la machine et ne voient"
+    note "pas le même agent de clés (#102)."
+  fi
   exit 1
 fi
 say "  [ok] $ADMIN_UTILISATEUR@$VPS_HOTE répond"
@@ -425,13 +461,28 @@ step "Vérification : la clé fait-elle ce que le déploiement lui demandera ?"
 # quel hôte, au moment précis où elle prétend éprouver la clé de déploiement.
 # Le workflow, lui, opposera l'empreinte du secret — la vérification et ce
 # qu'elle vérifie doivent se faire dans les mêmes conditions (#86).
-if ssh -i "$CLE_TEMP" -o BatchMode=yes -o ConnectTimeout=10 \
+#
+# **La sortie d'erreur est retenue (#100)**, et le « ou » du message
+# d'échec disait bien l'ambiguïté qu'elle lève : une clé refusée
+# (`Permission denied`) et un `deploy` hors du groupe `docker`
+# (`permission denied while trying to connect to the Docker daemon`) sont
+# deux pannes distinctes, qui se corrigent différemment.
+erreur_cle=$(ssh -i "$CLE_TEMP" -o BatchMode=yes -o ConnectTimeout=10 \
      -o UserKnownHostsFile="$HOTES_CONNUS" -o StrictHostKeyChecking=yes \
-     "deploy@$VPS_HOTE" 'docker ps >/dev/null && echo ok' 2>/dev/null \
-     | grep -q ok; then
+     "deploy@$VPS_HOTE" 'docker ps >/dev/null && echo ok' 2>&1)
+
+if printf '%s' "$erreur_cle" | grep -q ok; then
   say "  [ok] deploy@$VPS_HOTE répond et joint Docker"
 else
   warn "La clé ne fonctionne pas, ou deploy ne joint pas le socket Docker."
+  if [ -n "$erreur_cle" ]; then
+    warn "Ce que ssh a répondu :"
+    while IFS= read -r ligne; do warn "  $ligne"; done <<< "$erreur_cle"
+  fi
+  if printf '%s' "$erreur_cle" | grep -qi "docker daemon\|docker.sock"; then
+    warn "La clé ouvre bien la session : c'est l'accès à Docker qui manque."
+    warn "« usermod -aG docker deploy » puis une nouvelle session le corrige."
+  fi
   exit 1
 fi
 
@@ -487,6 +538,69 @@ set_secret VPS_UTILISATEUR "deploy"
 set_secret VPS_DOMAINE "$VPS_DOMAINE"
 set_secret VPS_CLE_SSH "$(cat "$CLE_TEMP")"
 set_secret VPS_EMPREINTE "$EMPREINTE"
+say ""
+
+# ── Les paquets GHCR sont-ils écrivables par le dépôt ? ───────────────────
+#
+# **Une image publiée à la main appartient au compte, pas au dépôt (#101).**
+# `docs/deploiement.md` prescrivait cette publication manuelle avant que le
+# déploiement automatique n'existe, et c'était juste. Mais le
+# `GITHUB_TOKEN` d'une exécution n'a alors aucun droit d'écriture sur le
+# paquet ainsi créé, quelles que soient les permissions déclarées dans le
+# workflow — d'où un `denied: permission_denied` au `push`, après que le
+# numéro de version a été commité et le tag poussé.
+#
+# Le constater ici plutôt qu'au premier déploiement : le wizard tourne une
+# fois, avant tout, et un numéro de version ne se recycle pas.
+#
+# La lecture des réglages demande la portée `read:packages`, que le jeton
+# de l'opérateur n'a pas forcément. Son absence n'est pas un échec : elle
+# empêche de conclure, et c'est ce qui est dit — un avertissement qui
+# arrête le wizard sur un droit manquant *du wizard* serait un faux
+# négatif.
+stage_paquets() {
+  local compte paquet etat
+  compte=$(gh repo view --json owner --jq .owner.login 2>/dev/null) || compte=""
+  if [[ -z "$compte" ]]; then
+    warn "Compte GitHub indéterminé : vérification des paquets GHCR sautée."
+    return 0
+  fi
+
+  for paquet in homecomparator-api homecomparator-web; do
+    etat=$(gh api "user/packages/container/$paquet" --jq .repository.name 2>&1)
+
+    if printf '%s' "$etat" | grep -qi "read:packages scope"; then
+      note "  [?] paquets non vérifiés : le jeton gh n'a pas « read:packages »."
+      note "      « gh auth refresh -s read:packages » le donnerait."
+      return 0
+    fi
+
+    if printf '%s' "$etat" | grep -qi "404\|Not Found"; then
+      say "  [ok] $paquet n'existe pas encore : Actions le créera, et le dépôt"
+      say "       en sera propriétaire."
+      continue
+    fi
+
+    if [[ -z "$etat" || "$etat" == "null" ]]; then
+      warn "Le paquet $paquet existe mais n'est lié à aucun dépôt."
+      warn "Le déploiement échouera sur « denied: permission_denied » au push,"
+      warn "APRÈS avoir consommé un numéro de version."
+      note "Deux issues, au choix :"
+      note "  - donner l'accès au dépôt : page du paquet → Package settings →"
+      note "    Manage Actions access → Add repository → rôle Write ;"
+      note "  - ou supprimer le paquet et laisser le workflow le recréer."
+      note "    https://github.com/users/$compte/packages/container/$paquet/settings"
+      return 1
+    fi
+
+    say "  [ok] $paquet est lié au dépôt « $etat »"
+  done
+}
+
+step "Vérification : le dépôt peut-il écrire sur les paquets GHCR ?"
+if ! stage_paquets; then
+  exit 1
+fi
 say ""
 # **La clé n'est effacée que si les cinq secrets sont bien posés, et cette
 # condition n'est pas une précaution de principe.** `set_secret` se contente
