@@ -715,6 +715,51 @@ describe('BiensPage', () => {
       expect(page.selection()).toEqual([2]);
     });
 
+    it('garde la sélection et de quoi la vider quand le filtre ne rend rien', () => {
+      // Le cas où le cul-de-sac serait complet : plafond atteint par des
+      // Biens que le filtre masque tous, sur une liste filtrée **vide**.
+      // La page doit continuer à dire ce qu'elle retient et à offrir la
+      // sortie — le gabarit sort donc ce bloc du test sur la longueur de la
+      // liste, qui l'emporterait exactement quand il sert (#93).
+      const liste = new Subject<ListeBiens>();
+      const page = creerPage({ lister: () => liste }, {}, MAXIMUM_MOBILE);
+
+      liste.next(chargee(trois));
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+
+      // Le filtre ne rend aucun Bien.
+      liste.next(chargee([]));
+
+      expect(page.selection()).toEqual([1, 2]);
+      expect(page.retenusMasques()).toBe(2);
+      expect(page.selectionPleine()).toBe(true);
+      expect(page.biensCompares()).toEqual([]);
+      expect(page.comparaisonAffichee()).toBe(false);
+
+      // La sortie fonctionne, et rend la place.
+      page.viderComparaison();
+
+      expect(page.selection()).toEqual([]);
+      expect(page.selectionPleine()).toBe(false);
+    });
+
+    it('laisse recocher un Bien déclaré supprimé qui réapparaît', () => {
+      // `oublier` retire du choix sans rien mémoriser : un appelant qui se
+      // tromperait — Bien déclaré supprimé trop tôt, ou recréé depuis — ne
+      // doit pas laisser une case qui ne répond plus sans que rien ne le
+      // dise. C'est la panne muette que la page évite ailleurs (#93).
+      const page = pageAvec(trois);
+
+      page.basculerComparaison(1);
+      page.oublier(1);
+      expect(page.selection()).toEqual([]);
+
+      page.basculerComparaison(1);
+
+      expect(page.selection()).toEqual([1]);
+    });
+
     it('repart d’une comparaison vide à chaque ouverture de la page', () => {
       // C'est ce qui règle le sort des Biens supprimés sans que la liste ait
       // à trancher : la suppression se joue sur la fiche (#9), qui est une

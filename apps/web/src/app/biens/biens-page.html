@@ -121,27 +121,24 @@
 
   @if (liste(); as liste) {
     @if (liste.chargee) {
-      @if (liste.biens.length) {
-        <!--
-          Le tableau sur desktop, les cartes sur écran étroit : les deux
-          présentations montrent les mêmes Biens, et c'est la feuille de
-          style qui choisit laquelle paraît, à la seule taille de l'écran et
-          sans réglage à faire (#11, ADR-0006). Un tableau de seize colonnes
-          est illisible sur un téléphone, et le défilement horizontal a été
-          explicitement écarté.
+      <!--
+        Ce que la sélection en cours permet, dit avant la liste plutôt
+        qu'après : l'acheteur doit savoir que le plafond est atteint au
+        moment où il coche, et non en découvrant des cases qui ne
+        répondent plus (#12, ADR-0005).
 
-          Les deux composants sont montés ensemble, et l'un des deux est
-          masqué. Le coût est d'un calcul de liste en double, sur quelques
-          dizaines de Biens ; ce qu'il achète est qu'aucune des deux
-          présentations n'ait à savoir sur quel écran elle est montée, et
-          qu'une fenêtre redimensionnée bascule sans rien remonter.
-        -->
-        <!--
-          Ce que la sélection en cours permet, dit avant la liste plutôt
-          qu'après : l'acheteur doit savoir que le plafond est atteint au
-          moment où il coche, et non en découvrant des cases qui ne
-          répondent plus (#12, ADR-0005).
-        -->
+        Le bloc est au-dessus du test sur la longueur de la liste, et non
+        dedans : depuis #93 un Bien retenu peut être masqué par le filtre,
+        donc une liste filtrée **vide** peut coexister avec une sélection
+        pleine. L'enfermer dans la liste non vide emporterait alors le seul
+        endroit qui le dit, et le bouton qui permet d'en sortir — cachés
+        exactement quand ils servent.
+
+        Il paraît donc dès qu'il y a une sélection à décrire, ou des Biens
+        à cocher : sur un carnet vide et sans sélection, il n'a rien à dire
+        et « Aucun Bien » suffit.
+      -->
+      @if (selection().length || liste.biens.length) {
         <div class="comparaison-etat">
           <!--
             La région vivante ne porte que le texte, et surtout pas le bouton
@@ -193,7 +190,23 @@
             </button>
           }
         </div>
+      }
 
+      @if (liste.biens.length) {
+        <!--
+          Le tableau sur desktop, les cartes sur écran étroit : les deux
+          présentations montrent les mêmes Biens, et c'est la feuille de
+          style qui choisit laquelle paraît, à la seule taille de l'écran et
+          sans réglage à faire (#11, ADR-0006). Un tableau de seize colonnes
+          est illisible sur un téléphone, et le défilement horizontal a été
+          explicitement écarté.
+
+          Les deux composants sont montés ensemble, et l'un des deux est
+          masqué. Le coût est d'un calcul de liste en double, sur quelques
+          dizaines de Biens ; ce qu'il achète est qu'aucune des deux
+          présentations n'ait à savoir sur quel écran elle est montée, et
+          qu'une fenêtre redimensionnée bascule sans rien remonter.
+        -->
         <app-tableau-biens
           class="vue-desktop"
           [biensAAfficher]="liste.biens"

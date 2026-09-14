@@ -108,25 +108,6 @@ export class BiensPage {
    */
   private readonly choix = signal<readonly number[]>([]);
 
-  /**
-   * Les Biens dont on sait qu'ils ont **cessé d'exister** (#93).
-   *
-   * Il faut ce signal parce que l'absence d'un Bien de la liste ne dit pas
-   * pourquoi il n'y est pas : la liste chargée porte de la même façon un
-   * Bien supprimé et un Bien qu'un filtre par Statut ne montre pas. Or les
-   * deux n'appellent pas la même réponse — le premier doit quitter la
-   * comparaison pour de bon, le second garder sa place.
-   *
-   * La disparition se **déclare** donc, par `oublier`, plutôt que de se
-   * déduire d'une liste. Un identifiant y entre quand la suppression est
-   * constatée, et rien d'autre ne l'y met : c'est ce qui interdit à un
-   * filtrage de se faire passer pour une suppression.
-   *
-   * Il grandit sans jamais rétrécir, ce qui est sans conséquence : un Bien
-   * supprimé ne revient pas, et la page ne vit que le temps d'une visite.
-   */
-  private readonly oublies = signal<readonly number[]>([]);
-
   /** Combien de Biens l'écran courant permet de comparer (ADR-0006). */
   readonly maximumSelection = computed(() => this.largeurEcran.maximumComparaison());
 
@@ -149,6 +130,10 @@ export class BiensPage {
    * l'ouverture du filtre. C'est `biensCompares` qui s'occupe de ne pas lui
    * faire de colonne tant que l'écran n'a pas ses valeurs.
    *
+   * Un Bien supprimé, lui, sort par `oublier`, qui le retire du choix : la
+   * disparition se déclare, elle ne se déduit pas d'une liste — laquelle ne
+   * distinguerait pas une suppression d'un filtrage.
+   *
    * Rétrécir la fenêtre puis l'élargir rend les Biens que le plafond avait
    * mis de côté, tant qu'aucun clic n'est venu entre-temps : le premier
    * geste de sélection repart de ce qui est réellement comparé, et ce qui
@@ -157,7 +142,7 @@ export class BiensPage {
    * l'acheteur croyait avoir remplacés.
    */
   readonly selection = computed<readonly number[]>(() =>
-    selectionAjustee(this.choix(), this.maximumSelection(), this.oublies()),
+    selectionAjustee(this.choix(), this.maximumSelection()),
   );
 
   /**
@@ -271,31 +256,38 @@ export class BiensPage {
     // est comparable, il est seulement hors du filtre courant : il garde sa
     // place ici et revient tel quel quand le filtre s'ouvre.
     //
-    // Les deux causes de retrait sont donc séparées, et c'est `oublies` qui
-    // porte la seconde : seule une suppression constatée écarte pour de bon.
+    // Les deux causes de retrait sont donc séparées : le plafond ici, et la
+    // suppression par `oublier`, qui se déclare et retire du choix.
     this.choix.update(() => basculerSelection(this.selection(), bienId, this.maximumSelection()));
   }
 
   /**
-   * Le constat qu'un Bien a été supprimé : il quitte la comparaison et n'y
-   * revient pas (#93).
+   * Le constat qu'un Bien a été supprimé : il quitte la comparaison (#93).
    *
    * C'est le seul chemin par lequel un Bien sort de la sélection sans que
-   * l'acheteur l'ait décoché ni que le plafond s'en mêle. Il se **déclare**
-   * plutôt que de se déduire de l'absence du Bien dans la liste : cette
-   * absence-là ne distingue pas une suppression d'un filtrage, et c'est
-   * précisément la confusion que ce ticket défait.
+   * l'acheteur l'ait décoché ni que le plafond s'en mêle. La disparition se
+   * **déclare** plutôt que de se déduire de l'absence du Bien dans la
+   * liste : cette absence-là ne distingue pas une suppression d'un
+   * filtrage, et c'est précisément la confusion que ce ticket défait.
+   *
+   * Le Bien est **retiré du choix**, et rien n'est mémorisé de lui. Une
+   * liste des oubliés rejouée à chaque recalcul rendrait l'identifiant
+   * non-cochable pour toujours : un appelant qui se tromperait — un Bien
+   * déclaré supprimé trop tôt, ou recréé depuis — laisserait une case qui
+   * ne répond plus sans que rien ne le dise, la panne muette même que la
+   * page prend soin d'éviter ailleurs. Ce qui est supprimé ne revenant dans
+   * aucune liste, le retrait suffit ; et si le Bien revient, c'est qu'il
+   * n'était pas supprimé, et le recocher doit marcher.
    *
    * La suppression elle-même se joue sur la fiche du Bien (#9), qui est un
    * autre écran : la page y navigue et se reconstruit au retour, sélection
-   * comprise. Cette méthode est donc aujourd'hui sans appelant dans
-   * l'application — elle est le point d'entrée que devra emprunter tout
-   * écran qui supprimerait un Bien sans quitter la liste, et sans lequel il
-   * n'aurait d'autre recours que de reconclure « supprimé » d'une liste
-   * filtrée.
+   * comprise. Cette méthode est donc aujourd'hui sans appelant — elle est
+   * le point d'entrée que devra emprunter tout écran qui supprimerait un
+   * Bien sans quitter la liste, et sans lequel il n'aurait d'autre recours
+   * que de reconclure « supprimé » d'une liste filtrée.
    */
   oublier(bienId: number): void {
-    this.oublies.update((oublies) => (oublies.includes(bienId) ? oublies : [...oublies, bienId]));
+    this.choix.update((choix) => choix.filter((candidat) => candidat !== bienId));
   }
 
   /** Le bouton qui vide la comparaison, sans toucher à la liste. */
