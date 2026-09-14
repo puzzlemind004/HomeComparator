@@ -245,6 +245,10 @@ note "Ce n'est PAS le compte que le workflow utilisera ensuite."
 ask ADMIN_UTILISATEUR "Compte d'administration (ex. root) :"
 ADMIN_UTILISATEUR="${ADMIN_UTILISATEUR:-root}"
 
+# Le dossier de la pile sur le serveur. `deployer.yml` porte la même valeur
+# dans son propre `DOSSIER` : les deux doivent bouger ensemble.
+DOSSIER_DISTANT=/opt/homecomparator
+
 # ── 3 ─────────────────────────────────────────────────────────────────────
 # **Cette étape précède toute connexion, et l'ordre est le fond du sujet.**
 # Le raisonnement qui la justifie — on ne vérifie rien en demandant sa clé à
@@ -415,7 +419,7 @@ DISTANT
       "$ADMIN_UTILISATEUR@$VPS_HOTE" \
       "read -r cle; export cle; bash -s"
 say ""
-step "Vérification : la clé ouvre-t-elle une session deploy qui joint Docker ?"
+step "Vérification : la clé fait-elle ce que le déploiement lui demandera ?"
 # **L'empreinte confirmée sert ici aussi.** Cette vérification passait
 # `StrictHostKeyChecking=no` sur `/dev/null` : elle acceptait donc n'importe
 # quel hôte, au moment précis où elle prétend éprouver la clé de déploiement.
@@ -428,6 +432,35 @@ if ssh -i "$CLE_TEMP" -o BatchMode=yes -o ConnectTimeout=10 \
   say "  [ok] deploy@$VPS_HOTE répond et joint Docker"
 else
   warn "La clé ne fonctionne pas, ou deploy ne joint pas le socket Docker."
+  exit 1
+fi
+
+# **Le dépôt d'un fichier est éprouvé à part, et cette seconde vérification
+# n'est pas un doublon de la première (#106).** Ouvrir une session et y
+# déposer un fichier sont deux capacités distinctes, qu'`authorized_keys`
+# accorde séparément : `restrict` ci-dessus laisse passer la commande
+# distante tout en coupant le sous-système SFTP.
+#
+# Ne mesurer que la session déclarait donc bonne une clé avec laquelle le
+# déploiement échouait à sa toute première étape — et l'échec se découvrait
+# en production, après la pose du tag, au prix d'un numéro de version
+# (#104, #105).
+#
+# La vérification emprunte exactement le chemin du workflow — `ssh` et
+# l'entrée standard, mêmes options — car une vérification qui s'y prendrait
+# autrement éprouverait autre chose que ce qu'on déploie.
+step "Vérification : la clé peut-elle déposer un fichier dans $DOSSIER_DISTANT ?"
+TEMOIN="essai-wizard-$$"
+if printf 'essai\n' | ssh -T -i "$CLE_TEMP" -o BatchMode=yes -o ConnectTimeout=10 \
+     -o UserKnownHostsFile="$HOTES_CONNUS" -o StrictHostKeyChecking=yes \
+     "deploy@$VPS_HOTE" "cat > '$DOSSIER_DISTANT/$TEMOIN' && rm -f '$DOSSIER_DISTANT/$TEMOIN'" \
+     2>/dev/null; then
+  say "  [ok] la clé dépose un fichier dans $DOSSIER_DISTANT"
+else
+  warn "La clé ouvre une session mais ne peut pas y déposer de fichier."
+  warn "Le déploiement échouerait à sa première étape. Causes possibles :"
+  warn "  - les droits de $DOSSIER_DISTANT pour deploy ;"
+  warn "  - une restriction de la ligne authorized_keys de la clé."
   exit 1
 fi
 
