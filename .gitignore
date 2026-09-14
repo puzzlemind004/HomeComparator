@@ -15,6 +15,12 @@ build
 dist
 tmp
 
+# Cache de build Angular. Sans barre oblique initiale : le motif attrape le
+# dossier à n'importe quelle profondeur, y compris à la racine. La CLI écrit
+# son cache relativement au répertoire courant, et une commande `ng` lancée
+# depuis la racine plutôt que depuis `apps/web` le pose ici (#113).
+.angular/
+
 # Éditeurs
 .idea
 .vscode
