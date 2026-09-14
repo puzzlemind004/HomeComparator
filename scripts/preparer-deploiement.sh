@@ -450,17 +450,32 @@ fi
 # l'entrée standard, mêmes options — car une vérification qui s'y prendrait
 # autrement éprouverait autre chose que ce qu'on déploie.
 step "Vérification : la clé peut-elle déposer un fichier dans $DOSSIER_DISTANT ?"
+# **La sortie d'erreur de `ssh` est conservée et rendue telle quelle.** La
+# jeter dans le contrôle même qui sert à diagnostiquer cette panne
+# retirerait la seule phrase qui nomme la cause — « Permission denied »,
+# « Connection refused », « Host key verification failed » désignent trois
+# incidents distincts que rien d'autre ne distingue ensuite. C'est ce qui a
+# rendu #104 long à établir, et #100 le reproche déjà ailleurs dans ce
+# script.
 TEMOIN="essai-wizard-$$"
+ERREUR_SSH=$(mktemp)
 if printf 'essai\n' | ssh -T -i "$CLE_TEMP" -o BatchMode=yes -o ConnectTimeout=10 \
      -o UserKnownHostsFile="$HOTES_CONNUS" -o StrictHostKeyChecking=yes \
      "deploy@$VPS_HOTE" "cat > '$DOSSIER_DISTANT/$TEMOIN' && rm -f '$DOSSIER_DISTANT/$TEMOIN'" \
-     2>/dev/null; then
+     2>"$ERREUR_SSH"; then
   say "  [ok] la clé dépose un fichier dans $DOSSIER_DISTANT"
+  rm -f "$ERREUR_SSH"
 else
   warn "La clé ouvre une session mais ne peut pas y déposer de fichier."
-  warn "Le déploiement échouerait à sa première étape. Causes possibles :"
-  warn "  - les droits de $DOSSIER_DISTANT pour deploy ;"
-  warn "  - une restriction de la ligne authorized_keys de la clé."
+  warn "Le déploiement échouerait à sa première étape."
+  if [ -s "$ERREUR_SSH" ]; then
+    warn "Ce que ssh a répondu :"
+    while IFS= read -r ligne; do warn "  $ligne"; done < "$ERREUR_SSH"
+  fi
+  warn "Selon le message ci-dessus, regarder les droits de"
+  warn "$DOSSIER_DISTANT pour deploy, ou les restrictions de la ligne"
+  warn "authorized_keys de la clé."
+  rm -f "$ERREUR_SSH"
   exit 1
 fi
 

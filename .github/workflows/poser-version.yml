@@ -69,11 +69,47 @@ jobs:
   # y est ce qui désigne la version, et la vérification d'ascendance porte
   # sur le commit qu'il désigne. Le choix retenu est donc de couvrir ce qui
   # se couvre sans toucher à cet ordre.
+  # Le commit est résolu **une seule fois**, et tout le reste s'y rapporte.
+  #
+  # Sans cela, `main` serait résolu deux fois — ici puis au `checkout` du job
+  # `poser` — et les vérifications dureraient assez longtemps (installation
+  # des paquets, tests sur Postgres, deux images Docker) pour qu'une fusion
+  # de pull request se glisse entre les deux. La barrière validerait alors un
+  # commit et le job `poser` en taguerait un autre.
+  #
+  # Le `concurrency` de ce workflow n'y suffit pas : il sérialise deux poses
+  # de version entre elles, alors que ce qui fait bouger `main` ici est une
+  # fusion — qui n'est pas une exécution de ce workflow, et que rien ne
+  # sérialise avec lui.
+  #
+  # Le code non vérifié ne partirait pas en production pour autant : le
+  # déploiement rejoue tout sur le tag. Mais il s'arrêterait **après** le
+  # `git push --atomic`, donc au prix du numéro — précisément ce que l'ordre
+  # de ce workflow existe pour éviter.
+  resoudre-le-commit:
+    name: Fixer le commit à vérifier
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.tete.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Relever la tête de main
+        id: tete
+        run: |
+          sha=$(git rev-parse HEAD)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Commit à vérifier puis à taguer : $sha"
+
   verifications-prealables:
     name: Vérifications préalables
+    needs: resoudre-le-commit
     uses: ./.github/workflows/verifications.yml
     with:
-      ref: main
+      ref: ${{ needs.resoudre-le-commit.outputs.sha }}
       publier: false
     # `packages: write` alors que `publier: false` : le workflow appelé
     # déclare ce droit sur son job de publication, et les permissions sont
@@ -86,7 +122,7 @@ jobs:
 
   poser:
     name: Inscrire le numéro, commiter, taguer
-    needs: verifications-prealables
+    needs: [resoudre-le-commit, verifications-prealables]
     runs-on: ubuntu-latest
 
     permissions:
@@ -99,9 +135,36 @@ jobs:
       # être lancé depuis n'importe quelle branche par le menu de l'onglet
       # Actions, et une version posée depuis une branche de travail est très
       # exactement ce que ce workflow existe pour empêcher.
+      # Le commit vérifié, et non `main` à nouveau : c'est ce qui rend le
+      # tag solidaire de ce que les vérifications ont réellement exercé.
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ needs.resoudre-le-commit.outputs.sha }}
+
+      # **`main` a-t-il bougé pendant les vérifications ?**
+      #
+      # Le `push` plus bas est `--atomic` sur `main` et le tag : si `main`
+      # avait avancé, il serait de toute façon rejeté en non-fast-forward.
+      # Le constater ici rend l'arrêt lisible — « quelqu'un a fusionné
+      # pendant que tu posais une version » — là où un refus de `push` en
+      # fin de course se lit comme un incident de dépôt.
+      #
+      # Et surtout, l'arrêt survient **avant** toute écriture : ni commit ni
+      # tag, donc le numéro reste libre pour la relance.
+      - name: Le commit vérifié est-il toujours la tête de main ?
+        env:
+          ATTENDU: ${{ needs.resoudre-le-commit.outputs.sha }}
+        run: |
+          git fetch --no-tags origin main
+          actuel=$(git rev-parse origin/main)
+
+          if [ "$actuel" != "$ATTENDU" ]; then
+            echo "::error::main a avancé pendant les vérifications ($ATTENDU → $actuel)."
+            echo "Rien n'a été écrit et le numéro reste libre : relancez la pose de version."
+            exit 1
+          fi
+
+          echo "main est toujours sur $ATTENDU."
 
       - name: Vérifier la forme du numéro
         env:
