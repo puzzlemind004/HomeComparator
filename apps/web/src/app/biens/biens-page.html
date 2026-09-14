@@ -168,16 +168,35 @@
                 l'ouvrant.
               }
 
-              @if (selectionPleine()) {
-                <!--
-                  Le plafond dépend de la largeur de l'écran, et ce n'est pas
-                  évident : le dire évite de chercher pourquoi une case ne
-                  répond plus (ADR-0006). Les Biens masqués comptent dedans :
-                  un Bien retenu occupe une place, visible ou non.
-                -->
-                Retirez-en un pour en choisir un autre.
-              } @else if (!comparaisonAffichee()) {
-                Choisissez-en un second pour les comparer.
+              <!--
+                Le plafond dépend de la largeur de l'écran, et ce n'est pas
+                évident : le dire évite de chercher pourquoi une case ne
+                répond plus (ADR-0006). Les Biens masqués comptent dedans :
+                un Bien retenu occupe une place, visible ou non — mais il n'a
+                alors aucune case à décocher, et le geste demandé change avec
+                ce que le filtre montre (#111).
+              -->
+              @switch (instructionPlafond()) {
+                @case ('retirer') {
+                  Retirez-en un pour en choisir un autre.
+                }
+                @case ('retirer-parmi-montres') {
+                  Retirez-en un parmi ceux qui sont montrés, ou ouvrez le filtre pour choisir parmi
+                  tous.
+                }
+                @case ('ouvrir-ou-vider') {
+                  <!--
+                    Plus une seule case à décocher : « Retirez-en un »
+                    désignerait ici un geste impossible. L'écran nomme les
+                    deux qui marchent (#111).
+                  -->
+                  Ouvrez le filtre pour en retirer un, ou videz la comparaison.
+                }
+                @default {
+                  @if (!comparaisonAffichee()) {
+                    Choisissez-en un second pour les comparer.
+                  }
+                }
               }
             } @else {
               Cochez deux Biens pour les comparer face à face.

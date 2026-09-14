@@ -12,6 +12,7 @@ import {
   MINIMUM_COMPARAISON,
   basculerSelection,
   comparaisonPossible,
+  instructionPlafond,
   selectionAjustee,
 } from '../criteres/selection-comparaison';
 import type { Bien } from './bien';
@@ -160,6 +161,10 @@ export class BiensPage {
    * Vrai quand le plafond est atteint : la page le dit au-dessus de la
    * liste, plutôt que de laisser l'acheteur découvrir des cases qui ne
    * répondent plus sans savoir pourquoi.
+   *
+   * Ce que la page en dit exactement passe désormais par
+   * `instructionPlafond`, le geste à demander ne se déduisant pas du seul
+   * plafond (#111).
    */
   readonly selectionPleine = computed(() => this.selection().length >= this.maximumSelection());
 
@@ -203,6 +208,23 @@ export class BiensPage {
 
     return this.selection().length - this.biensCompares().length;
   });
+
+  /**
+   * Le geste que l'écran demande au plafond (#111).
+   *
+   * Il dépend de ce que le filtre courant montre : depuis #93, les Biens
+   * retenus qu'il masque gardent leur place et comptent sous le plafond,
+   * mais ils n'ont plus de case à décocher. Demander d'en retirer un serait
+   * alors désigner un geste impossible, dans la phrase la plus visible de
+   * l'écran au moment où l'acheteur est bloqué — et relue à voix haute avec
+   * le même poids que le reste (ADR-0005).
+   *
+   * La règle elle-même est dans `criteres/`, avec le plafond qu'elle
+   * commente : elle ne tient qu'à des comptes, et se vérifie sans écran.
+   */
+  readonly instructionPlafond = computed(() =>
+    instructionPlafond(this.selection().length, this.retenusMasques(), this.maximumSelection()),
+  );
 
   /**
    * Le libellé sous lequel un Statut s'affiche.
