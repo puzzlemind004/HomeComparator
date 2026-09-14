@@ -264,12 +264,23 @@ note "L'empreinte est posée depuis un secret, et non récoltée à la volée pa
 note "le workflow : demander sa clé à la machine à laquelle on s'apprête à"
 note "faire confiance ne vérifie rien — un intermédiaire serait cru sur parole."
 say ""
-EMPREINTE=$(ssh-keyscan -t ed25519 "$VPS_HOTE" 2>/dev/null)
+# La sortie d'erreur sert ici aussi (#100) : `ssh-keyscan` distingue un nom
+# qui ne résout pas d'un port qui ne répond pas, et les deux se corrigent
+# ailleurs — l'un dans la saisie de l'étape précédente, l'autre sur le
+# serveur ou son pare-feu.
+erreur_scan=$(mktemp)
+EMPREINTE=$(ssh-keyscan -t ed25519 "$VPS_HOTE" 2>"$erreur_scan")
 if [[ -z "$EMPREINTE" ]]; then
   warn "Impossible de relever l'empreinte de $VPS_HOTE."
+  if [[ -s "$erreur_scan" ]]; then
+    warn "Ce que ssh-keyscan a répondu :"
+    while IFS= read -r ligne; do warn "  $ligne"; done < "$erreur_scan"
+  fi
   note "Vérifiez le nom d'hôte, et que le port 22 répond."
+  rm -f "$erreur_scan"
   exit 1
 fi
+rm -f "$erreur_scan"
 say "Empreinte relevée :"
 note "  $(printf '%s' "$EMPREINTE" | ssh-keygen -lf - 2>/dev/null || echo '?')"
 say ""
@@ -297,11 +308,36 @@ trap 'rm -f "$HOTES_CONNUS"' EXIT
 say "  [ok] empreinte confirmée, opposée aux connexions de ce wizard"
 say ""
 say "Vérification de l'accès…"
-if ! ssh -o BatchMode=yes -o ConnectTimeout=10 \
+# **La sortie d'erreur de `ssh` est retenue, pas jetée (#100).** Les causes
+# d'échec appellent des gestes opposés — poser une clé, corriger un nom,
+# ouvrir un port, ou **s'arrêter** parce que l'hôte n'est pas celui qu'on
+# croit — et `ssh` vient précisément de dire laquelle. La jeter renvoyait
+# l'opérateur relancer à la main pour découvrir ce que le script savait
+# déjà.
+if ! erreur_ssh=$(ssh -o BatchMode=yes -o ConnectTimeout=10 \
      -o UserKnownHostsFile="$HOTES_CONNUS" -o StrictHostKeyChecking=yes \
-     "$ADMIN_UTILISATEUR@$VPS_HOTE" true 2>/dev/null; then
+     "$ADMIN_UTILISATEUR@$VPS_HOTE" true 2>&1); then
   warn "Connexion SSH impossible sans interaction."
-  note "Vérifiez que « ssh $ADMIN_UTILISATEUR@$VPS_HOTE » aboutit sans mot de passe."
+  if [ -n "$erreur_ssh" ]; then
+    warn "Ce que ssh a répondu :"
+    while IFS= read -r ligne; do warn "  $ligne"; done <<< "$erreur_ssh"
+  fi
+
+  # **`Host key verification failed` est la seule des causes où relancer est
+  # le mauvais conseil.** Les autres se corrigent et se réessaient ; celle-ci
+  # dit que la machine au bout du fil ne présente pas la clé attendue, et
+  # insister reviendrait à passer outre l'avertissement.
+  if printf '%s' "$erreur_ssh" | grep -qi "host key verification failed"; then
+    warn ""
+    warn "L'empreinte présentée ne correspond pas à celle confirmée à l'étape 2."
+    warn "Ne relancez pas : la machine au bout du fil n'est peut-être pas la"
+    warn "vôtre. Vérifiez l'empreinte sur la console de l'hébergeur avant tout."
+  else
+    note "Vérifiez que « ssh $ADMIN_UTILISATEUR@$VPS_HOTE » aboutit sans mot de passe."
+    note "Si cette commande réussit dans votre terminal alors qu'elle échoue"
+    note "ici, deux « ssh » coexistent peut-être sur la machine et ne voient"
+    note "pas le même agent de clés (#102)."
+  fi
   exit 1
 fi
 say "  [ok] $ADMIN_UTILISATEUR@$VPS_HOTE répond"
@@ -425,13 +461,28 @@ step "Vérification : la clé fait-elle ce que le déploiement lui demandera ?"
 # quel hôte, au moment précis où elle prétend éprouver la clé de déploiement.
 # Le workflow, lui, opposera l'empreinte du secret — la vérification et ce
 # qu'elle vérifie doivent se faire dans les mêmes conditions (#86).
-if ssh -i "$CLE_TEMP" -o BatchMode=yes -o ConnectTimeout=10 \
+#
+# **La sortie d'erreur est retenue (#100)**, et le « ou » du message
+# d'échec disait bien l'ambiguïté qu'elle lève : une clé refusée
+# (`Permission denied`) et un `deploy` hors du groupe `docker`
+# (`permission denied while trying to connect to the Docker daemon`) sont
+# deux pannes distinctes, qui se corrigent différemment.
+erreur_cle=$(ssh -i "$CLE_TEMP" -o BatchMode=yes -o ConnectTimeout=10 \
      -o UserKnownHostsFile="$HOTES_CONNUS" -o StrictHostKeyChecking=yes \
-     "deploy@$VPS_HOTE" 'docker ps >/dev/null && echo ok' 2>/dev/null \
-     | grep -q ok; then
+     "deploy@$VPS_HOTE" 'docker ps >/dev/null && echo ok' 2>&1)
+
+if printf '%s' "$erreur_cle" | grep -q ok; then
   say "  [ok] deploy@$VPS_HOTE répond et joint Docker"
 else
   warn "La clé ne fonctionne pas, ou deploy ne joint pas le socket Docker."
+  if [ -n "$erreur_cle" ]; then
+    warn "Ce que ssh a répondu :"
+    while IFS= read -r ligne; do warn "  $ligne"; done <<< "$erreur_cle"
+  fi
+  if printf '%s' "$erreur_cle" | grep -qi "docker daemon\|docker.sock"; then
+    warn "La clé ouvre bien la session : c'est l'accès à Docker qui manque."
+    warn "« usermod -aG docker deploy » puis une nouvelle session le corrige."
+  fi
   exit 1
 fi
 
@@ -488,6 +539,7 @@ set_secret VPS_DOMAINE "$VPS_DOMAINE"
 set_secret VPS_CLE_SSH "$(cat "$CLE_TEMP")"
 set_secret VPS_EMPREINTE "$EMPREINTE"
 say ""
+
 # **La clé n'est effacée que si les cinq secrets sont bien posés, et cette
 # condition n'est pas une précaution de principe.** `set_secret` se contente
 # d'avertir quand `gh` échoue ; effacer inconditionnellement la clé privée
