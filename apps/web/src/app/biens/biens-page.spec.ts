@@ -744,6 +744,84 @@ describe('BiensPage', () => {
       expect(page.selectionPleine()).toBe(false);
     });
 
+    it('ne demande aucun geste tant qu’il reste de la place', () => {
+      const page = pageAvec(trois);
+
+      page.basculerComparaison(1);
+
+      expect(page.instructionPlafond()).toBe('aucune');
+    });
+
+    it('demande d’en retirer un au plafond, quand ils sont tous montrés', () => {
+      const page = creerPage({ lister: () => of(chargee(trois)) }, {}, MAXIMUM_MOBILE);
+
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+
+      expect(page.instructionPlafond()).toBe('retirer');
+    });
+
+    it('prévient que le choix est plus étroit quand une partie est masquée', () => {
+      // « Retirez-en un » reste faisable, mais sur les seules cases
+      // affichées : le dire évite de chercher celle qui manque (#111).
+      const liste = new Subject<ListeBiens>();
+      const page = creerPage({ lister: () => liste }, {}, MAXIMUM_MOBILE);
+
+      liste.next(chargee(trois));
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+
+      // Le filtre ne montre plus que le second des deux retenus.
+      liste.next(chargee([trois[1]]));
+
+      expect(page.retenusMasques()).toBe(1);
+      expect(page.instructionPlafond()).toBe('retirer-parmi-montres');
+    });
+
+    it('nomme l’ouverture du filtre et le vidage quand aucun retenu n’est montré', () => {
+      // Le cas de l'impasse : plus une seule case à décocher, et
+      // « Retirez-en un » désignerait un geste impossible (#111).
+      const liste = new Subject<ListeBiens>();
+      const page = creerPage({ lister: () => liste }, {}, MAXIMUM_MOBILE);
+
+      liste.next(chargee(trois));
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+
+      // Le filtre ne rend que le troisième, qui n'est pas retenu.
+      liste.next(chargee([trois[2]]));
+
+      expect(page.selectionPleine()).toBe(true);
+      expect(page.instructionPlafond()).toBe('ouvrir-ou-vider');
+    });
+
+    it('nomme les mêmes gestes quand le filtre ne rend rien du tout', () => {
+      const liste = new Subject<ListeBiens>();
+      const page = creerPage({ lister: () => liste }, {}, MAXIMUM_MOBILE);
+
+      liste.next(chargee(trois));
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+      liste.next(chargee([]));
+
+      expect(page.instructionPlafond()).toBe('ouvrir-ou-vider');
+    });
+
+    it('revient à « retirez-en un » dès que le filtre se rouvre', () => {
+      const liste = new Subject<ListeBiens>();
+      const page = creerPage({ lister: () => liste }, {}, MAXIMUM_MOBILE);
+
+      liste.next(chargee(trois));
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+      liste.next(chargee([trois[2]]));
+      expect(page.instructionPlafond()).toBe('ouvrir-ou-vider');
+
+      liste.next(chargee(trois));
+
+      expect(page.instructionPlafond()).toBe('retirer');
+    });
+
     it('laisse recocher un Bien déclaré supprimé qui réapparaît', () => {
       // `oublier` retire du choix sans rien mémoriser : un appelant qui se
       // tromperait — Bien déclaré supprimé trop tôt, ou recréé depuis — ne

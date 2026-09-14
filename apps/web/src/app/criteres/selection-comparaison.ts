@@ -137,3 +137,53 @@ export function selectionAjustee(
 export function comparaisonPossible(colonnes: readonly unknown[]): boolean {
   return colonnes.length >= MINIMUM_COMPARAISON;
 }
+
+/**
+ * Ce que l'écran peut demander à l'acheteur quand le plafond est atteint
+ * (#111).
+ *
+ * - `aucune` : il reste de la place, rien à demander.
+ * - `retirer` : tous les retenus ont une case affichée, la décocher suffit.
+ * - `retirer-parmi-montres` : une partie seulement des retenus est montrée.
+ *   Le retrait reste faisable, mais sur un choix plus étroit que celui que
+ *   l'acheteur croit avoir sous la main, et l'écran le dit plutôt que de
+ *   laisser chercher les cases manquantes.
+ * - `ouvrir-ou-vider` : aucun retenu n'est montré, donc aucune case à
+ *   décocher. « Retirez-en un » désignerait un geste impossible.
+ */
+export type InstructionPlafond = 'aucune' | 'retirer' | 'retirer-parmi-montres' | 'ouvrir-ou-vider';
+
+/**
+ * Le geste que l'écran demande quand la sélection est pleine.
+ *
+ * La règle existe parce que le retrait se fait en décochant une case, et
+ * que depuis #93 un Bien retenu peut occuper une place sous le plafond sans
+ * en avoir aucune : le filtre courant ne le montre pas. Demander d'en
+ * retirer un est alors une instruction irréalisable, lue avec le même poids
+ * que le reste dans la région d'état (ADR-0005). Il faut nommer les gestes
+ * qui, eux, marchent — ouvrir le filtre, ou vider la comparaison.
+ *
+ * C'est le pendant de ce que `basculerSelection` garantit côté données :
+ * le retrait n'y est jamais borné, pour qu'une sélection pleine ne soit pas
+ * un cul-de-sac. Encore faut-il que l'écran désigne un retrait atteignable.
+ *
+ * Les comptes sont pris tels que la page les tient — `masques` est inclus
+ * dans `retenus`, un Bien masqué restant retenu — et le plafond est tenu
+ * pour atteint dès qu'on l'égale, y compris au-delà : une sélection peut
+ * dépasser le maximum le temps qu'un rétrécissement de fenêtre la replie.
+ */
+export function instructionPlafond(
+  retenus: number,
+  masques: number,
+  maximum: number,
+): InstructionPlafond {
+  if (retenus === 0 || retenus < maximum) {
+    return 'aucune';
+  }
+
+  if (masques >= retenus) {
+    return 'ouvrir-ou-vider';
+  }
+
+  return masques > 0 ? 'retirer-parmi-montres' : 'retirer';
+}

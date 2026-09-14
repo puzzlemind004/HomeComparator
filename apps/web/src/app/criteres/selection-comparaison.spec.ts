@@ -5,6 +5,7 @@ import {
   MINIMUM_COMPARAISON,
   basculerSelection,
   comparaisonPossible,
+  instructionPlafond,
   selectionAjustee,
 } from './selection-comparaison';
 
@@ -80,6 +81,43 @@ describe('selectionAjustee', () => {
     // Le tri des Biens disparus se fait avant la coupe : un Bien retiré
     // rend une place plutôt que d'en laisser une vide.
     expect(selectionAjustee([1, 2, 3], MAXIMUM_MOBILE, [1])).toEqual([2, 3]);
+  });
+});
+
+describe('instructionPlafond', () => {
+  it('ne dit rien tant que le plafond n’est pas atteint', () => {
+    // Il reste de la place : l'écran n'a aucun geste à demander.
+    expect(instructionPlafond(1, 0, MAXIMUM_MOBILE)).toBe('aucune');
+  });
+
+  it('demande d’en retirer un quand ils sont tous montrés', () => {
+    expect(instructionPlafond(2, 0, MAXIMUM_MOBILE)).toBe('retirer');
+  });
+
+  it('dit que le choix est plus étroit quand une partie est masquée', () => {
+    // « Retirez-en un » reste faisable, mais sur les seuls Biens dont une
+    // case est affichée — moins que ce que l'acheteur croit avoir sous la
+    // main (#111).
+    expect(instructionPlafond(2, 1, MAXIMUM_MOBILE)).toBe('retirer-parmi-montres');
+  });
+
+  it('nomme d’autres gestes quand aucun retenu n’est montré', () => {
+    // Le retrait se fait en décochant une case, et il n'y en a aucune à
+    // décocher : demander d'en retirer un désignerait un geste impossible.
+    // Restent l'ouverture du filtre et le vidage de la comparaison (#111).
+    expect(instructionPlafond(2, 2, MAXIMUM_MOBILE)).toBe('ouvrir-ou-vider');
+  });
+
+  it('tient le plafond pour atteint au-delà du maximum', () => {
+    // La sélection peut dépasser le temps qu'un rétrécissement la replie :
+    // le plafond est atteint, et l'écran le dit déjà.
+    expect(instructionPlafond(3, 0, MAXIMUM_MOBILE)).toBe('retirer');
+  });
+
+  it('ne demande rien sur une sélection vide', () => {
+    // Un maximum nul n'existe pas dans l'écran, mais la règle ne doit pas
+    // pour autant demander de retirer ce qui n'est pas là.
+    expect(instructionPlafond(0, 0, 0)).toBe('aucune');
   });
 });
 
