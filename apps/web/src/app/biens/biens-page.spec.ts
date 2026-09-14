@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Injector, runInInjectionContext } from '@angular/core';
+import { Injector, runInInjectionContext, signal, type Signal } from '@angular/core';
 import { of, Subject, type Observable } from 'rxjs';
 import { BiensPage } from './biens-page';
 import { BienService } from './bien.service';
@@ -26,8 +26,12 @@ function creerPage(
     creer?: (saisie: CreationBien) => Observable<CreationBienResultat>;
   },
   exportService: { exporter?: (format: FormatExport) => Observable<ExportResultat> } = {},
-  maximum = MAXIMUM_DESKTOP,
+  maximum: number | Signal<number> = MAXIMUM_DESKTOP,
 ) {
+  // Un nombre suffit à la plupart des tests ; ceux qui font varier la
+  // largeur en cours de route passent un signal, que la page relit.
+  const maximumComparaison = typeof maximum === 'number' ? () => maximum : maximum;
+
   const injector = Injector.create({
     providers: [
       {
@@ -40,7 +44,7 @@ function creerPage(
       },
       {
         provide: LargeurEcran,
-        useValue: { maximumComparaison: () => maximum },
+        useValue: { maximumComparaison },
       },
     ],
   });
@@ -576,9 +580,10 @@ describe('BiensPage', () => {
       expect(page.biensCompares().map((bien) => bien.libelle)).toEqual(['clotilde', 'anatole']);
     });
 
-    it('retire de la sélection un Bien que le filtre ne montre plus', () => {
-      // Un Bien masqué par un filtre ne doit pas rester une colonne dont on
-      // n'a plus les valeurs à afficher.
+    it('garde un Bien que le filtre ne montre plus, sans lui faire de colonne', () => {
+      // Un filtre est un geste de lecture, pas une décision sur la
+      // comparaison (#93) : le Bien masqué garde sa place. Mais l'écran n'a
+      // plus ses valeurs, donc il ne lui fait pas de colonne — il le compte.
       const liste = new Subject<ListeBiens>();
       const page = creerPage({ lister: () => liste });
 
@@ -590,8 +595,154 @@ describe('BiensPage', () => {
       // Le filtre ne rend plus que le second.
       liste.next(chargee([trois[1]]));
 
+      expect(page.selection()).toEqual([1, 2]);
+      expect(page.biensCompares().map((bien) => bien.id)).toEqual([2]);
+      expect(page.retenusMasques()).toBe(1);
+    });
+
+    it('rend les Biens masqués tels quels à l’ouverture du filtre', () => {
+      const liste = new Subject<ListeBiens>();
+      const page = creerPage({ lister: () => liste });
+
+      liste.next(chargee(trois));
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+
+      liste.next(chargee([trois[1]]));
+      liste.next(chargee(trois));
+
+      expect(page.selection()).toEqual([1, 2]);
+      expect(page.biensCompares().map((bien) => bien.id)).toEqual([1, 2]);
+      expect(page.retenusMasques()).toBe(0);
+    });
+
+    it('ne perd pas les finalistes quand on coche pendant un filtre', () => {
+      // Le scénario de #93, de bout en bout : deux finalistes cochés en vue
+      // « Tous », un filtre qui les masque, un troisième Bien coché, puis
+      // retour à « Tous ». Les trois sont retenus.
+      const liste = new Subject<ListeBiens>();
+      const page = creerPage({ lister: () => liste });
+
+      liste.next(chargee(trois));
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+
+      // Le filtre ne montre que le troisième.
+      page.filtrer('visite');
+      liste.next(chargee([trois[2]]));
+      page.basculerComparaison(3);
+
+      // Retour à « Tous ».
+      page.filtrer(null);
+      liste.next(chargee(trois));
+
+      expect(page.selection()).toEqual([1, 2, 3]);
+      expect(page.biensCompares().map((bien) => bien.id)).toEqual([1, 2, 3]);
+    });
+
+    it('compte les Biens masqués dans le plafond', () => {
+      // Un Bien retenu occupe une place, visible ou non : sans quoi jouer
+      // sur les filtres ferait dépasser le maximum (#93).
+      const liste = new Subject<ListeBiens>();
+      const page = creerPage({ lister: () => liste }, {}, MAXIMUM_MOBILE);
+
+      liste.next(chargee(trois));
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+
+      // Le filtre masque les deux retenus et ne montre que le troisième.
+      liste.next(chargee([trois[2]]));
+      expect(page.selectionPleine()).toBe(true);
+
+      page.basculerComparaison(3);
+
+      expect(page.selection()).toEqual([1, 2]);
+    });
+
+    it('retire pour de bon un Bien supprimé, masqué ou non', () => {
+      // La suppression, elle, justifie l'abandon : le Bien ne reviendra dans
+      // aucune liste, et une colonne sans valeurs n'aurait rien à montrer.
+      const liste = new Subject<ListeBiens>();
+      const page = creerPage({ lister: () => liste });
+
+      liste.next(chargee(trois));
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+
+      // Le filtre masque le premier, puis il est supprimé pendant ce temps.
+      liste.next(chargee([trois[1]]));
+      page.oublier(1);
+      liste.next(chargee(trois));
+
       expect(page.selection()).toEqual([2]);
-      expect(page.comparaisonAffichee()).toBe(false);
+      expect(page.retenusMasques()).toBe(0);
+    });
+
+    it('n’abandonne pas les Biens masqués quand un autre est supprimé', () => {
+      const liste = new Subject<ListeBiens>();
+      const page = creerPage({ lister: () => liste });
+
+      liste.next(chargee(trois));
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+
+      liste.next(chargee([trois[2]]));
+      page.oublier(2);
+
+      expect(page.selection()).toEqual([1]);
+      expect(page.retenusMasques()).toBe(1);
+    });
+
+    it('abandonne ce que le plafond écarte au clic suivant', () => {
+      // Le plafond, lui, écarte pour de bon : la place n'existe pas, et
+      // retenir des colonnes invisibles les ferait resurgir à
+      // l'élargissement. Comportement inchangé par #93.
+      const maximum = signal(MAXIMUM_DESKTOP);
+      const page = creerPage({ lister: () => of(chargee(trois)) }, {}, maximum);
+
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+      page.basculerComparaison(3);
+
+      // La fenêtre rétrécit : le troisième ne tient plus.
+      maximum.set(MAXIMUM_MOBILE);
+      expect(page.selection()).toEqual([1, 2]);
+
+      // Le clic suivant repart de là, et le troisième est perdu.
+      page.basculerComparaison(1);
+      maximum.set(MAXIMUM_DESKTOP);
+
+      expect(page.selection()).toEqual([2]);
+    });
+
+    it('repart d’une comparaison vide à chaque ouverture de la page', () => {
+      // C'est ce qui règle le sort des Biens supprimés sans que la liste ait
+      // à trancher : la suppression se joue sur la fiche (#9), qui est une
+      // autre route. La page est reconstruite au retour, et rien n'y
+      // survit — ni le choix, ni les Biens oubliés.
+      const page = pageAvec(trois);
+      page.basculerComparaison(1);
+
+      const rouverte = pageAvec(trois);
+
+      expect(rouverte.selection()).toEqual([]);
+      expect(rouverte.retenusMasques()).toBe(0);
+    });
+
+    it('ne compte aucun Bien masqué tant que la liste charge', () => {
+      // Pendant le chargement, rien n'est masqué : tout est en route, et la
+      // page le dit déjà par ailleurs.
+      const liste = new Subject<ListeBiens>();
+      const page = creerPage({ lister: () => liste });
+
+      liste.next(chargee(trois));
+      page.basculerComparaison(1);
+      page.basculerComparaison(2);
+
+      page.filtrer('visite');
+
+      expect(page.retenusMasques()).toBe(0);
+      expect(page.selection()).toEqual([1, 2]);
     });
 
     it('vide la comparaison sans toucher à la liste', () => {

@@ -158,11 +158,25 @@
                 maximumSelection() > 1 ? 's' : ''
               }}.
 
+              @if (retenusMasques(); as masques) {
+                <!--
+                  Un Bien retenu que le filtre ne montre pas garde sa place
+                  (#93). Sans ce mot, l'acheteur verrait la comparaison
+                  maigrir en filtrant et croirait avoir perdu sa sélection,
+                  alors qu'elle est intacte. La région est déjà vivante : le
+                  compte s'annonce avec le reste (ADR-0005).
+                -->
+                Dont {{ masques }} que le filtre courant ne montre pas,
+                {{ masques > 1 ? 'gardés de côté et rendus' : 'gardé de côté et rendu' }} en
+                l'ouvrant.
+              }
+
               @if (selectionPleine()) {
                 <!--
                   Le plafond dépend de la largeur de l'écran, et ce n'est pas
                   évident : le dire évite de chercher pourquoi une case ne
-                  répond plus (ADR-0006).
+                  répond plus (ADR-0006). Les Biens masqués comptent dedans :
+                  un Bien retenu occupe une place, visible ou non.
                 -->
                 Retirez-en un pour en choisir un autre.
               } @else if (!comparaisonAffichee()) {
