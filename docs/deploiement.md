@@ -100,8 +100,9 @@ C'est délibéré : un jeton personnel déposé sur le serveur est un secret qui
 expire, et son expiration casse un déploiement des mois plus tard sur un
 `unauthorized` dont le lien avec la cause n'est pas immédiat.
 
-D'ici #70, le premier déploiement se fait à la main, et cette connexion aussi
-est éphémère — voir « Publier les images à la main », plus bas.
+Le déploiement automatique (#70) ouvre et referme cette connexion à chaque
+exécution. Elle ne subsiste donc nulle part entre deux déploiements — voir
+« Publier les images à la main », plus bas, pour le cas du dépannage.
 
 ### Les cinq secrets GitHub, et l'utilisateur qui va avec
 
@@ -158,8 +159,27 @@ paie au plus mauvais moment — pendant la bascule, quand rien ne répond.
 
 ## Publier les images à la main (première fois seulement)
 
-#70 automatisera ce geste ; en attendant, les images n'existent pas et le
-Compose de production pointerait dans le vide.
+**Ce geste n'est plus nécessaire** : le déploiement automatique (#70) publie
+les images lui-même, à chaque pose de version. Cette section reste pour le
+dépannage — reconstruire une image hors de la chaîne — et pour expliquer un
+piège qu'elle a laissé derrière elle.
+
+> **Une image poussée à la main appartient au compte, pas au dépôt (#101).**
+> Le `GITHUB_TOKEN` d'une exécution n'a alors **aucun droit d'écriture**
+> dessus, quelles que soient les permissions déclarées dans le workflow : le
+> déploiement échoue sur `denied: permission_denied`, et comme cet échec
+> survient après la pose du tag, il coûte un numéro de version.
+>
+> Deux issues, si le cas se présente :
+>
+> - donner l'accès au dépôt — page du paquet → *Package settings* → *Manage
+>   Actions access* → *Add repository* → rôle **Write** ;
+> - ou supprimer le paquet et laisser le workflow le recréer : un paquet créé
+>   par Actions appartient au dépôt dès l'origine et n'a besoin d'aucun
+>   réglage.
+>
+> `scripts/preparer-deploiement.sh` le vérifie désormais avant le premier
+> déploiement, à condition que le jeton `gh` porte la portée `read:packages`.
 
 La construction se fait **en local et non sur le VPS** : la machine a un cœur
 et pas de swap, et y compiler un bundle Angular expose à l'arrêt du processus

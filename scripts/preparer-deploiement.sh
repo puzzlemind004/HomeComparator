@@ -540,6 +540,68 @@ set_secret VPS_CLE_SSH "$(cat "$CLE_TEMP")"
 set_secret VPS_EMPREINTE "$EMPREINTE"
 say ""
 
+# ── Les paquets GHCR sont-ils écrivables par le dépôt ? ───────────────────
+#
+# **Une image publiée à la main appartient au compte, pas au dépôt (#101).**
+# `docs/deploiement.md` prescrivait cette publication manuelle avant que le
+# déploiement automatique n'existe, et c'était juste. Mais le
+# `GITHUB_TOKEN` d'une exécution n'a alors aucun droit d'écriture sur le
+# paquet ainsi créé, quelles que soient les permissions déclarées dans le
+# workflow — d'où un `denied: permission_denied` au `push`, après que le
+# numéro de version a été commité et le tag poussé.
+#
+# Le constater ici plutôt qu'au premier déploiement : le wizard tourne une
+# fois, avant tout, et un numéro de version ne se recycle pas.
+#
+# La lecture des réglages demande la portée `read:packages`, que le jeton
+# de l'opérateur n'a pas forcément. Son absence n'est pas un échec : elle
+# empêche de conclure, et c'est ce qui est dit — un avertissement qui
+# arrête le wizard sur un droit manquant *du wizard* serait un faux
+# négatif.
+stage_paquets() {
+  local compte paquet etat
+  compte=$(gh repo view --json owner --jq .owner.login 2>/dev/null) || compte=""
+  if [[ -z "$compte" ]]; then
+    warn "Compte GitHub indéterminé : vérification des paquets GHCR sautée."
+    return 0
+  fi
+
+  for paquet in homecomparator-api homecomparator-web; do
+    etat=$(gh api "user/packages/container/$paquet" --jq .repository.name 2>&1)
+
+    if printf '%s' "$etat" | grep -qi "read:packages scope"; then
+      note "  [?] paquets non vérifiés : le jeton gh n'a pas « read:packages »."
+      note "      « gh auth refresh -s read:packages » le donnerait."
+      return 0
+    fi
+
+    if printf '%s' "$etat" | grep -qi "404\|Not Found"; then
+      say "  [ok] $paquet n'existe pas encore : Actions le créera, et le dépôt"
+      say "       en sera propriétaire."
+      continue
+    fi
+
+    if [[ -z "$etat" || "$etat" == "null" ]]; then
+      warn "Le paquet $paquet existe mais n'est lié à aucun dépôt."
+      warn "Le déploiement échouera sur « denied: permission_denied » au push,"
+      warn "APRÈS avoir consommé un numéro de version."
+      note "Deux issues, au choix :"
+      note "  - donner l'accès au dépôt : page du paquet → Package settings →"
+      note "    Manage Actions access → Add repository → rôle Write ;"
+      note "  - ou supprimer le paquet et laisser le workflow le recréer."
+      note "    https://github.com/users/$compte/packages/container/$paquet/settings"
+      return 1
+    fi
+
+    say "  [ok] $paquet est lié au dépôt « $etat »"
+  done
+}
+
+step "Vérification : le dépôt peut-il écrire sur les paquets GHCR ?"
+if ! stage_paquets; then
+  exit 1
+fi
+say ""
 # **La clé n'est effacée que si les cinq secrets sont bien posés, et cette
 # condition n'est pas une précaution de principe.** `set_secret` se contente
 # d'avertir quand `gh` échoue ; effacer inconditionnellement la clé privée
