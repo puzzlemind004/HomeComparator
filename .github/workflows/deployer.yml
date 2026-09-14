@@ -221,9 +221,78 @@ jobs:
           HOTE: ${{ secrets.VPS_HOTE }}
           UTILISATEUR: ${{ secrets.VPS_UTILISATEUR }}
         run: |
-          scp -i ~/.ssh/id_deploiement \
-            docker-compose.prod.yml Caddyfile \
-            "$UTILISATEUR@$HOTE:$DOSSIER/"
+          # **La copie passe par `ssh` et l'entrée standard, et non par
+          # `scp` (#104).** La clé de déploiement est installée avec
+          # `restrict` (`scripts/preparer-deploiement.sh`), qui coupe tout ce
+          # qui n'est pas explicitement rendu — dont le **sous-système
+          # SFTP**. Or `scp` s'appuie sur SFTP depuis OpenSSH 9, et les
+          # runners en portent une version récente : le transfert était
+          # refusé côté serveur, sur un « Permission denied » à l'ouverture
+          # du fichier de destination qui désignait le canal et non le
+          # dossier — lequel avait les bons droits depuis le début.
+          #
+          # `restrict` n'est pas en cause et reste tel quel : la restriction
+          # est délibérée (#76), et c'est la copie qui doit s'en accommoder.
+          # `ssh` avec commande distante est précisément ce que `restrict,pty`
+          # autorise, donc ce que la clé peut faire sans qu'on lui rende quoi
+          # que ce soit.
+          #
+          # `cat > fichier` plutôt que `scp -O`, qui aurait forcé l'ancien
+          # protocole en une seule option : OpenSSH présente `-O` comme
+          # transitoire et le retirera, et la panne reviendrait alors sans
+          # prévenir, loin de la décision qui l'aura causée.
+          #
+          # `-T` : pas de pseudo-terminal. Un terminal traduirait les fins de
+          # ligne et pourrait prendre un octet du flux pour un signal — sur
+          # un fichier texte le dégât serait discret, ce qui est pire qu'une
+          # erreur franche.
+          # **Le fichier en place n'est remplacé qu'une fois reçu en
+          # entier.** Écrire directement sur la cible la tronquerait dès la
+          # première ligne, et une connexion coupée en cours de route
+          # laisserait la pile décrite à moitié — un état pire que l'ancien,
+          # puisqu'il a l'air d'un fichier. Le flux atterrit donc à côté, et
+          # `mv` — atomique sur le même système de fichiers — bascule
+          # ensuite. C'est ce que `scp` ne faisait pas non plus, mais il
+          # échouait au moins franchement.
+          envoyer() {
+            ssh -T -i ~/.ssh/id_deploiement "$UTILISATEUR@$HOTE" \
+              "cat > '$DOSSIER/$1.recu' && mv '$DOSSIER/$1.recu' '$DOSSIER/$1'" < "$1"
+          }
+
+          envoyer docker-compose.prod.yml
+          envoyer Caddyfile
+
+          # **Une écriture qui rend zéro ne prouve pas que le contenu est
+          # arrivé entier.** Une redirection tronquée par un disque plein
+          # réussit du point de vue du shell, et la pile démarrerait sur un
+          # Compose amputé. `scp` portait cette garantie de lui-même ; s'en
+          # passer oblige à la réécrire.
+          #
+          # `pipefail` est posé explicitement : GitHub lance ce script en
+          # `bash -e` **sans** lui, si bien que l'échec d'un `ssh` en tête de
+          # tube serait absorbé par l'`awk` qui suit. L'étape s'arrêterait
+          # quand même — sur une comparaison qui échoue —, mais en annonçant
+          # un fichier altéré là où la connexion est tombée. Une erreur qui
+          # désigne la mauvaise cause coûte cher à qui la diagnostique.
+          set -o pipefail
+
+          empreintes_locales=$(sha256sum docker-compose.prod.yml Caddyfile | awk '{print $1}')
+          empreintes_distantes=$(ssh -T -i ~/.ssh/id_deploiement "$UTILISATEUR@$HOTE" \
+            "sha256sum '$DOSSIER/docker-compose.prod.yml' '$DOSSIER/Caddyfile'" \
+            | awk '{print $1}')
+
+          # Deux relevés vides sont égaux, et cette égalité-là ne prouve
+          # rien : elle passerait pour une réussite si `sha256sum` venait à
+          # ne rien produire des deux côtés.
+          if [ -z "$empreintes_locales" ]; then
+            echo "::error::Aucune empreinte locale : la vérification n'a rien pu comparer."
+            exit 1
+          fi
+
+          if [ "$empreintes_locales" != "$empreintes_distantes" ]; then
+            echo "::error::La description de la pile est arrivée altérée sur le serveur."
+            exit 1
+          fi
 
       - name: Tirer les images et démarrer la pile
         env:

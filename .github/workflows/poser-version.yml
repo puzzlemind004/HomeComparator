@@ -1,7 +1,12 @@
 name: Poser une version
 
-# Le premier des deux workflows de déploiement (#70). Il inscrit un numéro
-# dans le dépôt, pose le tag, puis appelle `deployer.yml`.
+# Le premier des deux workflows de déploiement (#70). Il éprouve `main`,
+# inscrit un numéro dans le dépôt, pose le tag, puis appelle `deployer.yml`.
+#
+# **Les vérifications passent avant l'écriture, et non après** (#105) : le
+# numéro est consommé dès que le tag est poussé, donc rien ne doit être
+# écrit tant qu'on ignore si le code tient. Le job `verifications-prealables`
+# plus bas détaille ce que cet ordre couvre, et ce qu'il ne couvre pas.
 #
 # **L'appel est explicite et non déclenché par le tag**, pour une raison que
 # le job `deployer` plus bas détaille : GitHub ne réveille aucun workflow sur
@@ -35,8 +40,89 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ── Première barrière : tout passe-t-il, avant d'écrire quoi que ce soit ? ─
+  #
+  # **Ces vérifications tournent avant la pose du numéro, et l'ordre est le
+  # point (#105).** Le job `poser` commite sur `main` et pousse le tag ; une
+  # fois le tag poussé, l'étape « Refuser une version déjà posée » interdit
+  # de reprendre le même numéro — à raison, puisque reposer un tag
+  # déplacerait un numéro publié sur un autre commit. Tout échec postérieur
+  # au job `poser` consomme donc définitivement le numéro.
+  #
+  # C'est ce qui a coûté `v0.2.1` : des tests instables (#99) ont fait échouer
+  # le déploiement après la pose du tag, et le numéro a été perdu pour un
+  # défaut qui n'avait rien à voir avec la version qu'il désignait.
+  #
+  # Elles tournent sur `main` tel qu'il est, donc **avant** la montée de
+  # version : c'est le code qu'on s'apprête à publier, au numéro près.
+  # `publier: false` — les images partent plus tard, du déploiement, où le
+  # numéro est figé dans l'image de l'API (#67). Les construire ici sans les
+  # pousser vérifie qu'elles se construisent, ce qui est tout ce qu'on
+  # demande à ce stade.
+  #
+  # **Ce que cette barrière ne couvre pas**, et qu'il faut savoir en la
+  # lisant : un échec du déploiement lui-même — le VPS, le registre, les
+  # contrôles d'après-déploiement — survient toujours après la pose du tag
+  # et brûle encore le numéro. C'est ce qui est arrivé à `v0.2.2` jusqu'à
+  # `v0.2.4` (#104). Fermer ce reste demanderait de ne taguer qu'après un
+  # déploiement réussi, ce qui défait l'ordre dont ADR-0018 dépend — le tag
+  # y est ce qui désigne la version, et la vérification d'ascendance porte
+  # sur le commit qu'il désigne. Le choix retenu est donc de couvrir ce qui
+  # se couvre sans toucher à cet ordre.
+  # Le commit est résolu **une seule fois**, et tout le reste s'y rapporte.
+  #
+  # Sans cela, `main` serait résolu deux fois — ici puis au `checkout` du job
+  # `poser` — et les vérifications dureraient assez longtemps (installation
+  # des paquets, tests sur Postgres, deux images Docker) pour qu'une fusion
+  # de pull request se glisse entre les deux. La barrière validerait alors un
+  # commit et le job `poser` en taguerait un autre.
+  #
+  # Le `concurrency` de ce workflow n'y suffit pas : il sérialise deux poses
+  # de version entre elles, alors que ce qui fait bouger `main` ici est une
+  # fusion — qui n'est pas une exécution de ce workflow, et que rien ne
+  # sérialise avec lui.
+  #
+  # Le code non vérifié ne partirait pas en production pour autant : le
+  # déploiement rejoue tout sur le tag. Mais il s'arrêterait **après** le
+  # `git push --atomic`, donc au prix du numéro — précisément ce que l'ordre
+  # de ce workflow existe pour éviter.
+  resoudre-le-commit:
+    name: Fixer le commit à vérifier
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.tete.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Relever la tête de main
+        id: tete
+        run: |
+          sha=$(git rev-parse HEAD)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Commit à vérifier puis à taguer : $sha"
+
+  verifications-prealables:
+    name: Vérifications préalables
+    needs: resoudre-le-commit
+    uses: ./.github/workflows/verifications.yml
+    with:
+      ref: ${{ needs.resoudre-le-commit.outputs.sha }}
+      publier: false
+    # `packages: write` alors que `publier: false` : le workflow appelé
+    # déclare ce droit sur son job de publication, et les permissions sont
+    # validées au **chargement**, avant que le `if:` de ce job ne soit
+    # évalué. Un appelant qui ne l'accorde pas fait échouer l'exécution
+    # entière au démarrage. Même raison qu'en CI, où c'est déjà expliqué.
+    permissions:
+      contents: read
+      packages: write
+
   poser:
     name: Inscrire le numéro, commiter, taguer
+    needs: [resoudre-le-commit, verifications-prealables]
     runs-on: ubuntu-latest
 
     permissions:
@@ -49,9 +135,36 @@ jobs:
       # être lancé depuis n'importe quelle branche par le menu de l'onglet
       # Actions, et une version posée depuis une branche de travail est très
       # exactement ce que ce workflow existe pour empêcher.
+      # Le commit vérifié, et non `main` à nouveau : c'est ce qui rend le
+      # tag solidaire de ce que les vérifications ont réellement exercé.
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ needs.resoudre-le-commit.outputs.sha }}
+
+      # **`main` a-t-il bougé pendant les vérifications ?**
+      #
+      # Le `push` plus bas est `--atomic` sur `main` et le tag : si `main`
+      # avait avancé, il serait de toute façon rejeté en non-fast-forward.
+      # Le constater ici rend l'arrêt lisible — « quelqu'un a fusionné
+      # pendant que tu posais une version » — là où un refus de `push` en
+      # fin de course se lit comme un incident de dépôt.
+      #
+      # Et surtout, l'arrêt survient **avant** toute écriture : ni commit ni
+      # tag, donc le numéro reste libre pour la relance.
+      - name: Le commit vérifié est-il toujours la tête de main ?
+        env:
+          ATTENDU: ${{ needs.resoudre-le-commit.outputs.sha }}
+        run: |
+          git fetch --no-tags origin main
+          actuel=$(git rev-parse origin/main)
+
+          if [ "$actuel" != "$ATTENDU" ]; then
+            echo "::error::main a avancé pendant les vérifications ($ATTENDU → $actuel)."
+            echo "Rien n'a été écrit et le numéro reste libre : relancez la pose de version."
+            exit 1
+          fi
+
+          echo "main est toujours sur $ATTENDU."
 
       - name: Vérifier la forme du numéro
         env:

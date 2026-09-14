@@ -390,16 +390,21 @@ gh workflow run poser-version.yml -f version=0.1.0
 
 Ce qui s'enchaîne ensuite, sans intervention (ADR-0018) :
 
-1. Le numéro est inscrit dans les deux `package.json`, commité sur `main`,
+1. Lint, types, tests et construction des images passent d'abord sur `main`,
+   **avant que rien ne soit écrit** : le numéro est consommé dès que le tag est
+   poussé, et un échec après coup le brûlerait (#105). Les images sont
+   construites sans être poussées — elles partent plus loin, au numéro figé.
+2. Le numéro est inscrit dans les deux `package.json`, commité sur `main`,
    tagué `v0.1.0`. Le tag naît d'un `main` à jour, ce qui rend structurellement
    impossible une version posée depuis un clone en retard.
-2. Le déploiement vérifie que le commit **descend de `main`** et s'arrête sinon.
-3. Lint, types, tests et construction des images sont **rejoués** sur ce commit.
-4. Les images partent sur GHCR, privées, taguées `0.1.0`.
-5. Le VPS les tire — session vers le registre ouverte avec le jeton de
+3. Le déploiement vérifie que le commit **descend de `main`** et s'arrête sinon.
+4. Lint, types, tests et construction des images sont **rejoués** sur ce commit,
+   qui porte cette fois le numéro.
+5. Les images partent sur GHCR, privées, taguées `0.1.0`.
+6. Le VPS les tire — session vers le registre ouverte avec le jeton de
    l'exécution, refermée ensuite — et la pile démarre en attendant que **chaque
    service soit sain**.
-6. Le workflow interroge `https://<domaine>/api/health` **depuis l'extérieur**,
+7. Le workflow interroge `https://<domaine>/api/health` **depuis l'extérieur**,
    par le vrai nom et le vrai certificat, jusqu'à réponse favorable ou
    expiration. Il vérifie enfin que l'image qui tourne porte bien ce numéro.
 
