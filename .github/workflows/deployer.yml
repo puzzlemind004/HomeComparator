@@ -221,9 +221,53 @@ jobs:
           HOTE: ${{ secrets.VPS_HOTE }}
           UTILISATEUR: ${{ secrets.VPS_UTILISATEUR }}
         run: |
-          scp -i ~/.ssh/id_deploiement \
-            docker-compose.prod.yml Caddyfile \
-            "$UTILISATEUR@$HOTE:$DOSSIER/"
+          # **La copie passe par `ssh` et l'entrée standard, et non par
+          # `scp` (#104).** La clé de déploiement est installée avec
+          # `restrict` (`scripts/preparer-deploiement.sh`), qui coupe tout ce
+          # qui n'est pas explicitement rendu — dont le **sous-système
+          # SFTP**. Or `scp` s'appuie sur SFTP depuis OpenSSH 9, et les
+          # runners en portent une version récente : le transfert était
+          # refusé côté serveur, sur un « Permission denied » à l'ouverture
+          # du fichier de destination qui désignait le canal et non le
+          # dossier — lequel avait les bons droits depuis le début.
+          #
+          # `restrict` n'est pas en cause et reste tel quel : la restriction
+          # est délibérée (#76), et c'est la copie qui doit s'en accommoder.
+          # `ssh` avec commande distante est précisément ce que `restrict,pty`
+          # autorise, donc ce que la clé peut faire sans qu'on lui rende quoi
+          # que ce soit.
+          #
+          # `cat > fichier` plutôt que `scp -O`, qui aurait forcé l'ancien
+          # protocole en une seule option : OpenSSH présente `-O` comme
+          # transitoire et le retirera, et la panne reviendrait alors sans
+          # prévenir, loin de la décision qui l'aura causée.
+          #
+          # `-T` : pas de pseudo-terminal. Un terminal traduirait les fins de
+          # ligne et pourrait prendre un octet du flux pour un signal — sur
+          # un fichier texte le dégât serait discret, ce qui est pire qu'une
+          # erreur franche.
+          envoyer() {
+            ssh -T -i ~/.ssh/id_deploiement "$UTILISATEUR@$HOTE" \
+              "cat > '$DOSSIER/$1'" < "$1"
+          }
+
+          envoyer docker-compose.prod.yml
+          envoyer Caddyfile
+
+          # **Une écriture qui rend zéro ne prouve pas que le contenu est
+          # arrivé entier.** Une redirection tronquée par un disque plein
+          # réussit du point de vue du shell, et la pile démarrerait sur un
+          # Compose amputé. `scp` portait cette garantie de lui-même ; s'en
+          # passer oblige à la réécrire.
+          empreintes_locales=$(sha256sum docker-compose.prod.yml Caddyfile | awk '{print $1}')
+          empreintes_distantes=$(ssh -T -i ~/.ssh/id_deploiement "$UTILISATEUR@$HOTE" \
+            "sha256sum '$DOSSIER/docker-compose.prod.yml' '$DOSSIER/Caddyfile'" \
+            | awk '{print $1}')
+
+          if [ "$empreintes_locales" != "$empreintes_distantes" ]; then
+            echo "::error::La description de la pile est arrivée altérée sur le serveur."
+            exit 1
+          fi
 
       - name: Tirer les images et démarrer la pile
         env:
