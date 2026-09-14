@@ -23,3 +23,6 @@ tmp
 # Systèmes
 .DS_Store
 Thumbs.db
+
+# Worktrees des agents (voir docs/agents/worktrees.md)
+.claude/worktrees/
