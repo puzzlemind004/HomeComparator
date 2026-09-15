@@ -1,6 +1,11 @@
 import type { Critere } from './critere';
 import type { ValeurCritere } from './comparaison';
-import { criteresNonRenseignes, type ValeursCriteres } from './valeurs';
+import {
+  completude,
+  criteresNonRenseignes,
+  type Completude,
+  type ValeursCriteres,
+} from './valeurs';
 
 /**
  * L'assistant de complétion : les Critères manquants, enchaînés un par un.
@@ -71,8 +76,7 @@ export function demarrer(valeurs: ValeursCriteres): Assistant {
 function questionsRestantes(assistant: Assistant): readonly Critere[] {
   return criteresNonRenseignes(assistant.valeurs).filter(
     (critere) =>
-      !assistant.passes.includes(critere.id) &&
-      !Object.hasOwn(assistant.reponses, critere.id),
+      !assistant.passes.includes(critere.id) && !Object.hasOwn(assistant.reponses, critere.id),
   );
 }
 
@@ -84,6 +88,53 @@ export function questionCourante(assistant: Assistant): Critere | undefined {
 /** Vrai quand il ne reste plus rien à demander. */
 export function termine(assistant: Assistant): boolean {
   return questionCourante(assistant) === undefined;
+}
+
+/**
+ * Combien de questions s'annoncent sous les réponses possibles.
+ *
+ * Deux, parce que c'est ce qu'il faut pour anticiper — « surface habitable »
+ * prépare à chercher le chiffre sur l'annonce pendant qu'on répond à la
+ * précédente — et pas davantage : au-delà, la phrase s'allonge plus qu'elle
+ * n'informe, et personne ne retient quatre questions d'avance (#121).
+ */
+const QUESTIONS_ANNONCEES = 2;
+
+/**
+ * Ce qui vient après la question posée, dans l'ordre où l'assistant le
+ * posera.
+ *
+ * L'acheteur répond autrement quand il sait ce qui suit : il cherche la
+ * surface habitable sur l'annonce pendant qu'il saisit le prix. C'est le
+ * gain de l'annonce, et c'est pourquoi elle porte les libellés et non un
+ * décompte — « encore deux » n'aide à rien préparer.
+ *
+ * Rendu vide sur la dernière question comme sur un assistant terminé : rien
+ * ne suit, et l'écran n'a donc rien à promettre.
+ *
+ * Se dérive de la file des Critères restants, sans état ajouté : une
+ * question passée ou répondue en sort d'elle-même, et l'annonce ne promet
+ * jamais une question qui ne viendra pas.
+ */
+export function questionsSuivantes(assistant: Assistant): readonly Critere[] {
+  return questionsRestantes(assistant).slice(1, 1 + QUESTIONS_ANNONCEES);
+}
+
+/**
+ * Où en est la saisie du Bien, au moment où l'assistant en est là.
+ *
+ * C'est la même mesure que celle de la carte et de la fiche — le `7 / 16` et
+ * sa jauge —, prise sur les valeurs que l'assistant tient à jour : chaque
+ * réponse la fait avancer sans qu'il faille recharger le Bien.
+ *
+ * Elle compte ce qui est renseigné, et non ce que le parcours a traité.
+ * L'écart est voulu : passer une question et y répondre à vide sortent
+ * toutes deux du parcours, mais ne renseignent rien — le Critère reste à
+ * demander à l'agence, et une jauge qui avancerait quand même mentirait sur
+ * ce qui manque encore.
+ */
+export function progression(assistant: Assistant): Completude {
+  return completude(assistant.valeurs);
 }
 
 /**

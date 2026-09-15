@@ -11,6 +11,8 @@ import {
 } from './bien.service';
 import type { ModificationBien } from './bien';
 import { unBien } from './bien.test-helper';
+import { CRITERES } from '../criteres/definition';
+import type { ValeursCriteres } from '../criteres/valeurs';
 
 /**
  * La fiche est construite sans TestBed : son service et sa route sont
@@ -51,6 +53,21 @@ function creerFiche(
   });
 
   return runInInjectionContext(injector, () => new FicheBienPage());
+}
+
+/**
+ * Les Critères d'un Bien tous renseignés sauf ceux nommés — la façon de
+ * placer l'assistant à une ou deux questions de la fin sans écrire quatorze
+ * valeurs à la main.
+ *
+ * Les Critères sortent de la définition et non d'une liste écrite ici : un
+ * Critère ajouté ne doit pas faire mentir un test sur ce qu'il reste à poser
+ * (ADR-0004).
+ */
+function tousRenseignesSauf(manquants: readonly string[]): ValeursCriteres {
+  return Object.fromEntries(
+    CRITERES.map(({ id }) => [id, manquants.includes(id) ? null : 'une valeur']),
+  );
 }
 
 /** Le Bien affiché, ou `undefined` si la fiche n'a pas pu être chargée. */
@@ -414,6 +431,183 @@ describe('l’assistant depuis la fiche', () => {
     expect(fiche.questionCourante()?.id).toBe('taxeFonciere');
   });
 
+  describe('ce qu’il annonce de la suite (#121)', () => {
+    it('annonce les deux questions qui suivent celle posée', () => {
+      // Sans elle, l'acheteur répond à l'aveugle : il ne sait pas s'il en a
+      // pour trente secondes ou cinq minutes.
+      const fiche = creerFiche({});
+
+      fiche.lancerAssistant();
+
+      expect(fiche.questionsSuivantes().map(({ libelle }) => libelle)).toEqual([
+        'Taxe foncière',
+        'Charges de copropriété',
+      ]);
+    });
+
+    it('n’annonce rien tant que l’assistant n’est pas lancé', () => {
+      expect(creerFiche({}).questionsSuivantes()).toEqual([]);
+    });
+
+    it('n’annonce rien après la dernière question', () => {
+      // La dernière ne promet rien après elle.
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({ criteres: tousRenseignesSauf(['dpe']) }),
+          }),
+      });
+
+      fiche.lancerAssistant();
+
+      expect(fiche.questionCourante()?.id).toBe('dpe');
+      expect(fiche.questionsSuivantes()).toEqual([]);
+    });
+
+    it('en fait une phrase qui nomme les deux questions', () => {
+      // « Question suivante : taxe foncière, puis charges de copropriété. »
+      // Les libellés en minuscule : ils sont pris dans une phrase, et non en
+      // tête d'une étiquette de formulaire.
+      const fiche = creerFiche({});
+
+      fiche.lancerAssistant();
+
+      expect(fiche.annonceDeLaSuite()).toBe(
+        'Question suivante : taxe foncière, puis charges de copropriété.',
+      );
+    });
+
+    it('laisse un sigle en capitales au milieu de la phrase', () => {
+      // « puis dpe » se lit comme une faute. Un libellé déjà en capitales —
+      // DPE — n'est pas un mot de la phrase qu'on abaisse, c'est un sigle.
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({ criteres: tousRenseignesSauf(['capaciteStationnement', 'dpe']) }),
+          }),
+      });
+
+      fiche.lancerAssistant();
+
+      expect(fiche.annonceDeLaSuite()).toBe('Question suivante : DPE.');
+    });
+
+    it('garde la capitale d’un terme du glossaire', () => {
+      // « Type de Bien » : le Bien est l'objet que l'on compare, et le
+      // glossaire lui met une capitale partout. L'abaisser ici en ferait un
+      // mot ordinaire.
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({ criteres: tousRenseignesSauf(['nombrePieces', 'typeBien']) }),
+          }),
+      });
+
+      fiche.lancerAssistant();
+
+      expect(fiche.annonceDeLaSuite()).toBe('Question suivante : type de Bien.');
+    });
+
+    it('n’annonce qu’une question quand il n’en reste qu’une après celle posée', () => {
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({ criteres: tousRenseignesSauf(['surfaceHabitable', 'dpe']) }),
+          }),
+      });
+
+      fiche.lancerAssistant();
+
+      expect(fiche.annonceDeLaSuite()).toBe('Question suivante : DPE.');
+    });
+
+    it('ne dit rien du tout sur la dernière question', () => {
+      // Pas de phrase vide ni de « Question suivante : » sans suite : la
+      // dernière ne promet rien après elle.
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({ criteres: tousRenseignesSauf(['dpe']) }),
+          }),
+      });
+
+      fiche.lancerAssistant();
+
+      expect(fiche.annonceDeLaSuite()).toBe('');
+    });
+
+    it('avance d’un cran à chaque question traitée', () => {
+      const fiche = creerFiche({});
+
+      fiche.lancerAssistant();
+      fiche.passerQuestion();
+
+      expect(fiche.questionsSuivantes().map(({ id }) => id)).toEqual([
+        'chargesCopropriete',
+        'surfaceHabitable',
+      ]);
+    });
+  });
+
+  describe('où en est la saisie pendant l’assistant (#121)', () => {
+    it('compte les Critères renseignés du Bien', () => {
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({ criteres: { prixDemande: 250000, dpe: 'C' } }),
+          }),
+      });
+
+      fiche.lancerAssistant();
+
+      expect(fiche.progressionAssistant()).toEqual({ renseignes: 2, total: 15, part: 2 / 15 });
+    });
+
+    it('avance à mesure que les réponses sont acceptées', () => {
+      // Savoir qu'il reste deux questions décide de continuer ; ne pas le
+      // savoir décide de quitter.
+      const fiche = creerFiche({
+        modifier: () =>
+          of<ModificationBienResultat>({
+            enregistre: true,
+            bien: unBien({ criteres: { prixDemande: 250000 } }),
+          }),
+      });
+
+      fiche.lancerAssistant();
+      fiche.repondreQuestion(250000);
+
+      expect(fiche.progressionAssistant().renseignes).toBe(1);
+    });
+
+    it('n’avance pas sur une question passée', () => {
+      // Passer n'enregistre rien : le Critère reste à demander.
+      const fiche = creerFiche({});
+
+      fiche.lancerAssistant();
+      fiche.passerQuestion();
+
+      expect(fiche.progressionAssistant().renseignes).toBe(0);
+    });
+
+    it('s’en tient à la complétude du Bien tant que l’assistant n’est pas lancé', () => {
+      // Hors assistant, c'est l'encart de la fiche qui affiche la même
+      // mesure : les deux ne doivent pas pouvoir se contredire.
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({ etat: 'chargee', bien: unBien({ criteres: { prixDemande: 250000 } }) }),
+      });
+
+      expect(fiche.progressionAssistant()).toEqual(fiche.completude());
+    });
+  });
+
   describe('le cycle de vie', () => {
     it('affiche le Statut du Bien', () => {
       const fiche = creerFiche({
@@ -468,8 +662,7 @@ describe('l’assistant depuis la fiche', () => {
       // Une offre refusée ramène le Bien à Visité (#7).
       const envoyees: ModificationBien[] = [];
       const fiche = creerFiche({
-        consulter: () =>
-          of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'offreFaite' }) }),
+        consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'offreFaite' }) }),
         modifier: (_id, modification) => {
           envoyees.push(modification);
           return of<ModificationBienResultat>({
@@ -506,8 +699,7 @@ describe('l’assistant depuis la fiche', () => {
       // Un Bien tout juste repéré n'a ni visite ni offre à porter
       // (ADR-0002).
       const fiche = creerFiche({
-        consulter: () =>
-          of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'aContacter' }) }),
+        consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'aContacter' }) }),
       });
 
       expect(fiche.champsStatut()).toEqual([]);
@@ -523,8 +715,7 @@ describe('l’assistant depuis la fiche', () => {
 
     it('affiche le montant d’offre à partir de « Offre faite »', () => {
       const fiche = creerFiche({
-        consulter: () =>
-          of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'offreFaite' }) }),
+        consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'offreFaite' }) }),
       });
 
       expect(fiche.champsStatut().map(({ champ }) => champ.id)).toEqual([
@@ -608,8 +799,7 @@ describe('l’assistant depuis la fiche', () => {
         consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'aVisiter' }) }),
       });
       const surAContacter = creerFiche({
-        consulter: () =>
-          of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'aContacter' }) }),
+        consulter: () => of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'aContacter' }) }),
       });
 
       expect(surAVisiter.nombreManquants()).toBe(surAContacter.nombreManquants());
@@ -735,7 +925,10 @@ describe('la suppression d’un Bien', () => {
     // succès.
     const navigations: unknown[][] = [];
     const fiche = creerFiche(
-      { supprimer: () => of<SuppressionBienResultat>({ supprime: false, disparu: true, erreurs: [] }) },
+      {
+        supprimer: () =>
+          of<SuppressionBienResultat>({ supprime: false, disparu: true, erreurs: [] }),
+      },
       '1',
       navigations,
     );

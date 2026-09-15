@@ -1,3 +1,5 @@
+@use '../carnet';
+
 .retour {
   color: var(--accent);
   display: inline-block;
@@ -83,9 +85,53 @@
   padding: 1rem;
 }
 
+// Où en est la saisie, en tête de l'assistant (#121).
+//
+// La même jauge que la carte et la fiche, sur le fond de l'encart : un
+// deuxième dessin pour une même mesure obligerait à réapprendre à la lire
+// d'un écran à l'autre. Seule la teinte du fond change, l'encart étant déjà
+// coloré — d'où le filet en `accent-300` plutôt qu'en `accent-200`, qui s'y
+// verrait à peine.
+.assistant__progression {
+  align-items: center;
+  display: flex;
+  gap: var(--espace-3);
+}
+
+.assistant__jauge {
+  background: var(--accent-300);
+  flex: 1;
+  height: 2px;
+}
+
+.assistant__jauge span {
+  background: var(--accent);
+  display: block;
+  height: 2px;
+}
+
+.assistant__compte {
+  @include carnet.chiffres;
+
+  color: var(--neutre-700);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .assistant__question {
   font-size: 1.125rem;
   font-weight: 600;
+  margin: 0;
+}
+
+// Ce qui vient après, sous les réponses (#121).
+//
+// En retrait : la question posée est ce qu'on lit, l'annonce est ce qu'on
+// aperçoit. Les mettre au même poids ferait hésiter sur celle à laquelle on
+// répond.
+.assistant__suite {
+  color: var(--neutre-700);
+  font-size: 0.875rem;
   margin: 0;
 }
 
