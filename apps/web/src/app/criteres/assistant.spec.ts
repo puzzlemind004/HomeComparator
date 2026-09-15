@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { demarrer, passer, repondre, termine, questionCourante } from './assistant';
+import {
+  demarrer,
+  passer,
+  progression,
+  questionCourante,
+  questionsSuivantes,
+  repondre,
+  termine,
+} from './assistant';
 import { criteresNonRenseignes } from './valeurs';
 import type { ValeursCriteres } from './valeurs';
 
@@ -15,6 +23,21 @@ import type { ValeursCriteres } from './valeurs';
 
 /** Un Bien dont aucun Critère n'est renseigné : celui qui vient d'être créé. */
 const RIEN_DE_RENSEIGNE: ValeursCriteres = {};
+
+/**
+ * Un Bien dont tout est renseigné sauf les Critères nommés — la façon de se
+ * placer à deux questions de la fin sans écrire quatorze valeurs à la main.
+ *
+ * Les valeurs sortent de la définition et non d'une liste écrite ici : un
+ * Critère ajouté ne doit pas faire mentir un test sur ce qu'il reste à poser.
+ */
+function aTousRenseignesSauf(manquants: readonly string[]): ValeursCriteres {
+  return Object.fromEntries(
+    criteresNonRenseignes(RIEN_DE_RENSEIGNE)
+      .filter(({ id }) => !manquants.includes(id))
+      .map(({ id }) => [id, 'une valeur']),
+  );
+}
 
 describe('les Critères manquants', () => {
   it('propose tous les Critères d’un Bien qui vient d’être créé', () => {
@@ -177,5 +200,105 @@ describe('le déroulé de l’assistant', () => {
     const apres = repondre(demarrer(RIEN_DE_RENSEIGNE), null);
 
     expect(questionCourante(apres)?.id).toBe('taxeFonciere');
+  });
+});
+
+describe('ce que l’assistant annonce de la suite', () => {
+  it('annonce les deux questions qui suivent celle posée', () => {
+    // Annoncer sert à anticiper : savoir que la surface habitable vient
+    // après permet de la chercher sur l'annonce pendant qu'on répond à la
+    // question courante (#121).
+    const suivantes = questionsSuivantes(demarrer(RIEN_DE_RENSEIGNE));
+
+    expect(suivantes.map(({ id }) => id)).toEqual(['taxeFonciere', 'chargesCopropriete']);
+  });
+
+  it('n’annonce pas la question posée parmi celles qui suivent', () => {
+    const assistant = demarrer(RIEN_DE_RENSEIGNE);
+
+    expect(questionsSuivantes(assistant).map(({ id }) => id)).not.toContain(
+      questionCourante(assistant)?.id,
+    );
+  });
+
+  it('n’annonce rien après la dernière question', () => {
+    // La dernière ne promet rien après elle : une phrase « puis… » suivie de
+    // rien serait une promesse non tenue.
+    const assistant = demarrer(aTousRenseignesSauf(['dpe']));
+
+    expect(questionCourante(assistant)?.id).toBe('dpe');
+    expect(questionsSuivantes(assistant)).toEqual([]);
+  });
+
+  it('n’annonce qu’une question quand il n’en reste qu’une après celle posée', () => {
+    const assistant = demarrer(aTousRenseignesSauf(['surfaceHabitable', 'dpe']));
+
+    expect(questionsSuivantes(assistant).map(({ id }) => id)).toEqual(['dpe']);
+  });
+
+  it('n’annonce plus rien une fois l’assistant terminé', () => {
+    const complet = aTousRenseignesSauf([]);
+
+    expect(questionsSuivantes(demarrer(complet))).toEqual([]);
+  });
+
+  it('avance d’un cran à chaque réponse', () => {
+    const apres = repondre(demarrer(RIEN_DE_RENSEIGNE), 250000);
+
+    expect(questionsSuivantes(apres).map(({ id }) => id)).toEqual([
+      'chargesCopropriete',
+      'surfaceHabitable',
+    ]);
+  });
+
+  it('écarte une question passée de ce qu’elle annonce', () => {
+    // Passée, elle ne sera pas reposée : l'annoncer promettrait une question
+    // qui ne viendra pas.
+    let assistant = demarrer(RIEN_DE_RENSEIGNE);
+    assistant = passer(assistant);
+
+    expect(questionsSuivantes(assistant).map(({ id }) => id)).toEqual([
+      'chargesCopropriete',
+      'surfaceHabitable',
+    ]);
+  });
+});
+
+describe('où en est la saisie pendant l’assistant', () => {
+  it('compte les Critères renseignés du Bien, sur le total de la définition', () => {
+    const assistant = demarrer({ prixDemande: 250000, dpe: 'C' });
+
+    expect(progression(assistant)).toEqual({ renseignes: 2, total: 15, part: 2 / 15 });
+  });
+
+  it('avance à chaque réponse donnée', () => {
+    // C'est ce qui décide de continuer : voir la jauge bouger dit qu'il
+    // reste peu, là où une jauge figée dit qu'on répond pour rien.
+    const apres = repondre(demarrer(RIEN_DE_RENSEIGNE), 250000);
+
+    expect(progression(apres).renseignes).toBe(1);
+  });
+
+  it('n’avance pas sur une question passée', () => {
+    // Passer n'enregistre rien : le Critère reste à demander, et la jauge
+    // mentirait en avançant.
+    const apres = passer(demarrer(RIEN_DE_RENSEIGNE));
+
+    expect(progression(apres).renseignes).toBe(0);
+  });
+
+  it('n’avance pas sur une réponse vidée', () => {
+    // « Ce Critère n'a pas de valeur » sort la question du parcours sans
+    // renseigner quoi que ce soit.
+    const apres = repondre(demarrer(RIEN_DE_RENSEIGNE), null);
+
+    expect(progression(apres).renseignes).toBe(0);
+  });
+
+  it('dit la saisie complète quand plus rien ne manque', () => {
+    const progres = progression(demarrer(aTousRenseignesSauf([])));
+
+    expect(progres.renseignes).toBe(progres.total);
+    expect(progres.part).toBe(1);
   });
 });

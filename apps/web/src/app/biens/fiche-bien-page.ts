@@ -13,12 +13,14 @@ import {
   type ChampStatut,
   type Statut,
 } from '../criteres/statut';
-import { completude, estRenseigne } from '../criteres/valeurs';
+import { completude, estRenseigne, type Completude } from '../criteres/valeurs';
 import type { ValeurCritere } from '../criteres/comparaison';
 import {
   demarrer,
   passer,
+  progression,
   questionCourante,
+  questionsSuivantes,
   repondre,
   type Assistant,
 } from '../criteres/assistant';
@@ -244,6 +246,70 @@ export class FicheBienPage {
     return assistant ? questionCourante(assistant) : undefined;
   });
 
+  /**
+   * Les questions qui suivent celle posée, annoncées sous les réponses
+   * (#121).
+   *
+   * Elles servent à anticiper : lire « surface habitable » pendant qu'on
+   * répond au prix fait chercher le chiffre sur l'annonce avant que la
+   * question n'arrive. C'est pourquoi ce sont les libellés qui s'affichent
+   * et non un décompte — « encore deux » ne prépare à rien.
+   *
+   * Vide hors assistant comme sur la dernière question : l'écran n'a alors
+   * rien à promettre.
+   */
+  readonly questionsSuivantes = computed<readonly Critere[]>(() => {
+    const assistant = this.assistant();
+
+    return assistant ? questionsSuivantes(assistant) : [];
+  });
+
+  /**
+   * Ce qui vient après, en une phrase : « Question suivante : taxe foncière,
+   * puis charges de copropriété. » (#121)
+   *
+   * Chaîne vide sur la dernière question comme hors assistant, ce que le
+   * gabarit traite en n'affichant rien : « Question suivante : » sans suite
+   * serait une promesse non tenue, et c'est exactement ce que la dernière
+   * question ne doit pas faire.
+   *
+   * La phrase est calculée ici et non assemblée dans le gabarit : une
+   * virgule, un « puis » et un point s'écrivent mal en interpolations, et
+   * surtout ne se vérifient pas — c'est la phrase entière qui se lit, pas
+   * ses morceaux.
+   */
+  readonly annonceDeLaSuite = computed(() => {
+    const suivantes = this.questionsSuivantes();
+
+    if (suivantes.length === 0) {
+      return '';
+    }
+
+    const [premiere, ...ensuite] = suivantes.map(({ libelle }) => enTeteDePhrase(libelle));
+
+    return `Question suivante : ${[premiere, ...ensuite].join(', puis ')}.`;
+  });
+
+  /**
+   * Où en est la saisie pendant l'assistant, pour la jauge et le compte que
+   * son écran affiche (#121).
+   *
+   * Elle suit les valeurs que l'assistant tient à jour plutôt que le Bien
+   * chargé : chaque réponse la fait avancer sur-le-champ. Hors assistant,
+   * elle retombe sur la complétude du Bien, la même que l'encart de la fiche
+   * — deux mesures d'une même chose ne doivent pas pouvoir se contredire
+   * (ADR-0004).
+   *
+   * Savoir qu'il reste deux questions décide de continuer ; ne pas le savoir
+   * décide de quitter, et c'est la différence entre une fiche remplie et une
+   * fiche à moitié.
+   */
+  readonly progressionAssistant = computed<Completude>(() => {
+    const assistant = this.assistant();
+
+    return assistant ? progression(assistant) : this.completude();
+  });
+
   constructor() {
     this.bienService.consulter(this.id).subscribe((fiche) => this.fiche.set(fiche));
   }
@@ -454,6 +520,29 @@ function ligne(critere: Critere, valeur: ValeurCritere | undefined): LigneCriter
     valeur: valeurConnue,
     renseigne: estRenseigne(valeurConnue),
   };
+}
+
+/**
+ * Un libellé de Critère tel qu'il s'écrit au milieu d'une phrase plutôt
+ * qu'en tête d'étiquette : « Taxe foncière » devient « taxe foncière ».
+ *
+ * Seule la première lettre s'abaisse, et seulement si le mot qu'elle ouvre
+ * n'est pas déjà tout en capitales. Deux libellés d'aujourd'hui l'exigent :
+ * « DPE », un sigle qu'un abaissement rendrait illisible, et « Type de
+ * Bien », dont la capitale est celle du glossaire — le Bien est l'objet
+ * qu'on compare, et il la porte partout.
+ *
+ * Abaisser toute la chaîne aurait donné « dpe » et « type de bien », soit une
+ * faute et un terme du glossaire perdu.
+ */
+function enTeteDePhrase(libelle: string): string {
+  const [premierMot] = libelle.split(' ');
+
+  if (premierMot === premierMot.toLocaleUpperCase('fr-FR')) {
+    return libelle;
+  }
+
+  return libelle.charAt(0).toLocaleLowerCase('fr-FR') + libelle.slice(1);
 }
 
 /** Le nombre de Critères d'un bloc restés sans valeur. */
