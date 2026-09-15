@@ -57,27 +57,33 @@
     }
 
     <!--
-      « + Repérer un Bien », l'action permanente de la maquette (#124).
+      L'action permanente de la maquette (#124), qui dit **ce qu'il y a à
+      ajouter là où l'on est**.
 
-      Elle est dans la navigation et **mène au formulaire**, plutôt que de le
-      remplacer par un bouton qui l'ouvrirait. ADR-0008 tient le repérage pour
-      le cas dominant — « une annonce vue le soir, à enregistrer en quelques
-      secondes » —, et un formulaire à déplier ajouterait un clic exactement
-      là où le geste doit être le plus court. Le formulaire reste donc en tête
-      du carnet, et ceci est le chemin depuis les autres écrans.
+      Partout ailleurs : « + Repérer un Bien ». Elle mène au formulaire plutôt
+      que de le remplacer par un bouton qui l'ouvrirait — ADR-0008 tient le
+      repérage pour le cas dominant, « une annonce vue le soir, à enregistrer
+      en quelques secondes », et un formulaire à déplier ajouterait un clic
+      exactement là où le geste doit être le plus court. Le fragment vise le
+      formulaire que `biens-page` nomme : depuis la comparaison ou l'export,
+      le lien change d'écran puis y descend ; depuis le carnet, il y descend
+      simplement.
 
-      Le fragment vise le formulaire, que `biens-page` nomme : depuis la
-      comparaison ou l'export, le lien change d'écran puis y descend ; depuis
-      le carnet, il y descend simplement.
+      **Sur une fiche : « + Commenter ce Bien ».** C'est le geste de la
+      visite, et il prend la place de « Repérer », qui menait alors à un
+      formulaire déjà atteignable par l'onglet « Carnet » juste à côté. Deux
+      entrées séparées auraient coûté la place que le pied n'a pas sur un
+      téléphone, et fait viser entre deux cibles voisines au moment où l'on
+      est debout dans une pièce.
     -->
     <li>
       <a
         class="navigation__entree navigation__entree--action"
-        [routerLink]="routeBiens"
-        fragment="reperer"
+        [routerLink]="action().route"
+        [fragment]="action().fragment"
       >
-        <span aria-hidden="true">+</span> Repérer
-        <span class="navigation__lecture">un Bien</span>
+        <span aria-hidden="true">+</span> {{ action().libelle }}
+        <span class="navigation__lecture">{{ action().complement }}</span>
       </a>
     </li>
   </ul>

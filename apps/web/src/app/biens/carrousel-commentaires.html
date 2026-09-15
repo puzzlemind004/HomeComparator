@@ -1,0 +1,199 @@
+<!--
+  Les Commentaires d'un Bien, en bas de sa fiche.
+
+  Un à la fois plutôt qu'une pile : ils portent des photos, et vingt clichés
+  pleine largeur feraient de la fin de la fiche un défilement sans fin. On les
+  feuillette comme on les a pris — un par pièce, un par détail.
+-->
+<section class="commentaires" aria-label="Commentaires du Bien">
+  <header class="commentaires__entete">
+    <h3>Commentaires</h3>
+
+    <!--
+      Combien il y en a, comme la galerie le fait pour les photos (#122) : le
+      chiffre se lit sans feuilleter, et c'est ce qu'on cherche en rouvrant une
+      fiche — « celui-là, je l'ai commenté ou pas ».
+
+      Le mot est répété alors que le titre le porte déjà : le chiffre nu se
+      lirait « 3 » sans dire 3 de quoi au lecteur d'écran, qui ne voit pas
+      qu'il est posé sous un titre (ADR-0005).
+    -->
+    @if (nombre()) {
+      <span class="commentaires__compte">
+        {{ nombre() }} commentaire{{ nombre() > 1 ? 's' : '' }}
+      </span>
+    }
+
+    <!--
+      Le chemin vers la saisie depuis la fiche elle-même. La navigation en
+      porte un autre pendant qu'on est sur une fiche, mais celui-ci reste :
+      c'est ici qu'on regarde quand on vient de lire les précédents, et le
+      pied de page n'est pas où l'œil est à cet instant.
+    -->
+    <a class="commentaires__ajouter" [routerLink]="routeCommenter()">Commenter</a>
+  </header>
+
+  @if (erreurs().length) {
+    <ul class="commentaires__erreurs" role="alert">
+      @for (erreur of erreurs(); track erreur) {
+        <li>{{ erreur }}</li>
+      }
+    </ul>
+  }
+
+  @if (courant(); as commentaire) {
+    <!--
+      Le Commentaire à l'écran.
+
+      `aria-live` n'y est pas : c'est l'acheteur qui feuillette, et le
+      changement qu'il provoque lui-même n'a pas à lui être annoncé. Le compte
+      « 2 sur 7 » plus bas dit où il en est quand il le demande.
+    -->
+    <article class="commentaire">
+      @if (commentaire.photo; as photo) {
+        <!--
+          La vignette et non la version consultable : c'est un carrousel dans
+          une fiche, pas une galerie en plein écran, et la connexion de la
+          visite est celle qui compte (#13).
+
+          Un lien vers la version consultable et non un agrandissement à part :
+          la galerie de la fiche porte déjà la même photo — rien ne les
+          distingue en base (ADR-0014) — et une seconde fenêtre modale sur le
+          même écran ferait deux façons de regarder la même image.
+        -->
+        <img
+          class="commentaire__photo"
+          [src]="photo.urlVignette"
+          alt="Photo prise avec ce Commentaire"
+          loading="lazy"
+        />
+      }
+
+      <div class="commentaire__corps">
+        @if (commentaire.note !== null) {
+          <!--
+            Les cinq étoiles, allumées jusqu'à la note.
+
+            Le texte lu par le lecteur d'écran dit le chiffre : cinq symboles
+            à la suite s'annoncent « étoile étoile étoile » sans qu'on sache
+            lesquelles sont pleines (ADR-0005).
+          -->
+          <p class="commentaire__note">
+            <span aria-hidden="true">
+              @for (etoile of etoiles; track etoile) {
+                <span
+                  class="commentaire__etoile"
+                  [class.commentaire__etoile--pleine]="etoile <= commentaire.note"
+                  >★</span
+                >
+              }
+            </span>
+            <span class="commentaires__lecture">{{ commentaire.note }} étoiles sur 5</span>
+          </p>
+        }
+
+        @if (commentaire.texte) {
+          <p class="commentaire__texte">{{ commentaire.texte }}</p>
+        }
+
+        <!--
+          La date, et l'heure avec elle : une visite produit plusieurs
+          Commentaires dans le même après-midi, et une date nue ne dirait pas
+          lequel a été pris devant la cuisine.
+        -->
+        <p class="commentaire__date">{{ commentaire.date }}</p>
+      </div>
+
+      <button
+        type="button"
+        class="commentaire__supprimer"
+        [disabled]="suppression()"
+        (click)="demanderSuppression(commentaire)"
+      >
+        <span aria-hidden="true">×</span>
+        <span class="commentaires__lecture">Supprimer ce Commentaire</span>
+      </button>
+    </article>
+
+    @if (nombre() > 1) {
+      <!--
+        Le feuilletage. Des boutons et non un défilement horizontal : celui-ci
+        ne s'atteint pas au clavier, et se déclenche par accident au pouce sur
+        une fiche qu'on fait défiler verticalement.
+      -->
+      <div class="commentaires__parcours">
+        <button type="button" class="commentaires__pas" (click)="precedent()">
+          <span aria-hidden="true">‹</span>
+          <span class="commentaires__lecture">Commentaire précédent</span>
+        </button>
+
+        <!--
+          Les pastilles de la maquette : elles disent combien il y en a et
+          mènent directement à l'un d'eux. Chacune porte son rang en toutes
+          lettres — une pastille nue ne s'annonce pas.
+        -->
+        <ul class="commentaires__pastilles">
+          @for (commentaire of commentaires(); track commentaire.id; let rang = $index) {
+            <li>
+              <button
+                type="button"
+                class="commentaires__pastille"
+                [class.commentaires__pastille--courante]="rang === position()"
+                [attr.aria-current]="rang === position() ? 'true' : null"
+                (click)="aller(rang)"
+              >
+                <span class="commentaires__lecture">
+                  Commentaire {{ rang + 1 }} sur {{ nombre() }}
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+
+        <button type="button" class="commentaires__pas" (click)="suivant()">
+          <span aria-hidden="true">›</span>
+          <span class="commentaires__lecture">Commentaire suivant</span>
+        </button>
+      </div>
+    }
+  } @else if (chargee()) {
+    <!--
+      Aucun Commentaire : la phrase dit ce qu'ils servent plutôt que de
+      constater le vide, comme la galerie le fait pour les photos.
+    -->
+    <p class="liste--vide">
+      Aucun commentaire. Ceux pris pendant la visite disent ce qu'on ne
+      retrouvera pas sur l'annonce.
+    </p>
+  } @else {
+    <!--
+      Une API qui n'a pas répondu n'est pas un Bien sans Commentaire : le dire
+      autrement se lirait comme des observations perdues.
+    -->
+    <p class="liste--erreur" role="alert">
+      Les commentaires n'ont pas pu être chargés. Ils sont toujours là.
+    </p>
+  }
+
+  @if (confirmation()) {
+    <!--
+      La confirmation, comme pour une photo : il n'y a ni corbeille ni
+      restauration (ADR-0007), et une observation prise sur place ne se
+      réécrit pas de mémoire.
+    -->
+    <div class="commentaires__confirmation" role="alert">
+      <p>Supprimer ce commentaire définitivement ?</p>
+
+      <p class="commentaires__precision">Sa photo reste dans la galerie du Bien.</p>
+
+      <div class="commentaires__actions">
+        <button type="button" [disabled]="suppression()" (click)="supprimer()">
+          {{ suppression() ? 'Suppression…' : 'Supprimer' }}
+        </button>
+        <button type="button" [disabled]="suppression()" (click)="annulerSuppression()">
+          Annuler
+        </button>
+      </div>
+    </div>
+  }
+</section>

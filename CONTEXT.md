@@ -55,8 +55,24 @@ Celle qui figure dans la liste et sur les Cartes, où une seule a la place de s'
 _Avoid_: Photo principale, photo de couverture, miniature — la vignette est le fichier, la représentative est le rôle.
 
 **Notes** :
-Le texte libre attaché à un Bien, pour tout ce qui compte mais ne se compare pas en colonne : impressions de visite, travaux à prévoir, remarques sur le voisinage.
-_Avoid_: Commentaire, description, mémo
+Le texte libre attaché à un Bien, pour tout ce qui compte mais ne se compare pas en colonne : impressions de visite, travaux à prévoir, remarques sur le voisinage. Un texte unique, qu'on relit et qu'on réécrit — à distinguer des Commentaires, qui s'empilent sans se toucher (ADR-0020).
+_Avoid_: Description, mémo. « Commentaire », qui désigne autre chose depuis ADR-0020.
+
+**Commentaire** :
+Une observation datée portée sur un Bien pendant la visite : un texte, une Photo, une appréciation sur cinq étoiles — les trois facultatifs, l'un des trois au moins. Il s'ajoute aux précédents sans les toucher, là où les Notes sont un paragraphe qu'on réécrit (ADR-0020).
+
+C'est ce que le carnet sait faire du geste de la visite : on est debout dans une pièce, on photographie le mur fissuré, on pose deux étoiles, on passe à la suivante. La date est ce qui le rend relisable un mois plus tard, et ce qui permet à deux visites du même Bien de se répondre.
+
+Sa Photo est une Photo du Bien comme les autres : elle figure dans la même galerie, et rien ne l'en distingue (ADR-0014). Supprimer l'un ne supprime pas l'autre.
+
+Un Commentaire ne se modifie pas : ce qui a été mal dit se supprime et se réécrit.
+_Avoid_: Note (qui désigne le champ du Bien), avis, remarque, annotation
+
+**Appréciation** :
+Le nombre d'étoiles d'un Commentaire, de une à cinq. Elle porte sur ce que le Commentaire décrit — une pièce, un détail, une impression — et non sur le Bien entier : elle ne se compare pas d'un Bien à l'autre et n'a donc pas de Colonne.
+
+Zéro n'existe pas : l'absence d'avis se dit par l'absence d'appréciation, là où zéro étoile se lirait comme un jugement.
+_Avoid_: Note (ambigu avec les Notes), score, évaluation
 
 **Sauvegarde** :
 Une copie datée de tout ce qui ne se retrouve pas : le contenu de la base et les fichiers des Photos, pris ensemble et sous le même horodatage. Les deux moitiés ne valent que réunies — la base ne porte que les noms des fichiers (ADR-0014), et une base restaurée sans ses Photos affiche des galeries vides.

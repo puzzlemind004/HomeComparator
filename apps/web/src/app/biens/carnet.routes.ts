@@ -24,3 +24,16 @@ export const ROUTE_EXPORT = '/exporter';
 export function routeFicheBien(bienId: number): string {
   return `/biens/${bienId}`;
 }
+
+/**
+ * L'écran où s'écrit un Commentaire, celui qu'on ouvre pendant la visite.
+ *
+ * Un écran à lui et non un formulaire déplié en bas de fiche : le geste se
+ * fait debout dans une pièce, l'appareil photo occupe l'écran entier, et
+ * revenir de la prise de vue au milieu d'une fiche longue ferait perdre
+ * l'endroit où l'on en était. Il se referme sur la fiche une fois le
+ * Commentaire ajouté.
+ */
+export function routeCommenterBien(bienId: number): string {
+  return `${routeFicheBien(bienId)}/commenter`;
+}

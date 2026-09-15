@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BienService, type FicheBien } from './bien.service';
 import { GaleriePhotos } from './galerie-photos';
+import { CarrouselCommentaires } from './carrousel-commentaires';
 import type { ModificationBien } from './bien';
 import type { Critere, GroupeCritere } from '../criteres/critere';
 import { GROUPES, criteresDuGroupe } from '../criteres/definition';
@@ -75,7 +76,7 @@ export interface BlocCriteres {
  */
 @Component({
   selector: 'app-fiche-bien-page',
-  imports: [FormsModule, RouterLink, GaleriePhotos],
+  imports: [FormsModule, RouterLink, GaleriePhotos, CarrouselCommentaires],
   styleUrl: './fiche-bien-page.scss',
   templateUrl: './fiche-bien-page.html',
 })

@@ -1,15 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { Injector, runInInjectionContext } from '@angular/core';
-import { Navigation } from './navigation';
+import { NavigationEnd, Router } from '@angular/router';
+import { Subject } from 'rxjs';
+import { Navigation, bienDeLAdresse } from './navigation';
 import { SelectionComparaison } from './selection.service';
 import { LargeurEcran } from '../criteres/largeur-ecran';
 import { MAXIMUM_DESKTOP } from '../criteres/selection-comparaison';
-import { ROUTE_BIENS, ROUTE_COMPARAISON, ROUTE_EXPORT } from './carnet.routes';
+import {
+  ROUTE_BIENS,
+  ROUTE_COMPARAISON,
+  ROUTE_EXPORT,
+  routeCommenterBien,
+} from './carnet.routes';
 
-function creerNavigation(maximum = MAXIMUM_DESKTOP) {
+/**
+ * Un routeur réduit à ce dont la navigation se sert : l'adresse de départ et
+ * le flux des changements d'écran. Monter le vrai routeur demanderait des
+ * routes, un emplacement et un environnement Angular complet, là où ces deux
+ * choses suffisent — et laisserait les tests décrire Angular plutôt que le
+ * menu.
+ */
+function creerNavigation(maximum = MAXIMUM_DESKTOP, adresse = ROUTE_BIENS) {
+  const evenements = new Subject<NavigationEnd>();
+
   const injector = Injector.create({
     providers: [
       { provide: LargeurEcran, useValue: { maximumComparaison: () => maximum } },
+      { provide: Router, useValue: { url: adresse, events: evenements.asObservable() } },
       SelectionComparaison,
     ],
   });
@@ -17,6 +34,8 @@ function creerNavigation(maximum = MAXIMUM_DESKTOP) {
   return runInInjectionContext(injector, () => ({
     navigation: new Navigation(),
     selection: injector.get(SelectionComparaison),
+    /** Ce qu'un changement d'écran produit, tel que le routeur l'annonce. */
+    aller: (vers: string) => evenements.next(new NavigationEnd(1, vers, vers)),
   }));
 }
 
@@ -67,5 +86,64 @@ describe('Navigation', () => {
     expect(parRoute.get(ROUTE_BIENS)?.exact).toBe(true);
     expect(parRoute.get(ROUTE_COMPARAISON)?.exact).toBe(false);
     expect(parRoute.get(ROUTE_EXPORT)?.exact).toBe(false);
+  });
+
+  it('propose de repérer un Bien partout sauf sur une fiche', () => {
+    // L'action permanente de la maquette : depuis la comparaison ou l'export,
+    // elle ramène au formulaire de tête du carnet (#124).
+    const { navigation, aller } = creerNavigation();
+
+    expect(navigation.action().route).toBe(ROUTE_BIENS);
+    expect(navigation.action().libelle).toBe('Repérer');
+
+    aller(ROUTE_COMPARAISON);
+    expect(navigation.action().route).toBe(ROUTE_BIENS);
+  });
+
+  it('propose de commenter dès qu’on regarde une fiche', () => {
+    // C'est le geste de la visite, et il prend la place de « Repérer » —
+    // lequel menait alors à un formulaire déjà atteignable par l'onglet
+    // « Carnet » juste à côté.
+    const { navigation, aller } = creerNavigation();
+
+    aller('/biens/12');
+
+    expect(navigation.action().libelle).toBe('Commenter');
+    expect(navigation.action().route).toBe(routeCommenterBien(12));
+  });
+
+  it('reconnaît la fiche ouverte directement par son lien', () => {
+    // La navigation est montée une fois pour la session : sans l'adresse de
+    // départ, l'action resterait « Repérer » sur un carnet rouvert sur le
+    // Bien qu'on visite.
+    const { navigation } = creerNavigation(MAXIMUM_DESKTOP, '/biens/7');
+
+    expect(navigation.action().route).toBe(routeCommenterBien(7));
+  });
+
+  it('cesse de proposer de commenter en quittant la fiche', () => {
+    const { navigation, aller } = creerNavigation(MAXIMUM_DESKTOP, '/biens/7');
+
+    aller(ROUTE_EXPORT);
+
+    expect(navigation.action().libelle).toBe('Repérer');
+  });
+
+  describe('le Bien de l’adresse', () => {
+    it('ne reconnaît que la fiche elle-même', () => {
+      // L'écran de saisie est sous la fiche dans l'adresse, et proposer
+      // « Commenter » pendant qu'on commente ne mènerait nulle part.
+      expect(bienDeLAdresse('/biens/3')).toBe(3);
+      expect(bienDeLAdresse('/biens/3/commenter')).toBeNull();
+      expect(bienDeLAdresse(ROUTE_BIENS)).toBeNull();
+      expect(bienDeLAdresse(ROUTE_COMPARAISON)).toBeNull();
+    });
+
+    it('ignore ce que l’adresse porte après le chemin', () => {
+      // Le fragment de « Repérer » et les paramètres d'un tri ne changent pas
+      // l'écran qu'on regarde.
+      expect(bienDeLAdresse('/biens/3#photos')).toBe(3);
+      expect(bienDeLAdresse('/biens/3?onglet=criteres')).toBe(3);
+    });
   });
 });

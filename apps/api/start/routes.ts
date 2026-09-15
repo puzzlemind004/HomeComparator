@@ -15,6 +15,7 @@ const BiensController = () => import('#controllers/biens_controller')
 const AuthController = () => import('#controllers/auth_controller')
 const PhotosController = () => import('#controllers/photos_controller')
 const ExportController = () => import('#controllers/export_controller')
+const CommentairesController = () => import('#controllers/commentaires_controller')
 
 /**
  * Les quatre routes qui se passent d'authentification, et la raison de
@@ -76,6 +77,26 @@ router
     router.post('/biens/:bienId/photos', [PhotosController, 'store'])
     router.get('/biens/:bienId/photos/:id', [PhotosController, 'show'])
     router.delete('/biens/:bienId/photos/:id', [PhotosController, 'destroy'])
+
+    /**
+     * Les Commentaires d'un Bien : ce qu'on note pendant la visite.
+     *
+     * Une collection à côté du Bien comme les photos, et pour la même
+     * raison : un Bien en porte plusieurs, chacun daté, et le suivant ne
+     * touche pas au précédent. Les **Notes** restent un champ du Bien
+     * (ADR-0012) et se modifient par `PATCH /biens/:id`.
+     *
+     * L'ajout est en `multipart` : la photo voyage dans le même envoi que
+     * le texte et l'appréciation, et c'est tout l'intérêt du geste — une
+     * seconde, debout devant ce qu'on décrit.
+     *
+     * Pas de modification : un Commentaire est une observation datée, pas
+     * un texte qu'on retravaille. Ce qui a été mal dit se supprime et se
+     * réécrit.
+     */
+    router.get('/biens/:bienId/commentaires', [CommentairesController, 'index'])
+    router.post('/biens/:bienId/commentaires', [CommentairesController, 'store'])
+    router.delete('/biens/:bienId/commentaires/:id', [CommentairesController, 'destroy'])
 
     /**
      * L'export du carnet, en JSON ou en CSV (#14).

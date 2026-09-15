@@ -1,7 +1,30 @@
-import { Component, inject } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Component, computed, inject, signal } from '@angular/core';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { filter } from 'rxjs';
 import { SelectionComparaison } from './selection.service';
-import { ROUTE_BIENS, ROUTE_COMPARAISON, ROUTE_EXPORT } from './carnet.routes';
+import {
+  ROUTE_BIENS,
+  ROUTE_COMPARAISON,
+  ROUTE_EXPORT,
+  routeCommenterBien,
+} from './carnet.routes';
+
+/**
+ * L'identifiant du Bien dont on regarde la fiche, ou `null` partout ailleurs.
+ *
+ * Écrit comme une fonction sur l'adresse plutôt que lu dans l'arbre des
+ * routes : la navigation vit dans la coque et non sous le `router-outlet`,
+ * et n'a donc aucune route activée à interroger.
+ *
+ * La fiche seule compte, et pas l'écran de saisie qui lui est sous-jacent :
+ * proposer « Commenter » pendant qu'on commente ne mènerait nulle part.
+ */
+export function bienDeLAdresse(adresse: string): number | null {
+  const [chemin] = adresse.split(/[?#]/);
+  const correspondance = /^\/biens\/(\d+)$/.exec(chemin);
+
+  return correspondance ? Number(correspondance[1]) : null;
+}
 
 /** Une entrée du menu : où elle mène, et comment elle se marque courante. */
 export interface EntreeNavigation {
@@ -52,6 +75,7 @@ export interface EntreeNavigation {
 })
 export class Navigation {
   private readonly selectionComparaison = inject(SelectionComparaison);
+  private readonly router = inject(Router);
 
   /**
    * Les trois écrans, dans l'ordre de la maquette : le carnet, le
@@ -74,6 +98,57 @@ export class Navigation {
   /** L'entrée qui porte le compte — la seule à qui il veuille dire quelque chose. */
   readonly routeComparaison = ROUTE_COMPARAISON;
 
-  /** Où mène « + Repérer un Bien » : le carnet, et son formulaire de tête. */
-  readonly routeBiens = ROUTE_BIENS;
+  /**
+   * L'adresse courante, suivie pour savoir si l'on regarde une fiche.
+   *
+   * Un signal alimenté par les événements du routeur : la navigation est
+   * montée une fois pour toute la session, et rien ne la reconstruit d'un
+   * écran à l'autre. L'adresse de départ est prise à la construction, sans
+   * quoi l'action resterait « Repérer » sur une fiche ouverte directement
+   * par son lien — le cas d'un carnet qu'on rouvre sur le Bien qu'on visite.
+   */
+  private readonly adresse = signal(this.router.url);
+
+  /**
+   * Le Bien dont on regarde la fiche, ou `null` partout ailleurs. C'est ce
+   * qui fait basculer l'action permanente du menu.
+   */
+  readonly bienCourant = computed(() => bienDeLAdresse(this.adresse()));
+
+  /**
+   * Où mène l'action permanente, et ce qu'elle dit.
+   *
+   * **Sur une fiche, c'est « Commenter »** ; partout ailleurs, « Repérer ».
+   * Une même place pour deux gestes parce que c'est la même intention — la
+   * seule chose qu'on vienne ajouter depuis n'importe où —, et parce que
+   * pendant une visite, c'est un Commentaire qu'on ajoute et non un Bien.
+   *
+   * Deux entrées côte à côte auraient coûté la place que le pied de
+   * navigation n'a pas sur un téléphone, et fait viser entre deux cibles
+   * voisines au moment où l'on est debout dans une pièce.
+   */
+  readonly action = computed(() => {
+    const bien = this.bienCourant();
+
+    return bien === null
+      ? { route: ROUTE_BIENS, libelle: 'Repérer', complement: 'un Bien', fragment: 'reperer' }
+      : {
+          route: routeCommenterBien(bien),
+          libelle: 'Commenter',
+          complement: 'ce Bien',
+          fragment: undefined,
+        };
+  });
+
+  constructor() {
+    /**
+     * Chaque changement d'écran met l'adresse à jour. `NavigationEnd` et non
+     * le début : c'est l'adresse atteinte qui compte, et une navigation
+     * refusée par un garde ferait autrement basculer l'action vers un écran
+     * où l'on n'est pas allé.
+     */
+    this.router.events
+      .pipe(filter((evenement): evenement is NavigationEnd => evenement instanceof NavigationEnd))
+      .subscribe((evenement) => this.adresse.set(evenement.urlAfterRedirects));
+  }
 }

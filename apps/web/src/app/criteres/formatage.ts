@@ -44,6 +44,22 @@ const DATE = new Intl.DateTimeFormat(LOCALE, {
   year: 'numeric',
 });
 
+/**
+ * Le format d'un moment : la date, puis l'heure et la minute.
+ *
+ * L'heure n'y figure que pour les Commentaires, et elle y est nécessaire :
+ * une visite en produit plusieurs dans le même après-midi, et une date nue
+ * les rendrait indistinguables — « 12/03/2026 » trois fois de suite ne dit
+ * pas lequel a été pris devant la cuisine.
+ */
+const MOMENT = new Intl.DateTimeFormat(LOCALE, {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
 /** Un montant en euros, arrondi à l'euro. Chaîne vide s'il est absent. */
 export function formaterMontant(montant: number | null): string {
   return montant === null ? '' : MONTANT.format(montant);
@@ -78,6 +94,18 @@ export function formaterSurface(surface: number | null): string {
  */
 export function formaterDate(date: Date | null): string {
   return date === null || Number.isNaN(date.getTime()) ? '' : DATE.format(date);
+}
+
+/**
+ * Un moment — date et heure — au format français. Chaîne vide s'il est
+ * absent ou invalide, pour la même raison que `formaterDate`.
+ *
+ * Il vit ici et non chez l'adapter qui l'appelle : c'est le module qui
+ * réunit les `Intl` du carnet, précisément pour que deux formats montés
+ * séparément ne divergent pas.
+ */
+export function formaterMoment(date: Date | null): string {
+  return date === null || Number.isNaN(date.getTime()) ? '' : MOMENT.format(date);
 }
 
 /**

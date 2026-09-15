@@ -1,0 +1,283 @@
+@use '../carnet';
+
+// Les Commentaires d'un Bien, en bas de sa fiche.
+//
+// Un à la fois : ils portent des photos, et une pile pleine largeur ferait de
+// la fin de la fiche un défilement sans fin.
+
+.commentaires {
+  display: grid;
+  gap: var(--espace-3);
+}
+
+@include carnet.etats-vides;
+
+.commentaires__entete {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-3);
+  justify-content: space-between;
+
+  h3 {
+    margin: 0;
+  }
+}
+
+// Le compte, à côté du titre : il se lit sans feuilleter, ce qu'un carrousel
+// ne permet par construction pas.
+.commentaires__compte {
+  @include carnet.chiffres;
+
+  color: var(--neutre-700);
+  font-size: 12px;
+  // Il pousse « Commenter » à droite plutôt que de s'y coller : le titre et
+  // son compte vont ensemble, l'ajout est un geste à part.
+  margin-right: auto;
+}
+
+// Le chemin vers la saisie. Habillé comme le bouton d'ajout de la galerie,
+// parce que c'est le même genre de geste au même endroit de la fiche.
+.commentaires__ajouter {
+  border: 1px solid var(--accent);
+  border-radius: var(--rayon);
+  color: var(--accent);
+  font-family: var(--fonte-titre);
+  font-weight: 600;
+  // Une cible d'au moins 44px de haut : c'est le pouce qui appuie, debout
+  // dans un couloir (ADR-0005).
+  line-height: 1.75rem;
+  padding: 0.5rem 1rem;
+  text-decoration: none;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+}
+
+.commentaires__erreurs {
+  border: 1px solid var(--separateur);
+  border-left: 3px solid var(--erreur);
+  border-radius: var(--rayon);
+  color: var(--erreur);
+  font-size: 14px;
+  list-style: none;
+  margin: 0;
+  padding: var(--espace-3) var(--espace-4);
+}
+
+// Le Commentaire à l'écran : la photo à gauche, le texte à droite, la
+// suppression au coin. Sur un téléphone la photo passe au-dessus — une
+// vignette de 120px à côté d'un paragraphe ne laisse plus de place aux mots.
+.commentaire {
+  background: var(--neutre-100);
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon-lg);
+  display: grid;
+  gap: var(--espace-3);
+  grid-template-columns: 1fr auto;
+  padding: var(--espace-4);
+
+  @media (min-width: 30rem) {
+    grid-template-columns: auto 1fr auto;
+  }
+}
+
+.commentaire__photo {
+  border-radius: var(--rayon);
+  // Carrée et recadrée : des vignettes de proportions différentes feraient
+  // sauter la hauteur du bloc d'un Commentaire à l'autre, et le carrousel
+  // bougerait sous le pouce à chaque pas.
+  aspect-ratio: 1;
+  grid-column: 1 / -1;
+  object-fit: cover;
+  width: 100%;
+
+  @media (min-width: 30rem) {
+    grid-column: auto;
+    width: 8rem;
+  }
+}
+
+.commentaire__corps {
+  display: grid;
+  gap: var(--espace-2);
+  // Le texte d'un Commentaire peut être long : sans cette borne, une grille
+  // le laisserait pousser la colonne au-delà de la largeur de la fiche.
+  min-width: 0;
+}
+
+.commentaire__note {
+  margin: 0;
+}
+
+// Une étoile éteinte reste visible : c'est la note sur cinq qui se lit, et
+// trois étoiles seules ne diraient pas sur combien.
+.commentaire__etoile {
+  color: var(--neutre-400);
+  font-size: 1.125rem;
+  letter-spacing: 0.1em;
+}
+
+.commentaire__etoile--pleine {
+  color: var(--accent);
+}
+
+.commentaire__texte {
+  margin: 0;
+  // Les retours à la ligne saisis pendant la visite sont conservés : une
+  // liste de trois défauts écrite en trois lignes en redevient une.
+  white-space: pre-wrap;
+  // Un mot sans espace — une URL collée, un nom de fichier — ne doit pas
+  // élargir le bloc au-delà de l'écran.
+  overflow-wrap: anywhere;
+}
+
+.commentaire__date {
+  @include carnet.chiffres;
+
+  color: var(--neutre-700);
+  font-size: 12px;
+  margin: 0;
+}
+
+.commentaire__supprimer {
+  align-self: start;
+  background: transparent;
+  border: 1px solid var(--separateur);
+  border-radius: 50%;
+  color: var(--neutre-700);
+  cursor: pointer;
+  font-size: 1.25rem;
+  height: 2.25rem;
+  line-height: 1;
+  width: 2.25rem;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+// Le feuilletage : deux pas et les pastilles entre les deux.
+.commentaires__parcours {
+  align-items: center;
+  display: flex;
+  gap: var(--espace-3);
+  justify-content: center;
+}
+
+.commentaires__pas {
+  background: transparent;
+  border: 1px solid var(--separateur);
+  border-radius: 50%;
+  color: var(--texte);
+  cursor: pointer;
+  font-size: 1.25rem;
+  // Une cible au pouce, comme partout ailleurs (ADR-0005).
+  height: 2.75rem;
+  line-height: 1;
+  width: 2.75rem;
+
+  &:hover {
+    background: var(--neutre-200);
+  }
+}
+
+.commentaires__pastilles {
+  display: flex;
+  gap: var(--espace-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+// Une pastille : la cible fait 44px, le point qu'on voit en fait 8. Réduire
+// la cible au point la rendrait inatteignable au pouce.
+.commentaires__pastille {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  height: 2.75rem;
+  padding: 0;
+  position: relative;
+  width: 1.25rem;
+
+  &::after {
+    background: var(--neutre-400);
+    border-radius: 50%;
+    content: '';
+    height: 8px;
+    left: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+  }
+}
+
+.commentaires__pastille--courante::after {
+  background: var(--accent);
+}
+
+.commentaires__confirmation {
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon);
+  display: grid;
+  gap: var(--espace-2);
+  padding: var(--espace-3);
+
+  p {
+    margin: 0;
+  }
+}
+
+// Ce que la suppression ne fait pas : la photo reste dans la galerie. Dit
+// ici parce que c'est là qu'on se pose la question, et que l'y taire ferait
+// renoncer à supprimer un texte de peur de perdre le cliché.
+.commentaires__precision {
+  color: var(--neutre-700);
+  font-size: 12px;
+}
+
+.commentaires__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-2);
+
+  button {
+    border-radius: var(--rayon);
+    cursor: pointer;
+    min-height: 2.75rem;
+    padding: 0.5rem 1rem;
+  }
+
+  // Le premier bouton est celui qui supprime : il porte la couleur du geste,
+  // plein et non cerné, comme partout où le carnet efface pour de bon.
+  button:first-child {
+    background: var(--erreur);
+    border: 1px solid var(--erreur);
+    color: #fff;
+  }
+
+  button:last-child {
+    background: transparent;
+    border: 1px solid var(--separateur);
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+// Lu par les lecteurs d'écran, invisible à l'œil : les boutons du feuilletage
+// ne portent qu'un chevron, qui ne se lit pas (ADR-0005).
+.commentaires__lecture {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formaterDate,
+  formaterMoment,
   formaterMontant,
   formaterPrixAuMetreCarre,
   formaterSurface,
@@ -79,6 +80,25 @@ describe('formaterDate', () => {
     // Une date invalide vient d'une saisie ou d'une conversion ratée ;
     // le texte « Invalid Date » n'a rien à faire dans une colonne.
     expect(formaterDate(new Date('pas une date'))).toBe('');
+  });
+});
+
+describe('formaterMoment', () => {
+  it("écrit la date et l'heure au format français", () => {
+    // L'heure n'y figure que pour les Commentaires, et elle y est
+    // nécessaire : une visite en produit plusieurs dans le même après-midi,
+    // et une date nue les rendrait indistinguables.
+    expect(normaliser(formaterMoment(new Date(2026, 8, 14, 15, 30)))).toBe(
+      '14/09/2026 15:30',
+    );
+  });
+
+  it("rend une chaîne vide quand le moment n'est pas renseigné", () => {
+    expect(formaterMoment(null)).toBe('');
+  });
+
+  it('rend une chaîne vide sur une date invalide', () => {
+    expect(formaterMoment(new Date('pas une date'))).toBe('');
   });
 });
 

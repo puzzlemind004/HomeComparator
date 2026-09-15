@@ -348,6 +348,19 @@
         }
 
         <!--
+          Les Commentaires, en bas de la fiche.
+
+          Tout en bas et non à côté des photos : ce sont des observations
+          datées qu'on relit après avoir parcouru les Critères, et la visite
+          les ajoute par la barre de navigation plutôt qu'en descendant
+          jusqu'ici. Ils restent au-dessus de la suppression, qui est le seul
+          geste que la fiche tient à distance.
+        -->
+        <section class="bloc">
+          <app-carrousel-commentaires [bien]="id" />
+        </section>
+
+        <!--
           La suppression définitive, en dernier de la fiche (#9).
 
           Tout en bas parce que ce n'est pas ce qu'on vient y faire : le

@@ -41,6 +41,22 @@ export function urlPhoto(bienId: number, photoId: number): string {
 }
 
 /**
+ * Les Commentaires d'un Bien : ce qu'on note pendant la visite.
+ *
+ * Une collection à côté du Bien comme les photos, et non un champ de celui-ci
+ * : les **Notes** sont un texte unique qui se modifie par la fiche
+ * (ADR-0012), un Commentaire s'ajoute sans toucher aux précédents.
+ */
+export function urlCommentaires(bienId: number): string {
+  return `${urlBien(bienId)}/commentaires`;
+}
+
+/** Un Commentaire précis, pour le retirer. Il ne se modifie pas. */
+export function urlCommentaire(bienId: number, commentaireId: number): string {
+  return `${urlCommentaires(bienId)}/${commentaireId}`;
+}
+
+/**
  * L'export du carnet, dans le format demandé (#14).
  *
  * Le format est un paramètre et non une seconde adresse : c'est un bouton à

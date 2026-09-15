@@ -24,6 +24,12 @@ public/assets
 # de `app/models/` qui font foi (ADR-0004).
 database/schema.ts
 
+# Index des routes et des imports, que `node ace` régénère à chaque commande —
+# tests compris. Il décrit l'état de `start/routes.ts` et des contrôleurs, qui
+# font foi : le versionner donnerait une seconde description à tenir d'accord
+# avec la première, et un diff à chaque lancement de tests.
+.adonisjs
+
 # Build tools specific
 npm-debug.log
 yarn-error.log

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { routes } from '../app.routes';
-import { ROUTE_BIENS, ROUTE_COMPARAISON, ROUTE_EXPORT, routeFicheBien } from './carnet.routes';
+import {
+  ROUTE_BIENS,
+  ROUTE_COMPARAISON,
+  ROUTE_EXPORT,
+  routeCommenterBien,
+  routeFicheBien,
+} from './carnet.routes';
 
 /**
  * Les adresses des écrans sont composées à un seul endroit (#124), et ces
@@ -34,6 +40,14 @@ describe('les routes du carnet', () => {
     // correspondance des trois autres entrées se faisant par préfixe.
     expect(routeFicheBien(3).startsWith('/biens/')).toBe(true);
     expect(routes.map((route) => route.path)).toContain('biens/:id');
+  });
+
+  it('range l’écran de saisie d’un Commentaire sous la fiche', () => {
+    // C'est ce Bien-là qu'on commente, et l'adresse le dit. La navigation
+    // s'appuie dessus pour ne proposer « Commenter » que sur la fiche
+    // elle-même, et non pendant qu'on commente.
+    expect(routeCommenterBien(3)).toBe(`${routeFicheBien(3)}/commenter`);
+    expect(routes.map((route) => route.path)).toContain('biens/:id/commenter');
   });
 
   it('protège les trois écrans du carnet par le garde de session', () => {

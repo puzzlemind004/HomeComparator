@@ -1,0 +1,187 @@
+<!--
+  L'écran où s'écrit un Commentaire, celui qu'on ouvre pendant la visite.
+
+  L'ordre des champs est celui du geste : la photo d'abord — c'est elle qu'on
+  vient prendre —, les étoiles ensuite, le texte enfin. Les trois sont
+  facultatifs, et le bouton n'attend qu'un seul d'entre eux.
+-->
+<section class="commenter">
+  <a class="retour" [routerLink]="routeFiche">← Retour à la fiche</a>
+
+  <!--
+    L'en-tête des écrans du carnet : l'intitulé capitalisé, puis le titre. Le
+    Libellé du Bien y figure parce qu'on arrive ici par la barre de
+    navigation, parfois sans avoir la fiche sous les yeux — commenter le
+    mauvais Bien pendant une visite en série ne se repère qu'un mois plus tard.
+  -->
+  <header class="carnet__entete">
+    <p class="carnet__intitule">Commenter</p>
+    <div class="carnet__titre">
+      <h1>{{ libelle() }}</h1>
+    </div>
+  </header>
+
+  <!--
+    Un `form` et non trois champs posés côte à côte : la touche Entrée y
+    enregistre, un lecteur d'écran l'annonce comme un formulaire, et le bouton
+    de soumission est celui que le navigateur atteint au clavier.
+  -->
+  <form class="commenter__formulaire" (ngSubmit)="enregistrer()">
+    <fieldset class="commenter__bloc">
+      <legend>Photo</legend>
+
+      @if (apercu(); as apercu) {
+        <!--
+          Ce qu'on vient de prendre, avant d'enregistrer. Sans cet aperçu,
+          l'appareil photo se refermerait sur un écran inchangé et l'acheteur
+          ne saurait pas si son cliché est passé.
+        -->
+        <figure class="commenter__apercu">
+          <img [src]="apercu" alt="La photo choisie pour ce commentaire" />
+          <figcaption>{{ nomPhoto() }}</figcaption>
+        </figure>
+
+        <button type="button" class="commenter__retirer" (click)="retirerPhoto()">
+          Retirer la photo
+        </button>
+      } @else {
+        <!--
+          Deux gestes distincts, et c'est voulu : « Prendre une photo » ouvre
+          l'appareil directement — `capture` le demande —, « Choisir dans la
+          galerie » ouvre la photothèque. Un champ unique laisserait le
+          navigateur proposer un menu, soit un appui de plus au moment précis
+          où l'on est debout devant le mur qu'on veut photographier.
+
+          Un `label` habillé en bouton avec l'`input` masqué derrière : c'est
+          le couple que les navigateurs mobiles reconnaissent. Un bouton qui
+          déclencherait l'`input` par script perdrait l'appareil sur une
+          partie d'entre eux.
+        -->
+        <div class="commenter__photo">
+          <label class="commenter__bouton commenter__bouton--photo">
+            Prendre une photo
+            <input
+              type="file"
+              class="commenter__champ-fichier"
+              accept="image/jpeg,image/png,image/webp"
+              capture="environment"
+              [disabled]="envoi()"
+              (change)="choisirPhoto($event)"
+            />
+          </label>
+
+          <label class="commenter__bouton commenter__bouton--discret">
+            Choisir dans la galerie
+            <input
+              type="file"
+              class="commenter__champ-fichier"
+              accept="image/jpeg,image/png,image/webp"
+              [disabled]="envoi()"
+              (change)="choisirPhoto($event)"
+            />
+          </label>
+        </div>
+
+        <!--
+          Ce que la photo devient : elle rejoint la galerie du Bien. Le dire
+          ici évite de la chercher plus tard ailleurs que là où elle est
+          (ADR-0014).
+        -->
+        <p class="commenter__precision">
+          La photo rejoint aussi la galerie du Bien.
+        </p>
+      }
+    </fieldset>
+
+    <fieldset class="commenter__bloc">
+      <!--
+        Les cinq étoiles.
+
+        Des boutons et non un `input[type=range]` ni cinq cases : une note se
+        donne d'un appui sur la bonne étoile, et le curseur demande de viser.
+        `aria-pressed` dit lesquelles sont posées — le symbole seul ne se lit
+        pas (ADR-0005).
+      -->
+      <legend>Appréciation</legend>
+
+      <div class="commenter__etoiles">
+        @for (etoile of etoiles; track etoile) {
+          <button
+            type="button"
+            class="commenter__etoile"
+            [class.commenter__etoile--pleine]="saisie().note !== null && etoile <= saisie().note!"
+            [attr.aria-pressed]="saisie().note !== null && etoile <= saisie().note!"
+            [disabled]="envoi()"
+            (click)="noter(etoile)"
+          >
+            <span aria-hidden="true">★</span>
+            <span class="commenter__lecture">{{ etoile }} étoile{{ etoile > 1 ? 's' : '' }}</span>
+          </button>
+        }
+      </div>
+
+      <!--
+        Comment on revient sur une note posée de travers. Sans cette phrase, le
+        seul moyen serait de quitter l'écran et de tout recommencer : rien à
+        l'écran ne dit qu'une étoile se rappuie.
+      -->
+      <p class="commenter__precision">
+        @if (saisie().note !== null) {
+          Appuyer de nouveau sur la {{ saisie().note }}<sup>e</sup> étoile retire l'appréciation.
+        } @else {
+          Facultative, comme le reste.
+        }
+      </p>
+    </fieldset>
+
+    <div class="commenter__bloc">
+      <label class="commenter__intitule-champ" for="texte">Ce qu'on en retient</label>
+
+      <!--
+        Un `textarea` et non un champ d'une ligne : ce qu'on note pendant une
+        visite tient en trois lignes plus souvent qu'en cinq mots, et une
+        ligne unique ferait défiler le texte sous le curseur.
+      -->
+      <textarea
+        id="texte"
+        class="commenter__texte"
+        rows="4"
+        placeholder="La salle de bain est à refaire, mais la vue est dégagée."
+        [disabled]="envoi()"
+        [ngModel]="saisie().texte"
+        (ngModelChange)="ecrire($event)"
+        name="texte"
+      ></textarea>
+    </div>
+
+    @if (erreurs().length) {
+      <ul class="commenter__erreurs" role="alert">
+        @for (erreur of erreurs(); track erreur) {
+          <li>{{ erreur }}</li>
+        }
+      </ul>
+    }
+
+    <!--
+      Le bouton qui referme le geste : il enregistre et ramène à la fiche, où
+      le carrousel montre ce qu'on vient d'écrire.
+
+      Désactivé tant que rien n'est saisi : un Commentaire vide ne dirait
+      rien, et l'API le refuserait — mieux vaut que le bouton le dise avant
+      l'aller-retour.
+    -->
+    <div class="commenter__actions">
+      <button type="submit" class="commenter__bouton" [disabled]="envoi() || !renseigne()">
+        {{ envoi() ? 'Enregistrement…' : 'Ajouter le commentaire' }}
+      </button>
+
+      <a class="commenter__bouton commenter__bouton--discret" [routerLink]="routeFiche">Annuler</a>
+    </div>
+
+    @if (!renseigne()) {
+      <p class="commenter__precision">
+        Une photo, une appréciation ou quelques mots : l'un des trois suffit.
+      </p>
+    }
+  </form>
+</section>

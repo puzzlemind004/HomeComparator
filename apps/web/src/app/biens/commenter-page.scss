@@ -1,0 +1,222 @@
+@use '../carnet';
+
+// L'écran où s'écrit un Commentaire, celui qu'on ouvre pendant la visite.
+//
+// Tout y est dimensionné pour le pouce, debout dans une pièce : les cibles
+// font 44px au moins, la photo occupe la largeur, et le bouton qui referme le
+// geste est le dernier élément de la page — celui que le pouce atteint sans
+// remonter.
+@include carnet.entete;
+
+.commenter {
+  display: grid;
+  gap: var(--espace-4);
+  // L'écran n'a que trois champs : les étaler sur toute la largeur d'un
+  // ordinateur éloignerait les étoiles du texte qu'elles accompagnent.
+  max-width: 40rem;
+}
+
+.retour {
+  color: var(--accent);
+  display: inline-block;
+  font-size: 0.875rem;
+}
+
+.commenter__formulaire {
+  display: grid;
+  gap: var(--espace-6);
+}
+
+// Chaque champ dans son bloc : un `fieldset` pour la photo et les étoiles,
+// qui sont des groupes de boutons et ont besoin d'une `legend` pour se
+// nommer, un `div` pour le texte, que son `label` suffit à nommer.
+.commenter__bloc {
+  border: none;
+  display: grid;
+  gap: var(--espace-3);
+  justify-items: start;
+  margin: 0;
+  padding: 0;
+
+  legend,
+  .commenter__intitule-champ {
+    @include carnet.intitule;
+
+    color: var(--accent-700);
+    padding: 0;
+  }
+}
+
+.commenter__photo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-3);
+}
+
+// Le bouton du carnet : plein pour le geste principal, cerné pour le second.
+.commenter__bouton {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--rayon);
+  // Le texte est clair parce que le fond est sombre, non parce qu'un jeton
+  // le dit.
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--fonte-titre);
+  font-size: 1rem;
+  font-weight: 600;
+  // Une cible d'au moins 44px de haut : c'est le pouce qui appuie (ADR-0005).
+  min-height: 2.75rem;
+  padding: 0.75rem 1.25rem;
+  text-align: center;
+  text-decoration: none;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+// « Prendre une photo » est le geste qu'on vient faire : il est le plus large
+// des deux, et le premier sous le pouce.
+.commenter__bouton--photo {
+  flex: 1 1 14rem;
+}
+
+.commenter__bouton--discret {
+  background: transparent;
+  border-color: var(--separateur);
+  color: var(--texte);
+
+  &:hover {
+    background: var(--neutre-200);
+  }
+}
+
+// L'`input` reste dans le DOM et atteignable au clavier — c'est le `label`
+// qui l'habille —, mais il ne se voit pas : un champ de fichier nu ne se
+// met pas en forme, et son bouton natif porte un texte anglais.
+.commenter__champ-fichier {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.commenter__apercu {
+  display: grid;
+  gap: var(--espace-2);
+  justify-items: start;
+  margin: 0;
+  width: 100%;
+
+  img {
+    border: 1px solid var(--separateur);
+    border-radius: var(--rayon-lg);
+    display: block;
+    // Bornée en hauteur : une photo de portrait prise au téléphone
+    // remplirait sinon l'écran entier et pousserait les étoiles hors de vue.
+    max-height: 18rem;
+    object-fit: cover;
+    width: 100%;
+  }
+
+  figcaption {
+    color: var(--neutre-700);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+}
+
+.commenter__retirer {
+  background: transparent;
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon);
+  color: var(--texte);
+  cursor: pointer;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+}
+
+.commenter__etoiles {
+  display: flex;
+  gap: var(--espace-2);
+}
+
+// Une étoile : grande, parce qu'on vise au pouce et qu'une note posée de
+// travers est le genre d'erreur qu'on ne remarque pas.
+.commenter__etoile {
+  background: transparent;
+  border: none;
+  color: var(--neutre-400);
+  cursor: pointer;
+  font-size: 2rem;
+  height: 2.75rem;
+  line-height: 1;
+  padding: 0;
+  width: 2.75rem;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+.commenter__etoile--pleine {
+  color: var(--accent);
+}
+
+.commenter__texte {
+  background: var(--neutre-100);
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon);
+  color: var(--texte);
+  font-family: var(--fonte-texte);
+  font-size: 1rem;
+  padding: var(--espace-3);
+  // Un `textarea` ne suit pas la largeur de sa grille sans qu'on le lui dise.
+  width: 100%;
+}
+
+// Ce que l'écran précise sans en faire un titre : où va la photo, comment on
+// retire une étoile, pourquoi le bouton est éteint.
+.commenter__precision {
+  color: var(--neutre-700);
+  font-size: 12px;
+  margin: 0;
+}
+
+.commenter__erreurs {
+  border: 1px solid var(--separateur);
+  border-left: 3px solid var(--erreur);
+  border-radius: var(--rayon);
+  color: var(--erreur);
+  font-size: 14px;
+  list-style: none;
+  margin: 0;
+  padding: var(--espace-3) var(--espace-4);
+}
+
+.commenter__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-3);
+
+  // « Ajouter le commentaire » prend la largeur sur un téléphone : c'est le
+  // geste qui referme, et il ne doit pas se viser.
+  .commenter__bouton {
+    flex: 1 1 12rem;
+  }
+}
+
+// Lu par les lecteurs d'écran, invisible à l'œil : une étoile ne se lit pas.
+.commenter__lecture {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}

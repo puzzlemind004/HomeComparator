@@ -5,6 +5,7 @@ import { BiensPage } from './biens/biens-page';
 import { ComparaisonPage } from './biens/comparaison-page';
 import { ExportPage } from './biens/export-page';
 import { FicheBienPage } from './biens/fiche-bien-page';
+import { CommenterPage } from './biens/commenter-page';
 import { ROUTE_COMPARAISON, ROUTE_EXPORT } from './biens/carnet.routes';
 
 /**
@@ -55,6 +56,21 @@ export const routes: Routes = [
     // Le Libellé titrerait mieux l'onglet, mais il n'est connu qu'une fois
     // la fiche chargée : le titre se fixe avant.
     title: 'Fiche du Bien — HomeComparator',
+  },
+  {
+    /**
+     * L'écran où s'écrit un Commentaire, sous la fiche du Bien qu'il
+     * concerne : c'est ce Bien-là qu'on commente, et l'adresse le dit.
+     *
+     * Un écran et non un formulaire déplié dans la fiche : le geste se fait
+     * debout pendant une visite, l'appareil photo occupe l'écran entier, et
+     * revenir de la prise de vue au milieu d'une fiche longue ferait perdre
+     * l'endroit où l'on en était.
+     */
+    path: 'biens/:id/commenter',
+    component: CommenterPage,
+    canActivate: [authGuard],
+    title: 'Commenter — HomeComparator',
   },
   // Toute autre adresse ramène au carnet, donc à la connexion si la session
   // ne vaut pas : une page d'erreur n'apprendrait rien à l'unique acheteur.
