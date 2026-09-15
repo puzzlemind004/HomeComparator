@@ -1,1 +1,133 @@
-/* You can add global styles to this file, and also import other style files */
+// Les fontes sont chargées avec `display=swap` : le carnet s'affiche dans la
+// serif de secours et bascule à l'arrivée, plutôt que de retenir le texte.
+// Une recherche immobilière se consulte en visite, sur la connexion qu'on a.
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Lora:wght@400;600&display=swap');
+
+// Les jetons de la refonte : les couleurs, les fontes et les espacements dont
+// tous les écrans du carnet tirent leur allure.
+//
+// Ils vivent ici et non dans la feuille d'un composant parce qu'ils ne sont
+// à personne. L'encapsulation de vue d'Angular porte les styles au composant,
+// ce qui est le bon découpage pour une mise en page — mais une couleur d'accent
+// écrite dans six feuilles est six occasions de diverger, et c'est exactement
+// ce qu'ADR-0006 refuse entre le tableau et les cartes : les deux présentations
+// montrent les mêmes Biens, un Bien écarté doit s'y repérer pareil.
+//
+// Les valeurs viennent de la maquette « Carnet — refonte » et de son système
+// « Classical ». Elles s'y retouchent en un seul endroit, et rien ne les
+// recopie.
+
+// Les rampes sont générées en OKLCH sur une échelle de clarté partagée : le
+// même palier de deux rôles différents pèse le même poids visuel à l'œil.
+// C'est ce qui permet d'écrire `--neutre-700` pour un texte secondaire sans
+// vérifier son contraste à chaque emploi.
+:root {
+  --fond: #f3f2f2;
+  --surface: #eae9e9;
+  --texte: #201f1d;
+  --accent: #b68235;
+  --separateur: color-mix(in srgb, #201f1d 16%, transparent);
+
+  --neutre-100: #f8f4f4;
+  --neutre-200: #eae7e7;
+  --neutre-300: #d7d3d3;
+  --neutre-400: #bab6b6;
+  --neutre-600: #7d7979;
+  --neutre-700: #605d5d;
+  --neutre-800: #444141;
+  --neutre-900: #2d2b2b;
+
+  --accent-100: #fff3e4;
+  --accent-200: #ffe3bf;
+  --accent-300: #facb8d;
+  --accent-400: #e1ad66;
+  --accent-700: #7d5411;
+  --accent-800: #5a3b0a;
+
+  // Deux familles, et la distinction porte : la serif nomme — un Libellé, un
+  // titre, ce sous quoi l'acheteur reconnaît un Bien — là où la seconde
+  // énonce. Un carnet de recherche se lit comme des notes prises à la main,
+  // pas comme un formulaire.
+  --fonte-titre: 'Cormorant Garamond', Georgia, serif;
+  --fonte-texte: 'Lora', Georgia, serif;
+
+  --espace-1: 4.6px;
+  --espace-2: 9.2px;
+  --espace-3: 13.8px;
+  --espace-4: 18.4px;
+  --espace-6: 27.6px;
+  --espace-8: 36.8px;
+
+  --rayon: 4px;
+  --rayon-lg: 7px;
+
+  // Le rouge des pannes. Le système « Classical » n'en porte pas : il est
+  // dessiné pour des pages qui présentent, non pour une application qui
+  // échoue. Celui-ci est choisi pour tenir à côté de l'accent doré sans le
+  // contredire — assez sombre pour rester lisible sur le fond clair, assez
+  // franc pour ne pas se lire comme une teinte du carnet.
+  //
+  // Il ne sert qu'à ce qui empêche : l'API muette, un export qui n'a pas
+  // abouti, un formulaire refusé. Ce qui manque à un Bien n'est pas une
+  // erreur — c'est ce qu'il reste à demander, et cela s'écrit en doré (#6).
+  --erreur: #b3261e;
+
+  --ombre-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
+  --ombre-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--fond);
+  color: var(--texte);
+  font-family: var(--fonte-texte);
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--fonte-titre);
+  letter-spacing: -0.015em;
+  line-height: 1.12;
+  margin: 0 0 var(--espace-2);
+}
+
+// Les titres du carnet ne sont pas gras : à ces tailles, la Cormorant tient
+// l'écran par son dessin. Le gras est réservé à ce qui doit s'attraper dans
+// une liste, et un titre n'a pas à lutter avec les Libellés sous lui.
+h1 {
+  font-size: 34px;
+  font-weight: 400;
+}
+
+h2 {
+  font-size: 26px;
+  font-weight: 400;
+}
+
+h3 {
+  font-size: 21px;
+  font-weight: 600;
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}

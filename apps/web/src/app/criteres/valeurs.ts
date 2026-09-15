@@ -39,3 +39,51 @@ export function estRenseigne(valeur: ValeurCritere | undefined): boolean {
 export function criteresNonRenseignes(valeurs: ValeursCriteres) {
   return CRITERES_ORDONNES.filter((critere) => !estRenseigne(valeurs[critere.id]));
 }
+
+/**
+ * Où en est la saisie d'un Bien : combien de Critères sont renseignés, sur
+ * combien, et la part que cela représente.
+ *
+ * La refonte le montre partout — une barre sous chaque carte du carnet, un
+ * encart sur la fiche, une colonne du tableau, la progression de l'assistant
+ * — parce que c'est la question que se pose l'acheteur en rouvrant son
+ * carnet : non pas « qu'ai-je vu », mais « que me manque-t-il pour décider ».
+ *
+ * Le calcul vit ici, à côté de `criteresNonRenseignes` dont il est le
+ * décompte, et non dans les écrans qui l'affichent. Quatre d'entre eux le
+ * montrent : écrit quatre fois, un Critère ajouté à la définition aurait fait
+ * dire « 11 / 16 » à l'un et « 11 / 15 » à l'autre sur le même Bien.
+ *
+ * Le total sort de `CRITERES_ORDONNES` et n'est pas un nombre écrit à la
+ * main, pour la raison qu'ADR-0004 donne : ajouter un Critère ne doit
+ * retoucher aucun écran.
+ */
+export interface Completude {
+  /** Combien de Critères portent une valeur, zéro compris. */
+  renseignes: number;
+
+  /** Combien la définition en compte — le dénominateur affiché. */
+  total: number;
+
+  /**
+   * La part renseignée, entre 0 et 1, dont la barre tire sa largeur.
+   *
+   * Un carnet sans aucun Critère défini rendrait 0 plutôt qu'une division
+   * par zéro. Le cas ne se produit pas — la définition n'est jamais vide —
+   * mais une barre de progression n'a pas à faire tomber l'écran si elle le
+   * devenait.
+   */
+  part: number;
+}
+
+/** Où en est la saisie de ce Bien. */
+export function completude(valeurs: ValeursCriteres): Completude {
+  const total = CRITERES_ORDONNES.length;
+  const renseignes = total - criteresNonRenseignes(valeurs).length;
+
+  return {
+    renseignes,
+    total,
+    part: total === 0 ? 0 : renseignes / total,
+  };
+}

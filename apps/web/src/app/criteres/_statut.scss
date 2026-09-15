@@ -11,31 +11,43 @@
 // découpage pour six déclarations. Le mixin les émet dans la feuille de
 // chacun, qui garde la main sur ce qui lui est propre — la mise en page.
 //
-// Les teintes ne sont pas arbitraires : les deux sorties se distinguent des
-// étapes — Écarté est une décision de l'acheteur, Vendu un fait extérieur, et
-// ni l'un ni l'autre n'attend plus rien — et « Offre faite » est l'étape où
-// quelque chose se joue, donc celle qui se repère d'un coup d'œil.
+// Les teintes ne sont pas arbitraires, et depuis la refonte elles sont trois
+// et non six : le gris de l'étape ordinaire, l'accent de « Offre faite » —
+// la seule étape où quelque chose se joue —, et l'effacement des deux
+// sorties, qui n'attendent plus rien.
+//
+// Six teintes distinctes faisaient du Statut la chose la plus colorée d'une
+// liste de Biens, alors qu'il n'est pas ce qu'on y compare (ADR-0002). Ce que
+// l'acheteur doit repérer d'un coup d'œil, c'est le Bien sur lequel il a fait
+// une offre ; le reste se lit.
 @mixin pastille {
-  background: #f1f5f9;
-  border-radius: 999px;
-  color: #475569;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.15rem 0.6rem;
+  background: var(--neutre-100);
+  border: 1px solid transparent;
+  border-radius: calc(var(--rayon) * 0.75);
+  color: var(--neutre-800);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  padding: 3px 10px;
   white-space: nowrap;
 
-  &[data-statut='ecarte'] {
-    background: #fef2f2;
-    color: #991b1b;
-  }
-
-  &[data-statut='vendu'] {
-    background: #f5f3ff;
-    color: #5b21b6;
-  }
-
+  // « Offre faite » est l'étape où quelque chose se joue : c'est la seule qui
+  // porte l'accent, et elle se repère d'un coup d'œil dans une liste. Cernée
+  // plutôt que remplie, comme la maquette la pose — un aplat dans une colonne
+  // de pastilles grises tirerait l'œil plus que le Libellé du Bien.
   &[data-statut='offreFaite'] {
-    background: #ecfdf5;
-    color: #065f46;
+    background: transparent;
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  // Les deux sorties s'effacent : ni l'une ni l'autre n'attend plus rien, et
+  // le carnet les garde pour mémoire. Elles se distinguent entre elles par
+  // leur libellé — « Écarté » est une décision de l'acheteur, « Vendu » un
+  // fait extérieur —, ce que deux teintes proches ne diraient pas mieux.
+  &[data-statut='ecarte'],
+  &[data-statut='vendu'] {
+    background: transparent;
+    border-color: var(--separateur);
+    color: var(--neutre-600);
   }
 }

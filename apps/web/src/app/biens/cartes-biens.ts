@@ -4,6 +4,7 @@ import type { Bien } from './bien';
 import { COLONNES_DECISIVES, caseDe, type CaseColonne } from '../criteres/colonnes';
 import { TRI_INITIAL, trier } from '../criteres/tri';
 import { libelleStatut, type Statut } from '../criteres/statut';
+import { completude, type Completude } from '../criteres/valeurs';
 import { MAXIMUM_MOBILE } from '../criteres/selection-comparaison';
 
 /** Une carte : un Bien, tel qu'un écran étroit le montre. */
@@ -22,13 +23,20 @@ export interface Carte {
   cases: CaseColonne[];
 
   /**
-   * Combien de ces Colonnes restent à renseigner.
+   * Où en est la saisie de ce Bien, que la barre sous les Colonnes affiche.
    *
-   * Trois cases vides le disent en creux à l'œil ; elles ne s'entendent pas.
-   * Le compte est ce que la carte annonce au lecteur d'écran (ADR-0005), et
-   * ce qui évite de faire lire trois tirets à la suite.
+   * Elle porte sur tous les Critères de la définition et non sur les quatre
+   * Colonnes décisives de la carte : ce que l'acheteur veut savoir est ce
+   * qu'il lui reste à demander à l'agence (#6), pas quelle part de la carte
+   * est remplie. Une carte dont les quatre Colonnes sont pleines peut fort
+   * bien laisser onze Critères en attente, et c'est cela que l'acheteur doit
+   * voir en rouvrant son carnet.
+   *
+   * Elle remplace le compte des Colonnes décisives manquantes que la carte
+   * annonçait au lecteur d'écran : il décrivait la carte plutôt que le Bien,
+   * et « à demander » est désormais écrit dans chaque case vide, donc lu.
    */
-  manquants: number;
+  completude: Completude;
 
   /** Vrai quand le Bien fait partie de ceux qu'on compare face à face (#12). */
   selectionne: boolean;
@@ -64,11 +72,14 @@ export interface Carte {
  * plutôt que côte à côte, et c'est lui qui permet de situer celui qu'on
  * regarde sans avoir l'autre sous les yeux.
  *
- * **La photo n'y est pas encore.** Le ticket la demande « si elle existe »,
- * et aucune n'existe : les photos sont l'objet de #13, qui n'est pas livré et
- * dont le modèle `Bien` ne porte aucun champ. La carte est dessinée pour
- * l'accueillir — c'est ce que demande le critère « les cartes restent
- * lisibles sans photo », qui décrit exactement l'état livré ici.
+ * **La photo est en tête de carte** depuis #13, en bandeau, et seulement si
+ * le Bien en porte une. La carte se lit sans elle, ce qu'#11 demandait
+ * explicitement : c'est le Libellé qui fait reconnaître un Bien, la photo qui
+ * le confirme.
+ *
+ * La barre de complétude sous les Colonnes dit où en est la saisie du Bien
+ * (#6). Elle ne porte pas sur les Colonnes de la carte mais sur la définition
+ * entière : c'est la question que se pose l'acheteur en rouvrant son carnet.
  *
  * Le composant ne décide de rien qu'il puisse déléguer : les Colonnes
  * décisives viennent de `colonnes.ts`, l'ordre des cartes de `trier`, et
@@ -188,7 +199,7 @@ export class CartesBiens {
         statut: bien.statut,
         libelleStatut: libelleStatut(bien.statut),
         cases,
-        manquants: cases.filter((donnee) => !donnee.renseigne).length,
+        completude: completude(bien.criteres),
         selectionne,
         // Un Bien déjà retenu garde sa case active : le plafond borne
         // l'ajout, jamais le retrait.

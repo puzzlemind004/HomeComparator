@@ -32,7 +32,7 @@ table {
 
 th,
 td {
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--separateur);
   padding: 0.5rem 0.75rem;
   text-align: left;
   vertical-align: top;
@@ -50,7 +50,7 @@ table {
 }
 
 .comparaison__critere {
-  color: #475569;
+  color: var(--neutre-800);
   font-size: 0.875rem;
   font-weight: 600;
   width: 11rem;
@@ -65,7 +65,7 @@ table {
   display: table-cell;
 
   a {
-    color: #1d4ed8;
+    color: var(--accent);
     display: block;
     font-weight: 600;
     // Un libellé long ne doit pas élargir sa colonne au détriment des
@@ -101,27 +101,32 @@ table {
 
 // La meilleure valeur de la ligne.
 //
-// Un fond et un texte appuyé, et non la seule couleur du texte : la
-// distinction doit rester visible pour qui distingue mal le vert, et le
-// contraste du texte sur ce fond reste au-dessus du seuil AA (ADR-0005). Le
-// mot « meilleure valeur » est écrit à côté pour le lecteur d'écran, à qui
-// aucun fond ne dit rien.
+// Un liseré doré à gauche, et non la seule couleur du texte : la distinction
+// doit rester visible pour qui distingue mal les teintes, et un trait se voit
+// là où une nuance se discute. C'est ce que la maquette pose, et ce qu'elle
+// explique d'une phrase sous le tableau — « le liseré doré marque la
+// meilleure valeur de la ligne ».
+//
+// Le mot « meilleure valeur » est écrit à côté pour le lecteur d'écran, à qui
+// aucun liseré ne dit rien (ADR-0005).
 //
 // Plusieurs cases d'une ligne peuvent la porter : c'est ainsi qu'une égalité
 // se traite, sans désigner arbitrairement un gagnant (#12).
 .comparaison__meilleure {
-  background: #ecfdf5;
-  color: #065f46;
+  border-left: 2px solid var(--accent);
+  color: var(--accent-700);
   font-weight: 600;
+  // Le texte s'écarte du liseré, faute de quoi il s'y colle — visible sur une
+  // valeur courte comme une lettre de DPE, qui est alignée à gauche.
+  padding-left: var(--espace-2);
 }
 
-// Une case non renseignée, marquée comme dans le tableau : le tiret dit
-// « rien ici », et le fond dit qu'il reste quelque chose à demander (#6).
+// Une case non renseignée, marquée comme dans le tableau et sur les cartes :
+// « à demander » souligné de pointillés dorés, parce que c'est une tâche pour
+// l'acheteur et non une donnée perdue (#6).
+//
 // Elle n'est jamais mise en évidence — l'absence n'est pas une petite valeur.
-.comparaison__absent {
-  background: #fefce8;
-}
-
 .comparaison__manquant {
-  color: #a16207;
+  border-bottom: 1px dashed var(--accent-400);
+  color: var(--accent-700);
 }

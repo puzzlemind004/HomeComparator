@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { criteresNonRenseignes, estRenseigne } from './valeurs';
+import { completude, criteresNonRenseignes, estRenseigne } from './valeurs';
 
 /**
  * La distinction entre « non renseigné » et « renseigné à zéro » : c'est
@@ -52,5 +52,44 @@ describe('les Critères non renseignés', () => {
     // L'API peut rendre des champs que la définition ne connaît pas — l'id,
     // les dates : ils ne doivent pas se retrouver dans la liste.
     expect(criteresNonRenseignes({ id: 1, createdAt: 'hier' })).toHaveLength(15);
+  });
+});
+
+/**
+ * La complétude : ce que la refonte montre sur chaque carte, sur la fiche et
+ * dans le tableau. Elle répond à la question que l'acheteur se pose en
+ * rouvrant son carnet — non pas « qu'ai-je vu », mais « que me manque-t-il
+ * pour décider ».
+ */
+describe('la complétude', () => {
+  it('est nulle sur un Bien qui vient d’être créé', () => {
+    const { renseignes, part } = completude({});
+
+    expect(renseignes).toBe(0);
+    expect(part).toBe(0);
+  });
+
+  it('compte sur le total des Critères définis', () => {
+    // Le dénominateur sort de la définition et n'est pas écrit à la main :
+    // un Critère ajouté doit se voir dans le compte sans qu'aucun écran soit
+    // retouché (ADR-0004).
+    expect(completude({}).total).toBe(criteresNonRenseignes({}).length);
+  });
+
+  it('compte un Critère renseigné à zéro', () => {
+    // Zéro place de stationnement est une information : le Bien est renseigné
+    // sur ce point, et la barre doit avancer.
+    expect(completude({ capaciteStationnement: 0 }).renseignes).toBe(1);
+  });
+
+  it('ne compte pas un champ effacé', () => {
+    expect(completude({ villeQuartier: '' }).renseignes).toBe(0);
+  });
+
+  it('rend la part que la barre affiche', () => {
+    const { total } = completude({});
+    const { part } = completude({ prixDemande: 249000, surfaceHabitable: 76.2 });
+
+    expect(part).toBeCloseTo(2 / total);
   });
 });

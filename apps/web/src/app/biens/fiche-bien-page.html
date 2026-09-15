@@ -17,7 +17,7 @@
         <p class="manquants">
           @if (nombreManquants()) {
             <span class="manquants__nombre">{{ nombreManquants() }}</span>
-            Critère{{ nombreManquants() > 1 ? 's' : '' }} à renseigner
+            Critère{{ nombreManquants() > 1 ? 's' : '' }} à demander à l'agence
           } @else {
             Tous les Critères sont renseignés.
           }
@@ -28,6 +28,24 @@
             </button>
           }
         </p>
+
+        <!--
+          Où en est la saisie, dite par l'autre bout : le compte au-dessus
+          décroît à mesure qu'on remplit, la jauge avance. C'est elle qui
+          montre qu'un carnet progresse.
+
+          Elle est décorative — le compte juste au-dessus et le rapport à
+          droite disent la même chose en toutes lettres, et un `progressbar`
+          ARIA se ferait annoncer une troisième fois (ADR-0005).
+        -->
+        <div class="completude">
+          <div class="completude__jauge" aria-hidden="true">
+            <span [style.width.%]="completude().part * 100"></span>
+          </div>
+          <span class="completude__compte">
+            {{ completude().renseignes }} / {{ completude().total }}
+          </span>
+        </div>
 
         @if (erreurs().length) {
           <ul class="erreurs" role="alert">
@@ -55,10 +73,7 @@
                   }
                 </div>
               } @else {
-                <form
-                  class="assistant__saisie"
-                  (ngSubmit)="repondreQuestion(reponse)"
-                >
+                <form class="assistant__saisie" (ngSubmit)="repondreQuestion(reponse)">
                   <label>
                     <span class="visuellement-cache">{{ question.libelle }}</span>
                     <input
@@ -302,9 +317,9 @@
           <h3>Supprimer ce Bien</h3>
 
           <p class="suppression__avertissement">
-            La suppression est définitive : le Bien et tout ce qui a été noté
-            à son sujet disparaissent, sans restauration possible. Pour
-            écarter un Bien en gardant sa trace, changez son Statut.
+            La suppression est définitive : le Bien et tout ce qui a été noté à son sujet
+            disparaissent, sans restauration possible. Pour écarter un Bien en gardant sa trace,
+            changez son Statut.
           </p>
 
           @if (!confirmationSuppression()) {
@@ -326,9 +341,7 @@
               disposition — l'ordre écrit ici en est le fondement, et
               l'inverser la retournerait.
             -->
-            <p class="suppression__question">
-              Supprimer définitivement « {{ libelle() }} » ?
-            </p>
+            <p class="suppression__question">Supprimer définitivement « {{ libelle() }} » ?</p>
 
             <div class="suppression__actions">
               <button
@@ -357,8 +370,8 @@
 
             @if (enregistrement()) {
               <p class="suppression__attente">
-                Un Critère est en cours d'enregistrement : la suppression sera
-                possible dès qu'il sera écrit.
+                Un Critère est en cours d'enregistrement : la suppression sera possible dès qu'il
+                sera écrit.
               </p>
             }
 

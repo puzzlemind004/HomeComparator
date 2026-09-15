@@ -1,32 +1,48 @@
-<main class="page">
-  <header class="entete">
-    <h1>{{ title() }}</h1>
+<!--
+  La coque du carnet : la barre de marque, puis l'écran courant.
 
-    @if (authentifie()) {
+  La marque est une barre et non plus un titre de page (`h1`) : chaque écran
+  porte désormais le sien — « Mes Biens », « Photos », le Libellé d'un Bien —
+  et deux titres de premier rang sur une page en feraient un de trop pour le
+  lecteur d'écran (ADR-0005). La marque nomme l'application ; le titre nomme
+  ce qu'on regarde.
+-->
+<div class="coque">
+  <!--
+    La barre ne paraît qu'une fois connecté. L'écran de connexion porte déjà
+    le nom du produit en grand, et le répéter au-dessus en ferait deux fois
+    le même mot sur le seul écran qui n'a rien d'autre à montrer.
+  -->
+  @if (authentifie()) {
+    <header class="marque">
+      <span class="marque__nom">{{ title() }}</span>
+
       <button type="button" class="deconnexion" (click)="deconnecter()">Se déconnecter</button>
-    }
-  </header>
-
-  <router-outlet />
-
-  @if (health(); as health) {
-    @if (health.reachable) {
-      <section class="health" [class.health--ko]="health.status !== 'ok'">
-        <h2>État du service</h2>
-        <dl>
-          <dt>API</dt>
-          <dd>{{ health.status }}</dd>
-          <dt>Base de données</dt>
-          <dd>{{ health.database }}</dd>
-        </dl>
-      </section>
-    } @else {
-      <section class="health health--ko">
-        <h2>État du service</h2>
-        <p>API injoignable.</p>
-      </section>
-    }
-  } @else {
-    <p class="health health--pending">Interrogation de l'API…</p>
+    </header>
   }
-</main>
+
+  <main class="page">
+    <router-outlet />
+
+    @if (health(); as health) {
+      @if (health.reachable) {
+        <section class="health" [class.health--ko]="health.status !== 'ok'">
+          <h2>État du service</h2>
+          <dl>
+            <dt>API</dt>
+            <dd>{{ health.status }}</dd>
+            <dt>Base de données</dt>
+            <dd>{{ health.database }}</dd>
+          </dl>
+        </section>
+      } @else {
+        <section class="health health--ko">
+          <h2>État du service</h2>
+          <p>API injoignable.</p>
+        </section>
+      }
+    } @else {
+      <p class="health health--pending">Interrogation de l'API…</p>
+    }
+  </main>
+</div>

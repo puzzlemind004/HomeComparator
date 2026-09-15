@@ -87,14 +87,13 @@
               l'accompagne n'est écrit que sur les cases qui la portent : une
               couleur seule ne s'entend pas (ADR-0005).
 
-              Une case non renseignée se distingue par sa classe et non par
-              son texte, comme dans le tableau : c'est ce qu'il reste à
-              demander à l'agence (#6), et un zéro saisi ne doit pas s'y
-              confondre.
+              Une case non renseignée porte le mot « à demander », comme dans
+              le tableau et sur les cartes : c'est ce qu'il reste à obtenir de
+              l'agence (#6). La distinction se tire de `renseigne` et jamais
+              du texte — un zéro saisi s'écrit « 0 ».
             -->
             <td
               [class.comparaison__meilleure]="donnee.meilleure"
-              [class.comparaison__absent]="!donnee.renseigne"
               [class.comparaison__nombre]="
                 donnee.colonne.type === 'entier' || donnee.colonne.type === 'decimal'
               "
@@ -112,16 +111,15 @@
                   <span class="comparaison__lecture"> — meilleure valeur</span>
                 }
               } @else {
-                <span class="comparaison__manquant">
-                  <span aria-hidden="true">—</span>
-                  <!--
-                    Le tiret ne se lit pas : `aria-label` sur un `span` porte
-                    le rôle `generic`, que la spec ARIA interdit de nommer, et
-                    le lecteur d'écran annoncerait « tiret ». Le mot est donc
-                    écrit, puis masqué à l'œil.
-                  -->
-                  <span class="comparaison__lecture">non renseigné</span>
-                </span>
+                <!--
+                  « À demander » écrit en toutes lettres, là où un tiret devait
+                  être doublé d'un texte masqué pour être lu : le tiret ne
+                  s'annonce pas, et `aria-label` sur un `span` porte le rôle
+                  `generic` que la spec ARIA interdit de nommer. Le mot se lit
+                  maintenant à l'œil comme au lecteur d'écran, et il dit ce
+                  dont il s'agit — une tâche pour l'acheteur (#6).
+                -->
+                <span class="comparaison__manquant">à demander</span>
               }
             </td>
           }

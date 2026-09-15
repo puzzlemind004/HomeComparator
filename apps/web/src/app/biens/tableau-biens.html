@@ -172,12 +172,12 @@
 
           @for (donnee of ligne.cases; track donnee.colonne.id) {
             <!--
-              Une case non renseignée se distingue par sa classe et non par
-              son texte : c'est ce qu'il reste à demander à l'agence (#6), et
-              un zéro saisi ne doit pas s'y confondre.
+              Une case non renseignée porte le mot « à demander » et non la
+              valeur vide : c'est ce qu'il reste à obtenir de l'agence (#6).
+              La distinction se tire de `renseigne` et jamais du texte — un
+              zéro saisi s'écrit « 0 » et ne doit pas s'y confondre.
             -->
             <td
-              [class.tableau__absent]="!donnee.renseigne"
               [class.tableau__nombre]="
                 donnee.colonne.type === 'entier' || donnee.colonne.type === 'decimal'
               "
@@ -185,16 +185,16 @@
               @if (donnee.renseigne) {
                 {{ donnee.texte }}
               } @else {
-                <span class="tableau__manquant">
-                  <span aria-hidden="true">—</span>
-                  <!--
-                    Le tiret ne se lit pas : `aria-label` sur un `span` porte
-                    le rôle `generic`, que la spec ARIA interdit de nommer, et
-                    le lecteur d'écran annoncerait « tiret ». Le mot est donc
-                    écrit, puis masqué à l'œil comme la légende du tableau.
-                  -->
-                  <span class="tableau__lecture">non renseigné</span>
-                </span>
+                <!--
+                  « À demander » écrit en toutes lettres, là où un tiret
+                  devait être doublé d'un texte masqué pour être lu : le
+                  tiret ne s'annonce pas, et `aria-label` sur un `span` porte
+                  le rôle `generic` que la spec ARIA interdit de nommer.
+                  Le mot se lit maintenant à l'œil comme au lecteur d'écran,
+                  et il dit ce dont il s'agit — une tâche pour l'acheteur, et
+                  non une donnée absente (#6).
+                -->
+                <span class="tableau__manquant">à demander</span>
               }
             </td>
           }

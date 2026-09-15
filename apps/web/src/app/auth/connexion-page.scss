@@ -1,51 +1,121 @@
+@use '../carnet';
+
+// L'entrée du carnet, centrée dans la hauteur de l'écran.
+//
+// `min-height` en `svh` et non `vh` : sur un téléphone, `vh` compte la barre
+// d'adresse du navigateur comme si elle n'était pas là, et le bouton
+// « Entrer » se retrouve dessous au chargement. `svh` mesure la fenêtre
+// telle qu'elle est réellement au plus petit — c'est la seule des deux qui
+// garantisse que le formulaire tienne sans défiler.
+.connexion {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 70svh;
+}
+
+.connexion__intitule {
+  @include carnet.intitule;
+
+  color: var(--accent-700);
+  letter-spacing: 0.14em;
+  margin: 0;
+}
+
+// Le nom du produit, en grand et sur deux lignes comme la maquette le pose :
+// c'est un nom composé, et le couper à la jointure le fait lire d'un coup
+// plutôt que se déchiffrer.
+.connexion__marque {
+  font-size: 44px;
+  font-weight: 400;
+  line-height: 1.05;
+  margin: var(--espace-2) 0 0;
+}
+
+.connexion__filet {
+  background: var(--separateur);
+  border: 0;
+  height: 1px;
+  margin: var(--espace-6) 0;
+}
+
 .connexion__intro {
-  color: #64748b;
-  margin-top: 0;
+  color: var(--neutre-700);
+  font-size: 14px;
+  margin: 0 0 var(--espace-6);
+  // Le texte est justifié comme sur la maquette : c'est un paragraphe de
+  // présentation, court et sans lien, le seul du carnet où la justification
+  // ne crée pas de lézarde.
+  text-align: justify;
 }
 
 .saisie {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--espace-3);
 }
 
 .champ {
   display: grid;
-  gap: 0.25rem;
+  gap: 5px;
 
   span {
-    font-weight: 600;
+    color: var(--neutre-800);
+    font-size: 12px;
   }
 
   input {
-    border: 1px solid #cbd5e1;
-    border-radius: 0.375rem;
+    background: transparent;
+    border: 1px solid var(--separateur);
+    border-radius: var(--rayon);
+    caret-color: var(--accent);
     font: inherit;
-    padding: 0.5rem;
+    font-size: 14px;
+    min-height: 46px;
+    padding: var(--espace-2) var(--espace-3);
+
+    &:hover {
+      border-color: color-mix(in srgb, var(--texte) 45%, transparent);
+    }
+
+    &:focus-visible {
+      border-color: var(--accent);
+      outline-offset: 0;
+    }
   }
 }
 
+// Le bouton d'entrée prend toute la largeur : c'est le seul geste de l'écran,
+// et rien ne lui dispute la place. Ailleurs dans le carnet, un bouton pleine
+// largeur ferait croire à une action plus lourde qu'elle n'est.
 button {
-  background: #1d4ed8;
-  border: none;
-  border-radius: 0.375rem;
-  color: #fff;
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: var(--rayon);
+  color: var(--accent);
   cursor: pointer;
-  font: inherit;
+  font-family: var(--fonte-titre);
+  font-size: 14px;
   font-weight: 600;
-  justify-self: start;
-  padding: 0.5rem 1rem;
+  min-height: 50px;
+  padding: var(--espace-2) var(--espace-4);
+  width: 100%;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
 
   &:disabled {
-    background: #94a3b8;
     cursor: progress;
+    opacity: 0.45;
   }
 }
 
 .erreur {
-  border: 1px solid #fecaca;
-  border-left: 4px solid #dc2626;
-  border-radius: 0.5rem;
-  color: #991b1b;
-  margin: 1.5rem 0 0;
-  padding: 0.75rem 1rem;
+  border: 1px solid var(--separateur);
+  border-left: 3px solid var(--erreur);
+  border-radius: var(--rayon);
+  color: var(--erreur);
+  font-size: 14px;
+  margin: var(--espace-4) 0 0;
+  padding: var(--espace-3) var(--espace-4);
 }

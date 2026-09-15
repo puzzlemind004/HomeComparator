@@ -72,98 +72,102 @@
         <img class="carte__photo" [src]="photo.urlVignette" alt="" loading="lazy" />
       }
 
-      <a class="carte__libelle" [routerLink]="['/biens', carte.bien.id]">
-        {{ carte.bien.libelle }}
-      </a>
-
-      <span class="carte__statut" [attr.data-statut]="carte.statut">
-        {{ carte.libelleStatut }}
-      </span>
-
       <!--
-        Les Colonnes décisives, chacune sous son nom : sur une carte, aucune
-        en-tête de colonne ne dit ce qu'un nombre représente, et « 72,5 m² »
-        seul se lirait sans qu'on sache de quelle surface il s'agit.
-
-        Une liste de définitions et non un tableau : c'est bien un couple
-        nom-valeur que la carte porte, et le dire ainsi le fait annoncer
-        comme tel au lecteur d'écran (ADR-0005).
+        Le corps de la carte : tout ce qui n'est pas le bandeau photo. Il
+        porte le rembourrage, que la carte laisse à zéro pour que la photo
+        touche les bords.
       -->
-      <dl class="carte__criteres">
-        @for (donnee of carte.cases; track donnee.colonne.id) {
-          <!--
-            Une Colonne de texte prend la ligne entière : une ville ou un
-            quartier est de longueur libre, là où un prix et une surface
-            tiennent en quelques caractères. Partagé en deux, un nom de
-            commune un peu long se replie sur trois lignes et laisse la
-            moitié de la carte vide à côté.
-          -->
-          <div
-            class="carte__critere"
-            [class.carte__critere--large]="donnee.colonne.type === 'texte'"
-            [class.carte__critere--absent]="!donnee.renseigne"
-          >
-            <dt>{{ donnee.colonne.libelle }}</dt>
-
-            <!--
-              Une valeur non renseignée se distingue par sa classe et non par
-              son texte : c'est ce qu'il reste à demander à l'agence (#6), et
-              un zéro saisi ne doit pas s'y confondre.
-            -->
-            <dd
-              [class.carte__nombre]="
-                donnee.colonne.type === 'entier' || donnee.colonne.type === 'decimal'
-              "
-            >
-              @if (donnee.renseigne) {
-                {{ donnee.texte }}
-              } @else {
-                <!--
-                  Le tiret ne se lit pas : `aria-label` sur un `span` porte le
-                  rôle `generic`, que la spec ARIA interdit de nommer. Le mot
-                  est donc écrit, puis masqué à l'œil — comme le fait le
-                  tableau pour ses cases vides.
-                -->
-                <span class="carte__manquant">
-                  <span aria-hidden="true">—</span>
-                  <span class="carte__lecture">non renseigné</span>
-                </span>
-              }
-            </dd>
-          </div>
-        }
-      </dl>
-
-      <!--
-        Ce qu'il reste à demander, dit d'un mot. Les cases vides le montrent à
-        l'œil par leur fond, mais un fond ne s'entend pas et trois tirets
-        annoncés à la suite n'apprennent rien : le compte est donc écrit, et
-        masqué à l'écran qui le dit déjà (ADR-0005).
-      -->
-      @if (carte.manquants) {
-        <p class="carte__lecture">
-          {{ carte.manquants }} Colonne{{ carte.manquants > 1 ? 's' : '' }} sur
-          {{ carte.cases.length }} reste{{ carte.manquants > 1 ? 'nt' : '' }} à renseigner.
-        </p>
-      }
-
-      @if (carte.bien.urlAnnonce; as url) {
-        <!--
-          L'Annonce reste joignable depuis la carte : la liste de repérage la
-          proposait (#7), et c'est elle que les cartes remplacent. Sans ce
-          lien, passer aux cartes retirerait l'accès d'un clic à la
-          publication du Bien — la régression qu'a relevée #51 sur le tableau.
-
-          Le Libellé complète l'intitulé sans s'afficher : un lecteur d'écran
-          qui liste les liens d'une page en annoncerait sinon autant
-          d'identiques qu'il y a de Biens, sans dire lequel mène où
-          (ADR-0005). Le tableau nomme le sien de la même façon, et c'est lui
-          qu'on remplace ici.
-        -->
-        <a class="carte__annonce" [href]="url" target="_blank" rel="noopener noreferrer">
-          Voir l'Annonce<span class="carte__lecture"> de {{ carte.bien.libelle }}</span>
+      <div class="carte__corps">
+        <a class="carte__libelle" [routerLink]="['/biens', carte.bien.id]">
+          {{ carte.bien.libelle }}
         </a>
-      }
+
+        <span class="carte__statut" [attr.data-statut]="carte.statut">
+          {{ carte.libelleStatut }}
+        </span>
+        <!--
+          Les Colonnes décisives, chacune sous son nom : sur une carte, aucune
+          en-tête de colonne ne dit ce qu'un nombre représente, et « 72,5 m² »
+          seul se lirait sans qu'on sache de quelle surface il s'agit.
+
+          Une liste de définitions et non un tableau : c'est bien un couple
+          nom-valeur que la carte porte, et le dire ainsi le fait annoncer
+          comme tel au lecteur d'écran (ADR-0005).
+        -->
+        <dl class="carte__criteres">
+          @for (donnee of carte.cases; track donnee.colonne.id) {
+            <!--
+              Une Colonne de texte prend la ligne entière : une ville ou un
+              quartier est de longueur libre, là où un prix et une surface
+              tiennent en quelques caractères. Partagé en deux, un nom de
+              commune un peu long se replie sur trois lignes et laisse la
+              moitié de la carte vide à côté.
+            -->
+            <div
+              class="carte__critere"
+              [class.carte__critere--large]="donnee.colonne.type === 'texte'"
+              [class.carte__critere--absent]="!donnee.renseigne"
+            >
+              <dt>{{ donnee.colonne.libelle }}</dt>
+
+              <!--
+                Une valeur non renseignée se distingue par sa classe et non par
+                son texte : c'est ce qu'il reste à demander à l'agence (#6), et
+                un zéro saisi ne doit pas s'y confondre.
+              -->
+              <dd>
+                @if (donnee.renseigne) {
+                  {{ donnee.texte }}
+                } @else {
+                  <!--
+                    « À demander » plutôt qu'un tiret : c'est une tâche pour
+                    l'acheteur, pas une case vide. Le mot est écrit et non
+                    masqué — il se lit à l'œil comme au lecteur d'écran, là où
+                    le tiret devait être doublé d'un texte caché.
+                  -->
+                  <span class="carte__manquant">à demander</span>
+                }
+              </dd>
+            </div>
+          }
+        </dl>
+
+        <!--
+          Où en est la saisie de ce Bien (#6).
+
+          La barre est décorative : le compte à côté dit la même chose en
+          toutes lettres, et deux annonces pour une même information en
+          feraient une de trop (ADR-0005). C'est pourquoi elle ne porte ni
+          rôle ni valeur ARIA — un `progressbar` réclamerait un nom et se
+          ferait annoncer en double.
+        -->
+        <div class="carte__completude">
+          <div class="carte__jauge" aria-hidden="true">
+            <span [style.width.%]="carte.completude.part * 100"></span>
+          </div>
+          <span class="carte__compte">
+            {{ carte.completude.renseignes }} / {{ carte.completude.total }} renseignés
+          </span>
+        </div>
+
+        @if (carte.bien.urlAnnonce; as url) {
+          <!--
+            L'Annonce reste joignable depuis la carte : la liste de repérage la
+            proposait (#7), et c'est elle que les cartes remplacent. Sans ce
+            lien, passer aux cartes retirerait l'accès d'un clic à la
+            publication du Bien — la régression qu'a relevée #51 sur le tableau.
+
+            Le Libellé complète l'intitulé sans s'afficher : un lecteur d'écran
+            qui liste les liens d'une page en annoncerait sinon autant
+            d'identiques qu'il y a de Biens, sans dire lequel mène où
+            (ADR-0005). Le tableau nomme le sien de la même façon, et c'est lui
+            qu'on remplace ici.
+          -->
+          <a class="carte__annonce" [href]="url" target="_blank" rel="noopener noreferrer">
+            Voir l'Annonce<span class="carte__lecture"> de {{ carte.bien.libelle }}</span>
+          </a>
+        }
+      </div>
     </li>
   }
 </ul>

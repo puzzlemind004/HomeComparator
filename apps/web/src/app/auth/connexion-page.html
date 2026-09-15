@@ -1,7 +1,22 @@
-<section class="connexion">
-  <h2>Connexion</h2>
+<!--
+  L'entrée du carnet.
 
-  <p class="connexion__intro">Le carnet est protégé par un mot de passe.</p>
+  C'est le seul écran qu'un visiteur non connecté voit, et le premier que
+  l'acheteur retrouve : il porte donc le nom du produit en grand, là où les
+  autres écrans se contentent de la marque en barre. Le mot de passe vient
+  après, sous un trait — l'écran annonce ce qu'il garde avant de demander la
+  clé.
+-->
+<section class="connexion">
+  <p class="connexion__intitule">Carnet de recherche</p>
+  <h1 class="connexion__marque">Home<br />Comparator</h1>
+
+  <hr class="connexion__filet" />
+
+  <p class="connexion__intro">
+    Les Biens que vous visitez, les Critères qui décident, et les photos que l'annonce ne montre
+    pas. Le carnet est protégé par un mot de passe.
+  </p>
 
   <form class="saisie" (ngSubmit)="connecter()">
     <label class="champ">

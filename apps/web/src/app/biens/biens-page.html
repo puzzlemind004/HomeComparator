@@ -1,4 +1,27 @@
 <section class="biens">
+  <!--
+    L'en-tête du carnet : ce qu'on regarde, et de combien de Biens il s'agit.
+
+    L'intitulé au-dessus du titre — « Carnet de recherche » — n'est pas
+    décoratif : c'est lui qui dit ce qu'est cette application, là où « Mes
+    Biens » ne nomme que la liste. La marque en haut de page porte le nom du
+    produit ; ici on nomme la chose.
+  -->
+  <header class="carnet__entete">
+    <p class="carnet__intitule">Carnet de recherche</p>
+    <div class="carnet__titre">
+      <h1>Mes Biens</h1>
+
+      @if (liste(); as liste) {
+        @if (liste.chargee && liste.biens.length) {
+          <span class="carnet__compte">
+            {{ liste.biens.length }} Bien{{ liste.biens.length > 1 ? 's' : '' }}
+          </span>
+        }
+      }
+    </div>
+  </header>
+
   <h2>Repérer un Bien</h2>
 
   <form class="saisie" (ngSubmit)="creer()">
@@ -43,8 +66,6 @@
   @if (message(); as message) {
     <p class="message" role="status">{{ message }}</p>
   }
-
-  <h2>Mes Biens</h2>
 
   <!--
     L'export du carnet (#14). Tout est saisi à la main (ADR-0001), et ces

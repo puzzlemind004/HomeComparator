@@ -1,3 +1,26 @@
+@use 'carnet';
+
+// La barre de marque, en tête de chaque écran.
+//
+// Elle nomme l'application et porte la déconnexion, rien d'autre : la
+// navigation de la maquette — Carnet, Comparer, Exporter — n'a pas d'écrans
+// derrière elle aujourd'hui, l'export et la comparaison vivant dans la page
+// du carnet. Les y mettre créerait des liens qui ne mènent nulle part.
+.marque {
+  align-items: baseline;
+  border-bottom: 1px solid var(--separateur);
+  display: flex;
+  gap: var(--espace-4);
+  justify-content: space-between;
+  padding: var(--espace-3) var(--espace-4);
+}
+
+.marque__nom {
+  font-family: var(--fonte-titre);
+  font-size: 18px;
+  font-weight: 600;
+}
+
 // La colonne de texte est étroite : 40rem est la largeur où un formulaire
 // et une liste se lisent sans que l'œil ait à revenir de loin. Un champ de
 // saisie qui traverserait l'écran ne se lit pas mieux, il se lit moins bien.
@@ -7,46 +30,55 @@
 // depuis son propre écran (#49), sans imposer sa largeur au formulaire de
 // connexion ni à la fiche d'un Bien, qui partagent cette coque.
 .page {
-  font-family: system-ui, sans-serif;
   margin: 0 auto;
   max-width: 40rem;
-  padding: 2rem 1rem;
-}
-
-.entete {
-  align-items: baseline;
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
+  padding: var(--espace-6) var(--espace-4) var(--espace-8);
 }
 
 .deconnexion {
   background: none;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.375rem;
-  color: #475569;
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon);
+  color: var(--neutre-800);
   cursor: pointer;
   flex: none;
-  font: inherit;
-  font-size: 0.875rem;
-  padding: 0.375rem 0.75rem;
+  font-family: var(--fonte-titre);
+  font-size: 14px;
+  font-weight: 600;
+  padding: var(--espace-1) var(--espace-3);
+
+  &:hover {
+    background: color-mix(in srgb, var(--texte) 7%, transparent);
+  }
 }
 
+// L'état du service, sous le carnet. Un filet coloré à gauche plutôt qu'un
+// encadré : c'est une note de bas de page, pas une alerte — tant que l'API
+// répond, elle n'a rien à réclamer.
 .health {
-  border: 1px solid #cbd5e1;
-  border-left: 4px solid #16a34a;
-  border-radius: 0.5rem;
-  padding: 1rem;
+  border: 1px solid var(--separateur);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--rayon);
+  font-size: 13px;
+  margin-top: var(--espace-8);
+  padding: var(--espace-3) var(--espace-4);
+
+  h2 {
+    @include carnet.intitule;
+
+    font-family: var(--fonte-texte);
+    margin: 0 0 var(--espace-2);
+  }
 
   dl {
     display: grid;
-    gap: 0.25rem 1rem;
+    gap: var(--espace-1) var(--espace-3);
     grid-template-columns: auto 1fr;
     margin: 0;
   }
 
   dt {
-    font-weight: 600;
+    color: var(--neutre-700);
   }
 
   dd {
@@ -54,10 +86,12 @@
   }
 }
 
+// L'API muette se dit en rouge : c'est le seul cas où le carnet ne peut plus
+// rien montrer, et il doit s'en apercevoir sans qu'on aille lire.
 .health--ko {
-  border-left-color: #dc2626;
+  border-left-color: var(--erreur);
 }
 
 .health--pending {
-  border-left-color: #94a3b8;
+  border-left-color: var(--neutre-400);
 }

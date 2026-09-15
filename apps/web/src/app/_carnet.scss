@@ -1,0 +1,25 @@
+// Les tours de main partagés par les feuilles des composants.
+//
+// Les jetons de `styles.scss` traversent l'encapsulation de vue — une variable
+// CSS est héritée par le document entier — mais un mixin Sass, non : il est
+// résolu à la compilation, feuille par feuille. Ceux qui servent à plusieurs
+// écrans vivent donc ici, et chaque feuille les importe, comme `_statut.scss`
+// le fait déjà pour la pastille de Statut.
+
+// Le repère d'intitulé : le petit texte capitalisé qui annonce une section
+// sans lui donner le poids d'un titre. Il sert partout dans la refonte — au-
+// dessus de « Mes Biens », sur les groupes de la fiche, sur les cases d'une
+// carte — et c'est pourquoi il est écrit une fois.
+@mixin intitule {
+  color: var(--neutre-700);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+// Les chiffres du carnet s'alignent en colonne — des prix, des surfaces, des
+// comptes de critères. En chasse proportionnelle, « 249 000 € » et
+// « 265 000 € » ne cadrent pas, et l'œil ne peut plus les comparer d'un coup.
+@mixin chiffres {
+  font-variant-numeric: tabular-nums;
+}

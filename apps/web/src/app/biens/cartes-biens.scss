@@ -1,11 +1,18 @@
 @use '../criteres/statut';
+@use '../carnet';
 
 // Les cartes mobiles (#11, ADR-0006). Une carte par Bien, empilées : la
 // présentation ne réclame donc aucune largeur particulière, et c'est ce qui
 // la rend tenable là où le tableau ne tient pas.
+//
+// La refonte les rapproche d'une fiche de carnet : la photo en bandeau, le
+// Libellé en serif, puis les trois chiffres qui décident alignés sous un
+// filet. L'écart avec l'ancienne version n'est pas qu'une affaire de teintes
+// — c'est l'ordre de lecture qui change. On reconnaît le Bien d'abord, on le
+// situe ensuite.
 .cartes {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--espace-4);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -19,35 +26,56 @@
 // défilement horizontal de la page qu'ADR-0006 écarte, et que le ticket
 // interdit explicitement.
 .carte {
-  align-items: baseline;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.5rem;
-  column-gap: 1rem;
+  background: transparent;
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon);
+  column-gap: var(--espace-3);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  // La marge de droite est élargie pour réserver sa place à la case de
-  // sélection (#12), posée en absolu dans ce coin : sans elle, la pastille
-  // de Statut — `justify-self: end` sur la même ligne — passerait dessous.
-  padding: 0.75rem 2.5rem 0.75rem 1rem;
+  // La photo est un bandeau qui touche les bords : le rembourrage est porté
+  // par le corps de la carte, pas par la carte elle-même.
+  overflow: hidden;
+  padding: 0;
   // Le repère du lien étendu ci-dessous, qui se dimensionne sur la carte.
   position: relative;
-  row-gap: 0.5rem;
+  row-gap: 0;
 
   // Toute la carte est cliquable : le survol le dit, faute de quoi seul le
   // Libellé aurait l'air de mener quelque part.
   &:hover {
-    border-color: #94a3b8;
+    border-color: var(--neutre-400);
   }
 }
 
+// Le corps : tout ce qui n'est pas la photo, dans son rembourrage.
+//
+// Le rembourrage de droite réserve sa place à la case de sélection (#12)
+// posée en absolu dans le coin : sans lui, la pastille de Statut — qui finit
+// la première ligne — passerait dessous et se lirait tronquée. Il vaut la
+// largeur de la case (30px), sa marge au bord et l'écart qui l'en sépare.
+//
+// Il est porté par le corps et non par la carte, qui doit rester à zéro pour
+// que la photo touche les bords.
+.carte__corps {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: var(--espace-3) calc(30px + var(--espace-4)) var(--espace-4) var(--espace-4);
+  row-gap: var(--espace-1);
+}
+
 .carte__libelle {
-  color: #1d4ed8;
+  color: inherit;
+  font-family: var(--fonte-titre);
+  font-size: 21px;
   font-weight: 600;
+  line-height: 1.15;
   // Un Libellé est saisi à la main et peut être long : « celui avec la
   // cuisine refaite et la vue sur le parc » doit se replier plutôt
   // qu'élargir la carte. `anywhere` coupe au besoin jusqu'à l'intérieur d'un
   // mot, seul recours contre une URL collée en guise de nom.
   overflow-wrap: anywhere;
+  text-decoration: none;
 
   // Le lien s'étend à toute la carte : « une carte mène à la fiche du Bien »
   // (#11), et sur un téléphone la cible doit se viser au pouce. Le
@@ -64,10 +92,10 @@
   }
 
   // Le focus se dessine sur le texte et non sur le rectangle étendu, qui
-  // couvrirait la carte entière d'un cadre bleu. `z-index` le garde lisible
+  // couvrirait la carte entière d'un cadre. `z-index` le garde lisible
   // au-dessus du fond des cases.
   &:focus-visible {
-    outline: 2px solid #1d4ed8;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
     position: relative;
     z-index: 1;
@@ -87,41 +115,56 @@
 // Les Colonnes décisives, côte à côte tant que la place le permet.
 //
 // `auto-fit` et non un nombre de colonnes fixe : à 320 px — l'écran le plus
-// étroit encore en service — trois colonnes de 7rem ne tiennent pas, et la
-// grille en repose deux puis une d'elle-même. Rien ne déborde jamais, à
-// aucune largeur, sans qu'un point de rupture ait à être choisi, et une
-// Colonne promue décisive s'y range sans qu'on revienne ici.
+// étroit encore en service — trois colonnes ne tiennent pas, et la grille en
+// repose deux puis une d'elle-même. Rien ne déborde jamais, à aucune largeur,
+// sans qu'un point de rupture ait à être choisi, et une Colonne promue
+// décisive s'y range sans qu'on revienne ici.
+//
+// Le filet au-dessus sépare ce qui nomme le Bien de ce qui le chiffre :
+// c'est la coupure que fait la maquette, et elle porte l'ordre de lecture.
 .carte__criteres {
+  border-top: 1px solid var(--separateur);
   display: grid;
-  gap: 0.5rem 0.75rem;
+  gap: var(--espace-2) var(--espace-3);
   grid-column: 1 / -1;
-  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
-  margin: 0;
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+  margin: var(--espace-3) 0 0;
+  padding-top: var(--espace-3);
 }
 
 // Une Colonne et sa valeur, l'une sous l'autre : sur une carte, aucune
 // en-tête de colonne ne dit ce qu'un nombre représente.
+//
+// Le filet vertical sépare les cases plutôt qu'un fond : trois pavés colorés
+// pèseraient plus que le Libellé au-dessus, et c'est lui qui doit tenir la
+// carte. Il est porté par la case et retiré à la première de chaque rangée,
+// où il pendrait dans le vide.
 .carte__critere {
-  background: #f8fafc;
-  border-radius: 0.375rem;
+  border-left: 1px solid var(--separateur);
   min-width: 0;
-  padding: 0.35rem 0.5rem;
+  padding-left: var(--espace-2);
+
+  &:first-child {
+    border-left: 0;
+    padding-left: 0;
+  }
 
   dt {
-    color: #64748b;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-    text-transform: uppercase;
+    @include carnet.intitule;
+
+    font-size: 9px;
   }
 
   dd {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    margin: 0;
-    // Une ville ou un quartier peut être long : il se replie dans sa case
-    // plutôt que d'élargir la grille.
-    overflow-wrap: anywhere;
+    @include carnet.chiffres;
+
+    font-size: 17px;
+    margin: 2px 0 0;
+    // Un nombre et son unité ne se coupent pas : « 3 268 €/m² » laisserait
+    // sinon le « 2 » de l'exposant seul à la ligne suivante, et « 249 000 € »
+    // son symbole. C'est la valeur de texte, plus bas, qui a le droit de se
+    // replier — elle seule est de longueur libre.
+    white-space: nowrap;
   }
 }
 
@@ -134,25 +177,75 @@
 // La règle suit le type déclaré par la Colonne et non son identifiant
 // (ADR-0004) : une deuxième Colonne de texte promue décisive s'y rangera
 // sans qu'on revienne ici.
+//
+// Elle reprend le filet du dessus : posée sur toute la largeur, elle ouvre
+// une rangée et le trait vertical n'y sépare plus rien.
 .carte__critere--large {
+  border-left: 0;
+  border-top: 1px solid var(--separateur);
   grid-column: 1 / -1;
+  padding-left: 0;
+  padding-top: var(--espace-2);
+
+  // La valeur reprend le droit de se replier, que les cases de chiffres
+  // n'ont pas : une ville ou un quartier est de longueur libre, et
+  // « Mauves-sur-Loire » doit céder plutôt qu'élargir la carte. `anywhere`
+  // coupe au besoin jusqu'à l'intérieur d'un mot, seul recours contre un nom
+  // composé plus large que l'écran.
+  dd {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
 }
 
-// Ce qu'il reste à demander à l'agence se distingue d'une valeur saisie (#6) :
-// le fond dit qu'il manque quelque chose, le tiret dit « rien ici ».
+// Ce qu'il reste à demander à l'agence se distingue d'une valeur saisie (#6).
+//
+// Le souligné pointillé doré plutôt qu'un fond : la maquette écrit « à
+// demander » comme une note au crayon dans la marge, et c'est bien ce que
+// c'est — une tâche, pas une erreur. Un fond jaune sur trois cases ferait
+// lire l'absence comme un avertissement.
 .carte__critere--absent {
-  background: #fefce8;
+  dd {
+    color: var(--accent-700);
+  }
 }
 
 .carte__manquant {
-  color: #a16207;
+  border-bottom: 1px dashed var(--accent-400);
+  color: var(--accent-700);
 }
 
-// Les nombres se lisent alignés : sur une carte ils ne se superposent pas
-// d'une ligne à l'autre, mais les chiffres tabulaires gardent au prix et à la
-// surface la même allure que dans le tableau.
-.carte__nombre {
-  font-variant-numeric: tabular-nums;
+// La barre de complétude : où en est la saisie de ce Bien.
+//
+// C'est la question que se pose l'acheteur en rouvrant son carnet — non pas
+// « qu'ai-je vu », mais « que me manque-t-il pour décider ». Deux pixels de
+// haut : elle informe sans réclamer, et ce qui compte est le chiffre à côté.
+.carte__completude {
+  align-items: center;
+  display: flex;
+  gap: var(--espace-2);
+  grid-column: 1 / -1;
+  margin-top: var(--espace-3);
+}
+
+.carte__jauge {
+  background: var(--neutre-300);
+  flex: 1;
+  height: 2px;
+}
+
+.carte__jauge span {
+  background: var(--accent);
+  display: block;
+  height: 2px;
+}
+
+.carte__compte {
+  @include carnet.chiffres;
+
+  color: var(--neutre-700);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 // Le lien vers l'Annonce passe au-dessus du lien étendu du Libellé : sans
@@ -160,22 +253,23 @@
 // vers la fiche au lieu de l'Annonce. `justify-self: start` borne la zone
 // relevée au texte du lien, et laisse le reste de la ligne à la carte.
 .carte__annonce {
-  color: #1d4ed8;
-  font-size: 0.875rem;
+  color: var(--accent-700);
+  font-size: 13px;
   grid-column: 1 / -1;
   justify-self: start;
+  margin-top: var(--espace-3);
   position: relative;
+  text-underline-offset: 3px;
   z-index: 1;
 
   &:focus-visible {
-    outline: 2px solid #1d4ed8;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 }
 
-// Ce qui se lit sans se voir : le compte des Colonnes à renseigner, que le
-// fond des cases dit déjà à l'œil (ADR-0005). Même recette que la légende du
-// tableau.
+// Ce qui se lit sans se voir : le compte des Colonnes à renseigner, que la
+// barre dit déjà à l'œil (ADR-0005). Même recette que la légende du tableau.
 .carte__lecture {
   clip-path: inset(50%);
   height: 1px;
@@ -198,7 +292,6 @@
 // photo entière restant visible depuis la fiche.
 .carte__photo {
   aspect-ratio: 16 / 9;
-  border-radius: 0.375rem;
   display: block;
   grid-column: 1 / -1;
   object-fit: cover;
@@ -209,19 +302,59 @@
 //
 // Hors du flux de la grille : posée en cellule, elle décalerait le Libellé
 // et le Statut d'une colonne, et la carte serait à refaire. En absolu, elle
-// se glisse dans le coin et la grille ne la voit pas — c'est le padding de
-// la carte, élargi à droite ci-dessous, qui lui réserve sa place.
+// se glisse dans le coin et la grille ne la voit pas.
 //
 // Au-dessus du lien étendu : sans ce `z-index`, le pseudo-élément du Libellé
 // la recouvrirait et cocher mènerait à la fiche. C'est le seul élément de la
 // carte qui passe devant lui, et les deux gestes restent distincts.
+//
+// La case native est masquée et remplacée par une pastille ronde, comme sur
+// la maquette où elle se pose sur la photo. Masquée par `appearance: none` et
+// non par `display: none`, qui la retirerait du parcours clavier — ce que la
+// carte refuse par ailleurs pour `disabled` (ADR-0005).
 .carte__choix {
   cursor: pointer;
-  padding: 0.25rem;
   position: absolute;
-  right: 0.5rem;
-  top: 0.5rem;
+  right: var(--espace-2);
+  top: var(--espace-2);
   z-index: 2;
+
+  input {
+    appearance: none;
+    background: color-mix(in srgb, var(--fond) 82%, transparent);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    cursor: inherit;
+    display: grid;
+    height: 30px;
+    margin: 0;
+    place-items: center;
+    width: 30px;
+
+    // La coche est dessinée en pseudo-élément : elle n'a rien à faire dans le
+    // gabarit, où elle serait un caractère de plus à annoncer au lecteur
+    // d'écran alors que l'état coché se dit déjà (ADR-0005).
+    &::after {
+      color: var(--accent);
+      content: '+';
+      font-size: 15px;
+      line-height: 1;
+    }
+
+    &:checked {
+      background: var(--accent);
+
+      &::after {
+        color: var(--fond);
+        content: '✓';
+      }
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+  }
 }
 
 // Une case que le plafond bloque. Elle reste atteignable au clavier
@@ -232,10 +365,10 @@
   opacity: 0.45;
 }
 
-// La carte d'un Bien retenu pour la comparaison : sa bordure le dit, là où
-// le tableau pose un liseré sur sa ligne. Le fond reste libre pour les cases
-// non renseignées (#6), qu'un second fond rendrait illisibles.
+// La carte d'un Bien retenu pour la comparaison : son liseré le dit, là où le
+// tableau en pose un sur sa ligne. Le fond reste libre pour ce qui n'est pas
+// renseigné (#6), qu'un second fond rendrait illisible.
 .carte--choisie {
-  border-color: #1d4ed8;
-  box-shadow: inset 0 0 0 1px #1d4ed8;
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }

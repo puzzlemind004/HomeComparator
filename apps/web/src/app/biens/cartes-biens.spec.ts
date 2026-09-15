@@ -111,15 +111,17 @@ describe('CartesBiens', () => {
     expect(textes(cartes)).toEqual(carte.cases.map(() => ''));
   });
 
-  it('compte les Colonnes décisives qui restent à renseigner', () => {
-    // Le compte dit d'un mot ce que les cases vides disent en creux, et c'est
-    // ce que le lecteur d'écran annonce : quatre tirets ne s'entendent pas
-    // (ADR-0005).
-    expect(creerCartes([bien('a', complet)]).cartes()[0].manquants).toBe(0);
-    // Le prix au m² manque avec le prix dont il sort : deux cases vides pour
-    // un seul Critère non renseigné.
-    expect(creerCartes([bien('a', { villeQuartier: 'Nantes' })]).cartes()[0].manquants).toBe(3);
-    expect(creerCartes([bien('a')]).cartes()[0].manquants).toBe(COLONNES_DECISIVES.length);
+  it('dit où en est la saisie du Bien', () => {
+    // La barre porte sur tous les Critères de la définition et non sur les
+    // quatre Colonnes de la carte : ce que l'acheteur veut savoir est ce
+    // qu'il lui reste à demander à l'agence (#6). Un Bien dont les quatre
+    // Colonnes décisives sont pleines a encore des Critères en attente.
+    const pleines = creerCartes([bien('a', complet)]).cartes()[0].completude;
+
+    expect(pleines.renseignes).toBe(Object.keys(complet).length);
+    expect(pleines.renseignes).toBeLessThan(pleines.total);
+
+    expect(creerCartes([bien('a')]).cartes()[0].completude.renseignes).toBe(0);
   });
 
   it('tient un zéro pour renseigné', () => {
@@ -161,10 +163,7 @@ describe('CartesBiens', () => {
 
   describe('la sélection pour la comparaison', () => {
     /** Deux Biens d'identifiants distincts : la sélection porte sur l'`id`. */
-    const deux = [
-      unBien({ id: 1, libelle: 'anatole' }),
-      unBien({ id: 2, libelle: 'bérénice' }),
-    ];
+    const deux = [unBien({ id: 1, libelle: 'anatole' }), unBien({ id: 2, libelle: 'bérénice' })];
 
     it('laisse les cases actives avant que le parent ait posé le plafond', () => {
       // Les cartes se rendent une première fois avant que la liaison ne les

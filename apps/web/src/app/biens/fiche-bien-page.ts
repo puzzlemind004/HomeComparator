@@ -13,7 +13,7 @@ import {
   type ChampStatut,
   type Statut,
 } from '../criteres/statut';
-import { estRenseigne } from '../criteres/valeurs';
+import { completude, estRenseigne } from '../criteres/valeurs';
 import type { ValeurCritere } from '../criteres/comparaison';
 import {
   demarrer,
@@ -219,9 +219,23 @@ export class FicheBienPage {
    * Le nombre de Critères qu'il reste à renseigner : ce que l'acheteur a
    * encore à demander, résumé en un chiffre au-dessus de la fiche.
    */
-  readonly nombreManquants = computed(
-    () => this.groupes().reduce((total, { criteres }) => total + manquants(criteres), 0),
+  readonly nombreManquants = computed(() =>
+    this.groupes().reduce((total, { criteres }) => total + manquants(criteres), 0),
   );
+
+  /**
+   * Où en est la saisie de ce Bien, que la jauge de l'encart affiche.
+   *
+   * Elle dit la même chose que `nombreManquants` par l'autre bout — ce qui
+   * est fait plutôt que ce qui reste —, et c'est ce que l'acheteur veut voir
+   * en ouvrant la fiche : un carnet qui avance. Le compte seul ne le dit pas,
+   * puisqu'il décroît.
+   *
+   * Elle sort de `completude` et non d'un calcul local : les cartes montrent
+   * la même barre (#11), et deux calculs auraient fini par se contredire sur
+   * un même Bien au premier Critère ajouté (ADR-0004).
+   */
+  readonly completude = computed(() => completude(this.bien()?.criteres ?? {}));
 
   /** Le Critère sur lequel l'assistant interroge, s'il est en cours. */
   readonly questionCourante = computed(() => {

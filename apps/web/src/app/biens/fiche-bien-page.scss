@@ -1,5 +1,5 @@
 .retour {
-  color: #1d4ed8;
+  color: var(--accent);
   display: inline-block;
   font-size: 0.875rem;
   margin-bottom: 1rem;
@@ -18,7 +18,7 @@
 }
 
 .entete__annonce {
-  color: #1d4ed8;
+  color: var(--accent);
   font-size: 0.875rem;
 }
 
@@ -28,7 +28,7 @@
  */
 .manquants {
   align-items: center;
-  color: #64748b;
+  color: var(--neutre-700);
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
@@ -36,16 +36,46 @@
 }
 
 .manquants__nombre {
-  background: #fef3c7;
+  background: var(--accent-100);
   border-radius: 999px;
-  color: #92400e;
+  color: var(--accent-800);
   font-weight: 600;
   padding: 0.125rem 0.625rem;
 }
+// La jauge de complétude, sous le compte des Critères manquants.
+//
+// Elle dit la même chose que lui par l'autre bout : le compte décroît à
+// mesure qu'on remplit, la jauge avance. C'est elle qui montre qu'un carnet
+// progresse, ce qu'un nombre qui diminue ne dit pas.
+.completude {
+  align-items: center;
+  display: flex;
+  gap: var(--espace-3);
+  margin: 0 0 var(--espace-6);
+}
+
+.completude__jauge {
+  background: var(--accent-200);
+  flex: 1;
+  height: 2px;
+}
+
+.completude__jauge span {
+  background: var(--accent);
+  display: block;
+  height: 2px;
+}
+
+.completude__compte {
+  color: var(--neutre-700);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 .assistant {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: var(--accent-100);
+  border: 1px solid var(--accent-300);
   border-radius: 0.5rem;
   display: grid;
   gap: 0.75rem;
@@ -72,7 +102,7 @@
   gap: 0.5rem;
 
   input {
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--separateur);
     border-radius: 0.375rem;
     font: inherit;
     padding: 0.5rem;
@@ -80,7 +110,7 @@
 }
 
 .assistant__unite {
-  color: #64748b;
+  color: var(--neutre-700);
 }
 
 .assistant__actions {
@@ -93,12 +123,12 @@
 .assistant__passer,
 .assistant__quitter {
   background: none;
-  border: 1px solid #cbd5e1;
-  color: #475569;
+  border: 1px solid var(--separateur);
+  color: var(--neutre-800);
 }
 
 .bloc {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--separateur);
   border-radius: 0.5rem;
   margin-bottom: 1rem;
   padding: 1rem;
@@ -114,7 +144,7 @@
  * vient y voir ou y changer (#7).
  */
 .suivi {
-  border-color: #cbd5e1;
+  border-color: var(--separateur);
 }
 
 .suivi__statut {
@@ -131,7 +161,7 @@
 }
 
 .notes__saisie {
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--separateur);
   border-radius: 0.375rem;
   display: block;
   font: inherit;
@@ -156,12 +186,12 @@
   padding: 0.375rem 0;
 
   & + & {
-    border-top: 1px solid #f1f5f9;
+    border-top: 1px solid var(--neutre-100);
   }
 
   input,
   select {
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--separateur);
     border-radius: 0.375rem;
     font: inherit;
     padding: 0.375rem 0.5rem;
@@ -178,7 +208,7 @@
  * c'est toute la différence entre « à demander » et « déjà répondu ».
  */
 .critere__manquant {
-  color: #92400e;
+  color: var(--accent-800);
   display: block;
   font-size: 0.8125rem;
   font-style: normal;
@@ -187,8 +217,8 @@
 
 .critere--manquant input,
 .critere--manquant select {
-  background: #fffbeb;
-  border-color: #fcd34d;
+  background: var(--accent-100);
+  border-color: var(--accent-400);
 }
 
 .critere__saisie {
@@ -198,32 +228,37 @@
 }
 
 .critere__unite {
-  color: #64748b;
+  color: var(--neutre-700);
   flex: none;
   font-size: 0.875rem;
 }
 
 button {
-  background: #1d4ed8;
-  border: none;
-  border-radius: 0.375rem;
-  color: #fff;
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: var(--rayon);
+  color: var(--accent);
   cursor: pointer;
-  font: inherit;
+  font-family: var(--fonte-titre);
+  font-size: 14px;
   font-weight: 600;
-  padding: 0.5rem 1rem;
+  padding: var(--espace-2) var(--espace-4);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
 
   &:disabled {
-    background: #94a3b8;
     cursor: progress;
+    opacity: 0.45;
   }
 }
 
 .erreurs {
-  border: 1px solid #fecaca;
-  border-left: 4px solid #dc2626;
+  border: 1px solid var(--separateur);
+  border-left: 4px solid var(--erreur);
   border-radius: 0.5rem;
-  color: #991b1b;
+  color: var(--erreur);
   list-style: none;
   margin: 0 0 1.5rem;
   padding: 0.75rem 1rem;
@@ -234,14 +269,14 @@ button {
 }
 
 .liste--vide {
-  color: #64748b;
+  color: var(--neutre-700);
 }
 
 .liste--erreur {
-  border: 1px solid #fecaca;
-  border-left: 4px solid #dc2626;
+  border: 1px solid var(--separateur);
+  border-left: 4px solid var(--erreur);
   border-radius: 0.5rem;
-  color: #991b1b;
+  color: var(--erreur);
   margin: 0;
   padding: 0.75rem 1rem;
 }
@@ -272,24 +307,24 @@ button {
  * fait ici ne se défait pas.
  */
 .suppression {
-  border-color: #fecaca;
+  border-color: var(--separateur);
   /* La marge du haut détache le bloc du dernier groupe de Critères : il ne
      doit pas se lire comme un bloc de plus qu'on parcourt du pouce. */
   margin-top: 2rem;
 
   h3 {
-    color: #991b1b;
+    color: var(--erreur);
   }
 }
 
 .suppression__avertissement {
-  color: #64748b;
+  color: var(--neutre-700);
   font-size: 0.875rem;
   margin: 0 0 0.75rem;
 }
 
 .suppression__question {
-  color: #991b1b;
+  color: var(--erreur);
   font-weight: 600;
   margin: 0 0 0.75rem;
 }
@@ -301,8 +336,8 @@ button {
  */
 .suppression__demander {
   background: none;
-  border: 1px solid #fca5a5;
-  color: #b91c1c;
+  border: 1px solid var(--separateur);
+  color: var(--erreur);
 }
 
 /**
@@ -335,15 +370,15 @@ button {
 /* Dit pourquoi le bouton ne répond pas, plutôt que de le laisser inerte
    sans raison visible. */
 .suppression__attente {
-  color: #64748b;
+  color: var(--neutre-700);
   font-size: 0.875rem;
   margin: 1rem 0 0;
 }
 
 .suppression__renoncer {
   background: none;
-  border: 1px solid #cbd5e1;
-  color: #475569;
+  border: 1px solid var(--separateur);
+  color: var(--neutre-800);
 }
 
 /**
@@ -352,7 +387,7 @@ button {
  * ouverte, et jamais à l'endroit du premier appui.
  */
 .suppression__confirmer {
-  background: #b91c1c;
+  background: var(--erreur);
   /* Plus haut que les boutons ordinaires : ce qu'on vise ici, on doit le
      viser exprès, et la cible large sert la lisibilité du geste autant que
      sa précision. */
