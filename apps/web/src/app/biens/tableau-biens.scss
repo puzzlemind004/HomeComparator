@@ -104,6 +104,19 @@ thead .tableau__libelle {
   z-index: 3;
 }
 
+// Où en est le Bien dans le temps (#120), sous son Libellé.
+//
+// `display: block` la pose sur sa propre ligne : les cellules du tableau sont
+// en `nowrap`, et sans cela la phrase s'ajouterait au bout du Libellé en
+// élargissant la colonne d'autant.
+.tableau__situation {
+  color: var(--neutre-700);
+  display: block;
+  font-family: var(--fonte-texte);
+  font-size: 11px;
+  font-weight: 400;
+}
+
 // L'en-tête est un bouton pleine cellule : la cible de clic est toute la
 // colonne, et le parcours au clavier passe par elle.
 .tableau__tri {

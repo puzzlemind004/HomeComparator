@@ -11,6 +11,24 @@
     <h3>Photos</h3>
 
     <!--
+      Combien de photos porte ce Bien (#122).
+
+      Le compte est écrit à côté du titre plutôt que dénombré à l'œil : une
+      grille de vignettes ne se compte pas d'un coup d'œil passé cinq ou six,
+      et c'est le genre d'information qu'on cherche en rouvrant un carnet —
+      « celui-là, je l'ai photographié ou pas ».
+
+      Le mot « photo » est répété ici alors que le titre le porte déjà : le
+      chiffre nu se lirait « 6 » sans dire 6 de quoi au lecteur d'écran, qui
+      ne voit pas qu'il est posé sous un titre (ADR-0005).
+    -->
+    @if (photos().length) {
+      <span class="galerie__compte">
+        {{ photos().length }} photo{{ photos().length > 1 ? 's' : '' }}
+      </span>
+    }
+
+    <!--
       Un `label` habillé en bouton, et l'`input` masqué derrière : c'est le
       couple que les navigateurs mobiles reconnaissent pour proposer
       « Appareil photo » et « Photothèque ». Un bouton qui déclencherait

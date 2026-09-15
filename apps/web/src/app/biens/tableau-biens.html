@@ -162,6 +162,18 @@
                 <span class="tableau__lecture"> Voir l'Annonce de {{ ligne.bien.libelle }} </span>
               </a>
             }
+
+            <!--
+              Où en est le Bien dans le temps (#120), sous son Libellé.
+
+              Dans la cellule du Libellé et non dans une colonne à elle : le
+              tableau en porte déjà seize, et une de plus le ferait défiler de
+              côté. C'est d'ailleurs sa place naturelle — elle situe ce Bien,
+              elle ne se compare pas d'une ligne à l'autre.
+            -->
+            @if (ligne.situation) {
+              <span class="tableau__situation">{{ ligne.situation }}</span>
+            }
           </th>
 
           <td>

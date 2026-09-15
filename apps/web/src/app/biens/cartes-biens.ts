@@ -5,6 +5,7 @@ import { COLONNES_DECISIVES, caseDe, type CaseColonne } from '../criteres/colonn
 import { TRI_INITIAL, trier } from '../criteres/tri';
 import { libelleStatut, type Statut } from '../criteres/statut';
 import { completude, type Completude } from '../criteres/valeurs';
+import { situation } from '../criteres/situation';
 import { MAXIMUM_MOBILE } from '../criteres/selection-comparaison';
 
 /** Une carte : un Bien, tel qu'un écran étroit le montre. */
@@ -21,6 +22,19 @@ export interface Carte {
 
   /** Une case par Colonne décisive, dans l'ordre où `COLONNES` les porte. */
   cases: CaseColonne[];
+
+  /**
+   * Où en est le Bien dans le temps — « visite le 21/09 », « offre à
+   * 258 000 € » —, ou la chaîne vide quand il n'y a rien à en dire (#120).
+   *
+   * Le Statut dit l'étape, cette phrase dit quand : « À visiter » ne
+   * distingue pas le Bien qu'on voit demain de celui dont le rendez-vous
+   * n'est pas pris, et c'est cette différence qui décide de la soirée.
+   *
+   * Vide est le cas ordinaire d'un Bien qu'on vient de repérer : la carte
+   * n'affiche alors pas de ligne, plutôt qu'une ligne vide.
+   */
+  situation: string;
 
   /**
    * Où en est la saisie de ce Bien, que la barre sous les Colonnes affiche.
@@ -199,6 +213,7 @@ export class CartesBiens {
         statut: bien.statut,
         libelleStatut: libelleStatut(bien.statut),
         cases,
+        situation: situation(bien.statut, bien.champsStatut),
         completude: completude(bien.criteres),
         selectionne,
         // Un Bien déjà retenu garde sa case active : le plafond borne

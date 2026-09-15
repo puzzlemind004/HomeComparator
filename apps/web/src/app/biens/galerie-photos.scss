@@ -20,6 +20,17 @@
   }
 }
 
+// Le compte des photos, à côté du titre : il se lit sans compter les
+// vignettes, ce qu'une grille de plus de cinq ne permet plus d'un coup d'œil.
+.galerie__compte {
+  color: var(--neutre-700);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  // Il pousse le bouton d'ajout à droite plutôt que de s'y coller : le titre
+  // et son compte vont ensemble, l'ajout est un geste à part.
+  margin-right: auto;
+}
+
 // Un `label` habillé en bouton : c'est lui qui porte le geste, l'`input`
 // restant masqué derrière (voir le gabarit).
 .galerie__ajout {

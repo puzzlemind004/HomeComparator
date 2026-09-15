@@ -10,6 +10,7 @@ import {
 } from '../criteres/colonnes';
 import { TRI_INITIAL, basculer, trier, type Tri } from '../criteres/tri';
 import { libelleStatut, type Statut } from '../criteres/statut';
+import { situation } from '../criteres/situation';
 import { MAXIMUM_MOBILE } from '../criteres/selection-comparaison';
 import type { GroupeCritere } from '../criteres/critere';
 
@@ -43,6 +44,20 @@ export interface LigneTableau {
    */
   statut: Statut;
   libelleStatut: string;
+
+  /**
+   * Où en est le Bien dans le temps — « visite le 21/09 », « offre à
+   * 258 000 € » —, ou la chaîne vide quand il n'y a rien à en dire (#120).
+   *
+   * La même phrase que sur les cartes, tirée du même module : les deux
+   * présentations montrent les mêmes Biens (ADR-0006), et un Bien visité
+   * demain doit se repérer pareil sur les deux écrans.
+   *
+   * Elle est posée sous le Libellé et non dans une colonne à elle : le
+   * tableau en porte déjà seize, et une de plus le ferait défiler de côté —
+   * ce qu'ADR-0006 rejette pour ce que cela détruit.
+   */
+  situation: string;
 
   /** Une case par colonne visible, dans l'ordre où l'en-tête les pose. */
   cases: CaseColonne[];
@@ -179,9 +194,7 @@ export class TableauBiens {
    * restent visibles quels que soient les groupes affichés.
    */
   readonly colonnesVisibles = computed<readonly Colonne[]>(() =>
-    this.groupes
-      .filter(({ groupe }) => this.estDeplie(groupe))
-      .flatMap(({ colonnes }) => colonnes),
+    this.groupes.filter(({ groupe }) => this.estDeplie(groupe)).flatMap(({ colonnes }) => colonnes),
   );
 
   /**
@@ -222,6 +235,7 @@ export class TableauBiens {
         bien,
         statut: bien.statut,
         libelleStatut: libelleStatut(bien.statut),
+        situation: situation(bien.statut, bien.champsStatut),
         cases: this.colonnesVisibles().map((colonne) => caseDe(colonne, bien.criteres)),
         selectionne,
         // Un Bien déjà retenu garde sa case active : le plafond borne

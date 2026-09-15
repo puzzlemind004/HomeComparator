@@ -85,6 +85,22 @@
         <span class="carte__statut" [attr.data-statut]="carte.statut">
           {{ carte.libelleStatut }}
         </span>
+
+        <!--
+          Où en est le Bien dans le temps (#120).
+
+          Sous le Libellé et non parmi les Colonnes chiffrées : ce n'est pas
+          une valeur qui se compare d'un Bien à l'autre — c'est ce qui situe
+          celui-ci dans la recherche. Le Statut juste au-dessus dit l'étape,
+          cette ligne dit quand.
+
+          Elle ne paraît pas quand il n'y a rien à en dire : un Bien qu'on
+          vient de repérer n'a ni visite ni offre, et une ligne vide sous
+          chaque carte coûterait la place sans rien apprendre.
+        -->
+        @if (carte.situation) {
+          <p class="carte__situation">{{ carte.situation }}</p>
+        }
         <!--
           Les Colonnes décisives, chacune sous son nom : sur une carte, aucune
           en-tête de colonne ne dit ce qu'un nombre représente, et « 72,5 m² »

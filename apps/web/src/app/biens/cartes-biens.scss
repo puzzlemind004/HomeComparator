@@ -112,6 +112,19 @@
   justify-self: end;
 }
 
+// Où en est le Bien dans le temps (#120) : « visite le 21/09 », « offre à
+// 258 000 € ».
+//
+// Sur toute la largeur, sous le Libellé et la pastille : la première ligne de
+// la carte est déjà partagée entre les deux, et une troisième colonne y
+// serrerait le Libellé — qui est ce sous quoi l'acheteur reconnaît un Bien.
+.carte__situation {
+  color: var(--neutre-700);
+  font-size: 12px;
+  grid-column: 1 / -1;
+  margin: 5px 0 0;
+}
+
 // Les Colonnes décisives, côte à côte tant que la place le permet.
 //
 // `auto-fit` et non un nombre de colonnes fixe : à 320 px — l'écran le plus
