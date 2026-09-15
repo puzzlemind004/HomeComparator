@@ -22,7 +22,17 @@
     </div>
   </header>
 
-  <h2>Repérer un Bien</h2>
+  <!--
+    Le formulaire reste en tête du carnet, et non derrière le bouton de la
+    maquette : ADR-0008 tient le repérage pour le cas dominant — « une annonce
+    vue le soir, à enregistrer en quelques secondes » —, et un formulaire à
+    déplier ajouterait un clic là où le geste doit être le plus court.
+
+    L'identifiant est ce que vise « + Repérer un Bien » depuis la navigation :
+    il est porté par le titre et non par le formulaire, pour que le lecteur
+    d'écran qui suit le lien entende de quoi il s'agit avant le premier champ.
+  -->
+  <h2 id="reperer">Repérer un Bien</h2>
 
   <form class="saisie" (ngSubmit)="creer()">
     <label class="champ">
@@ -65,42 +75,6 @@
   -->
   @if (message(); as message) {
     <p class="message" role="status">{{ message }}</p>
-  }
-
-  <!--
-    L'export du carnet (#14). Tout est saisi à la main (ADR-0001), et ces
-    deux boutons sont ce qui permet d'en sortir une copie : vers un tableur,
-    ou vers un fichier qu'on garde. Le dispositif quotidien tourne par
-    ailleurs, sur le serveur (ADR-0007).
-  -->
-  <div class="export">
-    <span class="export__titre">Exporter mon carnet</span>
-
-    <button
-      type="button"
-      class="export__bouton"
-      [disabled]="export() !== null"
-      (click)="exporter('csv')"
-    >
-      {{ export() === 'csv' ? 'Export en cours…' : 'CSV (tableur)' }}
-    </button>
-
-    <button
-      type="button"
-      class="export__bouton"
-      [disabled]="export() !== null"
-      (click)="exporter('json')"
-    >
-      {{ export() === 'json' ? 'Export en cours…' : 'JSON (complet)' }}
-    </button>
-  </div>
-
-  <!--
-    Un export qui n'a pas abouti se dit : sans ce message, l'acheteur
-    croirait tenir une copie de son carnet alors que rien n'est sorti.
-  -->
-  @if (erreurExport(); as erreur) {
-    <p class="export__erreur" role="alert">{{ erreur }}</p>
   }
 
   <!--
@@ -244,18 +218,21 @@
         />
 
         <!--
-          Le face-à-face, sous la liste où la sélection se fait : il paraît
-          dès que deux Biens sont retenus, et disparaît en deçà — un Bien
-          seul ne se compare à rien, et sa fiche est déjà là pour le montrer
-          (#12).
+          Le face-à-face n'est plus sous la liste : il a son écran, que la
+          navigation annonce en permanence (#124). Ce qui reste ici est le
+          lien qui y mène, et il ne paraît qu'une fois la comparaison
+          possible — c'est l'instant où il a quelque chose à montrer.
 
-          Une seule fois, pour les deux présentations : c'est la même vue sur
-          téléphone et au bureau, seul le nombre de colonnes change
-          (ADR-0006).
+          La navigation y mène de toute façon, à tout moment. Ce lien-ci est
+          celui du geste en cours : l'acheteur vient de cocher son second
+          Bien, et la suite est de les regarder côte à côte. Le lui demander
+          d'aller la chercher dans le menu serait lui faire faire le chemin
+          deux fois.
         -->
         @if (comparaisonAffichee()) {
-          <h2>Comparer</h2>
-          <app-comparaison-biens [biensAComparer]="biensCompares()" />
+          <a class="vers-comparaison" [routerLink]="routeComparaison">
+            Comparer les {{ biensCompares().length }} Biens retenus
+          </a>
         }
       } @else if (filtre(); as statut) {
         <!--

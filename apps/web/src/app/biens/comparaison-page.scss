@@ -1,0 +1,65 @@
+@use '../carnet';
+
+// L'écran du face-à-face (#124). Le tableau lui-même est dessiné par
+// `comparaison-biens` ; cette feuille ne tient que ce qui l'entoure — l'en-
+// tête, l'écran vide, et les deux gestes qui suivent la comparaison.
+@include carnet.entete;
+@include carnet.etats-vides;
+
+// L'écran atteint sans sélection. Il n'est pas une erreur, et ne se dessine
+// donc pas comme une : un encadré léger qui pose la consigne au milieu de la
+// colonne, là où le tableau se serait affiché.
+.comparaison-page__vide {
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon-lg);
+  display: grid;
+  gap: var(--espace-4);
+  justify-items: start;
+  padding: var(--espace-6) var(--espace-4);
+
+  p {
+    color: var(--neutre-800);
+    margin: 0;
+  }
+}
+
+.comparaison-page__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-3);
+  justify-content: space-between;
+  margin-top: var(--espace-6);
+}
+
+// Le retour au carnet est la seule façon de composer la sélection : il se
+// lit comme l'action à faire, et non comme une note de bas de page.
+.comparaison-page__retour {
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon);
+  color: var(--neutre-900);
+  font-family: var(--fonte-titre);
+  font-size: 14px;
+  font-weight: 600;
+  padding: var(--espace-2) var(--espace-4);
+  text-decoration: none;
+
+  &:hover {
+    background: color-mix(in srgb, var(--texte) 7%, transparent);
+  }
+}
+
+.comparaison-page__vider {
+  background: none;
+  border: none;
+  color: var(--neutre-700);
+  cursor: pointer;
+  font-family: var(--fonte-texte);
+  font-size: 13px;
+  padding: var(--espace-2);
+  text-decoration: underline;
+
+  &:hover {
+    color: var(--texte);
+  }
+}

@@ -1,0 +1,60 @@
+<section class="comparaison-page">
+  <header class="carnet__entete">
+    <p class="carnet__intitule">Carnet de recherche</p>
+    <div class="carnet__titre">
+      <h1>Comparer</h1>
+
+      @if (selection().length) {
+        <span class="carnet__compte">
+          {{ selection().length }} sur {{ maximum() }} retenu{{ selection().length > 1 ? 's' : '' }}
+        </span>
+      }
+    </div>
+  </header>
+
+  @if (liste()) {
+    @if (chargee()) {
+      @if (comparaisonAffichee()) {
+        <app-comparaison-biens [biensAComparer]="biensCompares()" />
+
+        <div class="comparaison-page__actions">
+          <a class="comparaison-page__retour" [routerLink]="routeBiens">Retour au carnet</a>
+
+          <button type="button" class="comparaison-page__vider" (click)="vider()">
+            Vider la comparaison
+          </button>
+        </div>
+      } @else {
+        <!--
+          L'écran atteint sans sélection : c'est le premier qu'on voit, la
+          navigation y menant en permanence (#124). Il dit ce qu'il attend et
+          où le faire, plutôt que de montrer un tableau sans colonnes.
+
+          Le nombre manquant plutôt qu'une phrase fixe : « choisissez-en un
+          second » et « choisissez-en deux » ne demandent pas le même geste,
+          et l'acheteur qui a déjà coché un Bien ne doit pas croire que son
+          clic n'a pas été pris.
+        -->
+        <div class="comparaison-page__vide">
+          <p role="status">
+            @if (manquants() === minimum) {
+              Aucun Bien retenu pour l'instant. Cochez-en {{ minimum }} dans le carnet pour les
+              mettre côte à côte.
+            } @else {
+              Un seul Bien retenu : un Bien seul ne se compare à rien. Cochez-en un second dans le
+              carnet.
+            }
+          </p>
+
+          <a class="comparaison-page__retour" [routerLink]="routeBiens">Aller au carnet</a>
+        </div>
+      }
+    } @else {
+      <p class="liste--erreur" role="alert">
+        L'API est injoignable : les Biens à comparer n'ont pas pu être chargés.
+      </p>
+    }
+  } @else {
+    <p class="liste--vide">Chargement des Biens…</p>
+  }
+</section>

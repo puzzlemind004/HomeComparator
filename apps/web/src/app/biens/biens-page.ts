@@ -1,19 +1,14 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Subject, switchMap } from 'rxjs';
+import { RouterLink } from '@angular/router';
 import { BienService, type ListeBiens } from './bien.service';
-import { ExportService, type FormatExport } from './export.service';
 import { STATUTS, libelleStatut, type Statut } from '../criteres/statut';
 import { CartesBiens } from './cartes-biens';
-import { ComparaisonBiens } from './comparaison-biens';
 import { TableauBiens } from './tableau-biens';
-import { LargeurEcran } from '../criteres/largeur-ecran';
-import {
-  MINIMUM_COMPARAISON,
-  basculerSelection,
-  comparaisonPossible,
-  selectionAjustee,
-} from '../criteres/selection-comparaison';
+import { SelectionComparaison } from './selection.service';
+import { comparaisonPossible } from '../criteres/selection-comparaison';
+import { ROUTE_COMPARAISON } from './carnet.routes';
 import type { Bien } from './bien';
 
 /**
@@ -23,14 +18,13 @@ import type { Bien } from './bien';
  */
 @Component({
   selector: 'app-biens-page',
-  imports: [CartesBiens, ComparaisonBiens, FormsModule, TableauBiens],
+  imports: [CartesBiens, FormsModule, RouterLink, TableauBiens],
   styleUrl: './biens-page.scss',
   templateUrl: './biens-page.html',
 })
 export class BiensPage {
   private readonly bienService = inject(BienService);
-  private readonly exportService = inject(ExportService);
-  private readonly largeurEcran = inject(LargeurEcran);
+  private readonly selectionComparaison = inject(SelectionComparaison);
 
   /**
    * L'état lu par le gabarit. Il est public plutôt que `protected` pour
@@ -73,95 +67,45 @@ export class BiensPage {
   readonly message = signal<string | null>(null);
 
   /**
-   * Le format dont l'export est en cours, ou `null` si aucun ne l'est
-   * (#14).
+   * Les Biens retenus pour le face-à-face (#12).
    *
-   * Un format plutôt qu'un booléen : il dit lequel des deux boutons
-   * travaille, et un carnet bien rempli met un instant à sortir. Sans lui,
-   * l'acheteur ne saurait pas si son clic a été pris en compte, et
-   * cliquerait à nouveau.
+   * La sélection ne vit plus ici : elle est dans `SelectionComparaison`,
+   * parce que le face-à-face a maintenant son écran et la navigation son
+   * compteur (#124). Trois lecteurs, dont deux ne sont pas des descendants
+   * de cette page — un signal de composant ne leur parvient pas.
+   *
+   * Ce que la page garde, c'est ce qui dépend de **sa** liste : quels Biens
+   * retenus elle sait afficher, et combien son filtre en masque. Le service
+   * ne connaît que des identifiants, et n'a aucun moyen de répondre à cela.
    */
-  readonly export = signal<FormatExport | null>(null);
-
-  /**
-   * Ce qui a empêché le dernier export, ou `null`.
-   *
-   * Un échec d'export se dit, et c'est tout l'objet de ce signal : sans
-   * message, l'acheteur croirait tenir une copie de son carnet alors que
-   * rien n'a été produit — et ne s'en apercevrait que le jour où il en
-   * aurait besoin, qui est le pire moment (ADR-0007).
-   *
-   * Une réussite, elle, ne dit rien : le navigateur a déjà annoncé le
-   * téléchargement, et un message de plus ferait du bruit pour une chose
-   * déjà dite.
-   */
-  readonly erreurExport = signal<string | null>(null);
-
-  /**
-   * Les Biens retenus pour le face-à-face (#12), dans l'ordre où l'acheteur
-   * les a choisis — c'est cet ordre qui fixe celui des colonnes.
-   *
-   * La sélection vit ici et non dans le tableau ou les cartes : les deux
-   * présentations la montrent, et deux états séparés divergeraient dès qu'une
-   * fenêtre redimensionnée fait passer de l'une à l'autre. Elle ne se retient
-   * pas d'une visite à l'autre — le carnet ne persiste aucune préférence.
-   */
-  private readonly choix = signal<readonly number[]>([]);
+  readonly selection = this.selectionComparaison.selection;
 
   /** Combien de Biens l'écran courant permet de comparer (ADR-0006). */
-  readonly maximumSelection = computed(() => this.largeurEcran.maximumComparaison());
+  readonly maximumSelection = this.selectionComparaison.maximum;
 
   /** Ce qu'il faut de Biens pour qu'il y ait quelque chose à comparer. */
-  readonly minimumComparaison = MINIMUM_COMPARAISON;
-
-  /**
-   * La sélection telle que l'écran peut réellement l'honorer : ce que
-   * l'acheteur a coché, ramené au plafond et aux Biens qui existent encore.
-   *
-   * Elle est **dérivée** et non écrite, là où un `effect` qui corrigerait le
-   * signal aurait fait la même chose : deux choses la rendent caduque sans
-   * qu'on y touche — la fenêtre qui rétrécit sous le seuil, et un Bien
-   * supprimé. Un état corrigé après coup existe brièvement faux, et cette
-   * page-là se lirait avec une colonne dont elle n'a plus les valeurs.
-   *
-   * Ce dont elle ne dépend **pas** : la liste affichée. Un filtre par Statut
-   * est un geste de lecture, et un Bien qu'il masque reste retenu (#93) —
-   * il garde sa place, compte sous le plafond, et revient tel quel à
-   * l'ouverture du filtre. C'est `biensCompares` qui s'occupe de ne pas lui
-   * faire de colonne tant que l'écran n'a pas ses valeurs.
-   *
-   * Un Bien supprimé, lui, sort par `oublier`, qui le retire du choix : la
-   * disparition se déclare, elle ne se déduit pas d'une liste — laquelle ne
-   * distinguerait pas une suppression d'un filtrage.
-   *
-   * Rétrécir la fenêtre puis l'élargir rend les Biens que le plafond avait
-   * mis de côté, tant qu'aucun clic n'est venu entre-temps : le premier
-   * geste de sélection repart de ce qui est réellement comparé, et ce qui
-   * dépassait est alors abandonné pour de bon. Retenir indéfiniment des
-   * colonnes invisibles ferait resurgir, à l'élargissement, des Biens que
-   * l'acheteur croyait avoir remplacés.
-   */
-  readonly selection = computed<readonly number[]>(() =>
-    selectionAjustee(this.choix(), this.maximumSelection()),
-  );
-
-  /**
-   * Vrai dès que deux Biens **comparables** sont retenus : la vue a alors de
-   * quoi s'afficher.
-   *
-   * Elle se lit sur `biensCompares` et non sur `selection`, dont les deux
-   * peuvent différer depuis #93 : un Bien retenu que le filtre masque garde
-   * sa place, mais l'écran n'a pas ses valeurs. Compter sur la sélection
-   * ferait paraître un face-à-face à une seule colonne, qui ne compare rien.
-   */
-  readonly comparaisonAffichee = computed(() => comparaisonPossible(this.biensCompares()));
+  readonly minimumComparaison = this.selectionComparaison.minimum;
 
   /**
    * Vrai quand le plafond est atteint : la page le dit au-dessus de la
    * liste, plutôt que de laisser l'acheteur découvrir des cases qui ne
    * répondent plus sans savoir pourquoi.
    */
-  readonly selectionPleine = computed(() => this.selection().length >= this.maximumSelection());
+  readonly selectionPleine = this.selectionComparaison.pleine;
+
+  /** L'écran où la comparaison se regarde, désormais (#124). */
+  readonly routeComparaison = ROUTE_COMPARAISON;
+
+  /**
+   * Vrai dès que deux Biens **comparables** sont retenus : le face-à-face a
+   * alors de quoi s'afficher, et la page invite à y aller.
+   *
+   * Elle se lit sur `biensCompares` et non sur la sélection, dont les deux
+   * peuvent différer depuis #93 : un Bien retenu que le filtre masque garde
+   * sa place, mais l'écran n'a pas ses valeurs. Compter sur la sélection
+   * ferait promettre un face-à-face à une seule colonne, qui ne compare rien.
+   */
+  readonly comparaisonAffichee = computed(() => comparaisonPossible(this.biensCompares()));
 
   /**
    * Les Biens à comparer, dans l'ordre de la sélection et non dans celui de
@@ -237,62 +181,32 @@ export class BiensPage {
    * Le clic sur la case d'un Bien : il rejoint la comparaison, ou il en
    * sort.
    *
-   * Au plafond, l'ajout est refusé et la sélection ne bouge pas — c'est ce
-   * que dit `basculerSelection`, et la page l'annonce au-dessus de la liste.
+   * La règle — l'ordre d'ajout, le refus au plafond, ce que le
+   * rétrécissement de la fenêtre abandonne — est dans le service, qui la
+   * tient pour les trois écrans. La page n'a plus qu'à transmettre le clic,
+   * et à annoncer le plafond au-dessus de sa liste.
    */
   basculerComparaison(bienId: number): void {
-    // La bascule repart de la sélection **effective** et non du choix brut :
-    // un Bien coché au bureau puis écarté par le rétrécissement de la
-    // fenêtre ne doit pas occuper une place sur le téléphone. Ce que le
-    // plafond a mis de côté est donc abandonné pour de bon au clic suivant,
-    // et c'est voulu — la place n'existe pas, et retenir indéfiniment des
-    // colonnes invisibles les ferait resurgir à l'élargissement, longtemps
-    // après le geste qui les a choisies.
-    //
-    // Ce que la sélection effective ne retranche **plus** : les Biens qu'un
-    // filtre par Statut masque (#93). Un filtre est un geste de lecture, pas
-    // une décision sur la comparaison, et rien à l'écran n'annonce qu'en
-    // filtrant on renonce à ce qu'on avait retenu. Le Bien masqué existe, il
-    // est comparable, il est seulement hors du filtre courant : il garde sa
-    // place ici et revient tel quel quand le filtre s'ouvre.
-    //
-    // Les deux causes de retrait sont donc séparées : le plafond ici, et la
-    // suppression par `oublier`, qui se déclare et retire du choix.
-    this.choix.update(() => basculerSelection(this.selection(), bienId, this.maximumSelection()));
+    this.selectionComparaison.basculer(bienId);
   }
 
   /**
    * Le constat qu'un Bien a été supprimé : il quitte la comparaison (#93).
    *
-   * C'est le seul chemin par lequel un Bien sort de la sélection sans que
-   * l'acheteur l'ait décoché ni que le plafond s'en mêle. La disparition se
-   * **déclare** plutôt que de se déduire de l'absence du Bien dans la
-   * liste : cette absence-là ne distingue pas une suppression d'un
-   * filtrage, et c'est précisément la confusion que ce ticket défait.
-   *
-   * Le Bien est **retiré du choix**, et rien n'est mémorisé de lui. Une
-   * liste des oubliés rejouée à chaque recalcul rendrait l'identifiant
-   * non-cochable pour toujours : un appelant qui se tromperait — un Bien
-   * déclaré supprimé trop tôt, ou recréé depuis — laisserait une case qui
-   * ne répond plus sans que rien ne le dise, la panne muette même que la
-   * page prend soin d'éviter ailleurs. Ce qui est supprimé ne revenant dans
-   * aucune liste, le retrait suffit ; et si le Bien revient, c'est qu'il
-   * n'était pas supprimé, et le recocher doit marcher.
-   *
-   * La suppression elle-même se joue sur la fiche du Bien (#9), qui est un
-   * autre écran : la page y navigue et se reconstruit au retour, sélection
-   * comprise. Cette méthode est donc aujourd'hui sans appelant — elle est
-   * le point d'entrée que devra emprunter tout écran qui supprimerait un
-   * Bien sans quitter la liste, et sans lequel il n'aurait d'autre recours
-   * que de reconclure « supprimé » d'une liste filtrée.
+   * La page n'appelle pas cette méthode d'elle-même, et ne le peut pas : sa
+   * liste est filtrable, et l'absence d'un Bien n'y distingue pas une
+   * suppression d'un filtrage. Elle reste le point d'entrée d'un écran qui
+   * supprimerait un Bien sans quitter la liste ; la suppression se joue
+   * aujourd'hui sur la fiche (#9), et c'est l'écran de comparaison — qui
+   * charge la liste entière — qui la constate au retour.
    */
   oublier(bienId: number): void {
-    this.choix.update((choix) => choix.filter((candidat) => candidat !== bienId));
+    this.selectionComparaison.oublier(bienId);
   }
 
   /** Le bouton qui vide la comparaison, sans toucher à la liste. */
   viderComparaison(): void {
-    this.choix.set([]);
+    this.selectionComparaison.vider();
   }
 
   /**
@@ -357,37 +271,6 @@ export class BiensPage {
         this.libelle.set('');
         this.urlAnnonce.set('');
       });
-  }
-
-  /**
-   * L'export du carnet dans le format demandé (#14).
-   *
-   * L'écran ne fabrique pas le fichier : c'est l'API qui le rend tout écrit,
-   * et le service qui déclenche l'enregistrement. Ce qui se décide ici est
-   * ce que l'acheteur voit pendant et après — le bouton qui travaille, et
-   * le message quand rien n'est sorti.
-   *
-   * Un second clic est ignoré tant que le premier n'a pas rendu : deux
-   * demandes impatientes produiraient deux téléchargements du même carnet.
-   * C'est le même garde que l'enregistrement d'un Bien.
-   */
-  exporter(format: FormatExport): void {
-    if (this.export()) {
-      return;
-    }
-
-    this.export.set(format);
-    // L'échec précédent s'efface : le laisser afficher pendant la nouvelle
-    // tentative ferait lire l'échec d'hier comme celui d'aujourd'hui.
-    this.erreurExport.set(null);
-
-    this.exportService.exporter(format).subscribe((resultat) => {
-      this.export.set(null);
-
-      if (!resultat.exporte) {
-        this.erreurExport.set(resultat.erreur);
-      }
-    });
   }
 
   private rafraichir(): void {

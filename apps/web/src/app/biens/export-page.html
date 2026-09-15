@@ -1,0 +1,63 @@
+<section class="export-page">
+  <header class="carnet__entete">
+    <p class="carnet__intitule">Carnet de recherche</p>
+    <div class="carnet__titre">
+      <h1>Exporter</h1>
+    </div>
+  </header>
+
+  <!--
+    Tout est saisi à la main (ADR-0001) : ces deux boutons sont ce qui permet
+    d'en sortir une copie. L'écran a maintenant la place de dire ce que le
+    carnet ne disait pas quand l'export était coincé entre le formulaire et
+    les filtres — ce que chaque format sert, et ce que l'export n'est pas.
+  -->
+  <p class="export-page__chapeau">
+    Les Biens du carnet, tels qu'ils sont enregistrés, dans un fichier que vous gardez.
+  </p>
+
+  <div class="export">
+    <button
+      type="button"
+      class="export__bouton"
+      [disabled]="export() !== null"
+      (click)="exporter('csv')"
+    >
+      <span class="export__format">{{ export() === 'csv' ? 'Export en cours…' : 'CSV' }}</span>
+      <span class="export__usage"
+        >Pour un tableur : une ligne par Bien, une colonne par Critère.</span
+      >
+    </button>
+
+    <button
+      type="button"
+      class="export__bouton"
+      [disabled]="export() !== null"
+      (click)="exporter('json')"
+    >
+      <span class="export__format">{{ export() === 'json' ? 'Export en cours…' : 'JSON' }}</span>
+      <span class="export__usage">Tout le carnet, y compris ce que le CSV met de côté.</span>
+    </button>
+  </div>
+
+  <!--
+    Un export qui n'a pas abouti se dit : sans ce message, l'acheteur croirait
+    tenir une copie de son carnet alors que rien n'est sorti.
+  -->
+  @if (erreurExport(); as erreur) {
+    <p class="export__erreur" role="alert">{{ erreur }}</p>
+  }
+
+  <!--
+    L'Export et la Sauvegarde se confondent facilement, et le glossaire prend
+    soin de les distinguer : l'Export sort les données vers un tableur et ne
+    contient pas les Photos ; la Sauvegarde sert à revenir en arrière et
+    tourne toute seule, sur le serveur (ADR-0007). Le dire ici évite de
+    prendre l'un pour l'autre — et de croire ses Photos à l'abri parce qu'on
+    a exporté.
+  -->
+  <p class="export-page__note">
+    Les Photos ne sont pas dans l'export : elles sont dans la sauvegarde quotidienne, qui tourne sur
+    le serveur et sert à revenir en arrière.
+  </p>
+</section>

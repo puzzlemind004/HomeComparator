@@ -2,10 +2,10 @@
 
 // La barre de marque, en tête de chaque écran.
 //
-// Elle nomme l'application et porte la déconnexion, rien d'autre : la
-// navigation de la maquette — Carnet, Comparer, Exporter — n'a pas d'écrans
-// derrière elle aujourd'hui, l'export et la comparaison vivant dans la page
-// du carnet. Les y mettre créerait des liens qui ne mènent nulle part.
+// Elle nomme l'application et porte la déconnexion. La navigation de la
+// maquette — Carnet, Comparer, Exporter — est juste en dessous depuis que ces
+// trois écrans existent (#124) ; elle vit dans sa propre feuille, ses deux
+// dispositions n'ayant rien à voir avec celle-ci.
 .marque {
   align-items: baseline;
   border-bottom: 1px solid var(--separateur);
@@ -33,6 +33,23 @@
   margin: 0 auto;
   max-width: 40rem;
   padding: var(--espace-6) var(--espace-4) var(--espace-8);
+
+  // Sur écran étroit, la navigation est un pied **fixe** : elle sort du flux,
+  // et sans cette réserve elle recouvrirait la fin de la page — les derniers
+  // Biens de la liste, ou le bouton d'un formulaire, qu'on ne pourrait plus
+  // atteindre qu'en devinant qu'ils sont dessous.
+  //
+  // C'est le coût que #124 mettait en balance : un pied fixe mange de la
+  // hauteur sur l'écran où la liste est déjà ce qui compte. Il est payé ici
+  // une fois, en bas, plutôt qu'en rognant la liste — le défilement rend la
+  // hauteur, il ne rend pas un menu qu'on ne trouve pas.
+  padding-bottom: calc(44px + env(safe-area-inset-bottom, 0px) + var(--espace-8));
+
+  @media (min-width: 64rem) {
+    // La navigation rejoint le flux : elle ne recouvre plus rien, et la
+    // réserve n'a plus lieu d'être.
+    padding-bottom: var(--espace-8);
+  }
 }
 
 .deconnexion {

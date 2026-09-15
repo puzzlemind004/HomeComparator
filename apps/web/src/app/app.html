@@ -19,6 +19,22 @@
 
       <button type="button" class="deconnexion" (click)="deconnecter()">Se déconnecter</button>
     </header>
+
+    <!--
+      La navigation du carnet (#124). Elle est dans la coque et non dans un
+      écran : elle doit survivre au changement d'écran, et c'est ce qui lui
+      permet de porter le compte de la sélection partout.
+
+      Elle ne paraît qu'une fois connecté, pour la même raison que la marque :
+      les trois écrans qu'elle propose sont derrière le garde de route, et un
+      menu qui renverrait à la connexion ne serait pas une navigation.
+
+      Elle est montée une seule fois pour les deux dispositions de la maquette
+      — pied fixe sur mobile, barre en tête sur desktop : c'est la feuille de
+      style qui choisit, et deux instances feraient annoncer deux navigations
+      à un lecteur d'écran (ADR-0005).
+    -->
+    <app-navigation />
   }
 
   <main class="page">

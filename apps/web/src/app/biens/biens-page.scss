@@ -1,39 +1,10 @@
 @use '../carnet';
 
-// L'en-tête du carnet : l'intitulé, le titre, et de combien de Biens il
-// s'agit. C'est ce qui ouvre l'écran, avant le formulaire de repérage.
-.carnet__entete {
-  margin-bottom: var(--espace-6);
-}
-
-.carnet__intitule {
-  @include carnet.intitule;
-
-  color: var(--accent-700);
-  margin: 0;
-}
-
-// Le compte s'aligne sur la ligne de base du titre, pas sur son bas : deux
-// tailles de texte très différentes ne se posent pas l'une à côté de l'autre
-// autrement sans que la petite ait l'air de flotter.
-.carnet__titre {
-  align-items: baseline;
-  display: flex;
-  gap: var(--espace-3);
-  justify-content: space-between;
-
-  h1 {
-    margin: 4px 0 0;
-  }
-}
-
-.carnet__compte {
-  @include carnet.chiffres;
-
-  color: var(--neutre-700);
-  flex: none;
-  font-size: 12px;
-}
+// L'en-tête et les états vides viennent de `_carnet.scss` : la comparaison et
+// l'export les portent aussi depuis qu'ils ont leur écran (#124), et trois
+// copies dans trois feuilles sont trois occasions de diverger.
+@include carnet.entete;
+@include carnet.etats-vides;
 
 .saisie {
   display: grid;
@@ -235,78 +206,9 @@
   }
 }
 
-// Ce que l'écran dit quand il n'a aucun Bien à montrer. Les Biens eux-mêmes
-// sont dessinés par le tableau ou par les cartes, chacun dans sa feuille :
-// rien de leur allure ne vit plus ici (#11).
-.liste--vide {
-  color: var(--neutre-700);
-  font-size: 14px;
-}
-
-.liste--erreur {
-  border: 1px solid var(--separateur);
-  border-left: 3px solid var(--erreur);
-  border-radius: var(--rayon);
-  color: var(--erreur);
-  font-size: 14px;
-  margin: 0;
-  padding: var(--espace-3) var(--espace-4);
-}
-
 // L'export du carnet (#14). Discret : c'est un geste rare — quelques fois
 // dans une recherche —, et il ne doit pas concurrencer du regard le filtre
 // ni la liste, qui sont ce pour quoi on ouvre l'écran.
-.export {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.export__titre {
-  @include carnet.intitule;
-}
-
-.export__bouton {
-  background: transparent;
-  border: 1px solid var(--separateur);
-  border-radius: var(--rayon);
-  color: var(--neutre-800);
-  cursor: pointer;
-  font-family: var(--fonte-titre);
-  font-size: 13px;
-  font-weight: 600;
-  padding: var(--espace-1) var(--espace-3);
-
-  &:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--texte) 7%, transparent);
-  }
-
-  // Le parcours au clavier doit se voir, comme pour les filtres (ADR-0005).
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  // Pendant l'export, les deux boutons sont hors d'atteinte : deux demandes
-  // impatientes produiraient deux téléchargements du même carnet.
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-  }
-}
-
-.export__erreur {
-  border: 1px solid var(--separateur);
-  border-left: 3px solid var(--erreur);
-  border-radius: var(--rayon);
-  color: var(--erreur);
-  font-size: 14px;
-  margin: 0 0 var(--espace-4);
-  padding: var(--espace-3) var(--espace-4);
-}
-
 // Ce que la sélection en cours permet, dit au-dessus de la liste (#12).
 //
 // Avant la liste et non après : l'acheteur doit savoir que le plafond est
@@ -348,6 +250,32 @@
 
   &:hover {
     background: color-mix(in srgb, var(--texte) 7%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+// Le lien vers le face-à-face, sous la liste, dès que deux Biens sont retenus
+// (#124). Il se lit comme l'étape suivante — on vient de cocher, on va
+// regarder — et non comme une note : c'est la seule chose de cet écran qui
+// porte l'accent.
+.vers-comparaison {
+  border: 1px solid var(--accent);
+  border-radius: var(--rayon);
+  color: var(--accent-800);
+  display: inline-block;
+  font-family: var(--fonte-titre);
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: var(--espace-6);
+  padding: var(--espace-2) var(--espace-4);
+  text-decoration: none;
+
+  &:hover {
+    background: var(--accent-100);
   }
 
   &:focus-visible {

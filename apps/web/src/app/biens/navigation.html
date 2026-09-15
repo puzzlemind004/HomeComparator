@@ -1,0 +1,84 @@
+<!--
+  La navigation du carnet (#124).
+
+  Un `nav` nommé : c'est un point de repère pour un lecteur d'écran, qui
+  permet d'y sauter sans parcourir la page (ADR-0005). Le nom est nécessaire
+  parce que la page en compte une seconde implicite — les liens du contenu —
+  et qu'un `nav` anonyme s'annonce « navigation », ce qui ne distingue rien.
+
+  Une liste plutôt que trois liens côte à côte : le lecteur d'écran annonce
+  alors « 3 éléments », et l'on sait combien d'écrans existent avant de les
+  avoir parcourus.
+-->
+<nav class="navigation" aria-label="Écrans du carnet">
+  <ul class="navigation__liste">
+    @for (entree of entrees; track entree.route) {
+      <li>
+        <!--
+          `ariaCurrentWhenActive` et pas seulement `routerLinkActive` : la
+          classe colore l'onglet courant, et ne s'entend pas. `aria-current`
+          est ce qui le dit, et c'est le critère d'acceptation de #124.
+
+          `page` et non `true` : la valeur nomme ce dont l'élément est le
+          courant, et ici c'est bien un écran.
+        -->
+        <a
+          class="navigation__entree"
+          [routerLink]="entree.route"
+          routerLinkActive="navigation__entree--courante"
+          [routerLinkActiveOptions]="{ exact: entree.exact }"
+          ariaCurrentWhenActive="page"
+        >
+          {{ entree.libelle }}
+
+          @if (entree.route === routeComparaison && compte()) {
+            <!--
+              Le compte de la maquette. Il est **dans** le lien et non à côté :
+              détaché, il s'annoncerait comme un nombre nu, sans dire de quoi.
+              Le mot qui le suit est masqué à l'œil — « Comparer (2) » se lit
+              d'un coup d'œil — et lu par le lecteur d'écran, pour qui la
+              parenthèse ne dit rien.
+
+              Zéro ne s'écrit pas : un compteur à zéro se lit comme un réglage,
+              là où l'absence se lit comme une absence.
+
+              `aria-live` n'y est pas : le compte change au moment où
+              l'acheteur coche, et la liste du carnet annonce déjà la sélection
+              dans sa région d'état. L'annoncer deux fois par clic ferait du
+              bruit sur le geste le plus répété de l'écran.
+            -->
+            <span class="navigation__compte">{{ compte() }}</span>
+            <span class="navigation__lecture">
+              {{ compte() }} Bien{{ compte() > 1 ? 's' : '' }} retenu{{ compte() > 1 ? 's' : '' }}
+            </span>
+          }
+        </a>
+      </li>
+    }
+
+    <!--
+      « + Repérer un Bien », l'action permanente de la maquette (#124).
+
+      Elle est dans la navigation et **mène au formulaire**, plutôt que de le
+      remplacer par un bouton qui l'ouvrirait. ADR-0008 tient le repérage pour
+      le cas dominant — « une annonce vue le soir, à enregistrer en quelques
+      secondes » —, et un formulaire à déplier ajouterait un clic exactement
+      là où le geste doit être le plus court. Le formulaire reste donc en tête
+      du carnet, et ceci est le chemin depuis les autres écrans.
+
+      Le fragment vise le formulaire, que `biens-page` nomme : depuis la
+      comparaison ou l'export, le lien change d'écran puis y descend ; depuis
+      le carnet, il y descend simplement.
+    -->
+    <li>
+      <a
+        class="navigation__entree navigation__entree--action"
+        [routerLink]="routeBiens"
+        fragment="reperer"
+      >
+        <span aria-hidden="true">+</span> Repérer
+        <span class="navigation__lecture">un Bien</span>
+      </a>
+    </li>
+  </ul>
+</nav>

@@ -1,0 +1,81 @@
+@use '../carnet';
+
+// L'écran de l'export (#124).
+//
+// Les deux boutons ne sont plus la rangée serrée qu'ils formaient au milieu
+// du carnet : ils ont la page, et deviennent deux choix posés l'un sous
+// l'autre, chacun disant à quoi il sert. C'est ce que l'écran gagne à ne
+// plus être une section — le format seul (« CSV », « JSON ») ne dit pas
+// lequel prendre.
+@include carnet.entete;
+
+.export-page__chapeau {
+  color: var(--neutre-800);
+  margin: 0 0 var(--espace-6);
+}
+
+.export {
+  display: grid;
+  gap: var(--espace-3);
+  margin-bottom: var(--espace-4);
+}
+
+.export__bouton {
+  background: transparent;
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon-lg);
+  color: var(--neutre-800);
+  cursor: pointer;
+  display: grid;
+  gap: var(--espace-1);
+  padding: var(--espace-3) var(--espace-4);
+  text-align: left;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--texte) 7%, transparent);
+  }
+
+  // Le parcours au clavier doit se voir, comme pour les filtres (ADR-0005).
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  // Pendant l'export, les deux boutons sont hors d'atteinte : deux demandes
+  // impatientes produiraient deux téléchargements du même carnet.
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+}
+
+.export__format {
+  font-family: var(--fonte-titre);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.export__usage {
+  color: var(--neutre-700);
+  font-size: 13px;
+}
+
+.export__erreur {
+  border: 1px solid var(--separateur);
+  border-left: 3px solid var(--erreur);
+  border-radius: var(--rayon);
+  color: var(--erreur);
+  font-size: 14px;
+  margin: 0 0 var(--espace-4);
+  padding: var(--espace-3) var(--espace-4);
+}
+
+// La distinction avec la Sauvegarde, en note : elle ne demande rien, elle
+// prévient d'une confusion.
+.export-page__note {
+  border-top: 1px solid var(--separateur);
+  color: var(--neutre-700);
+  font-size: 13px;
+  margin: var(--espace-6) 0 0;
+  padding-top: var(--espace-3);
+}

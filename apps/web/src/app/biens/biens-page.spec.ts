@@ -3,7 +3,7 @@ import { Injector, runInInjectionContext, signal, type Signal } from '@angular/c
 import { of, Subject, type Observable } from 'rxjs';
 import { BiensPage } from './biens-page';
 import { BienService } from './bien.service';
-import { ExportService, type ExportResultat, type FormatExport } from './export.service';
+import { SelectionComparaison } from './selection.service';
 import type { Bien, CreationBien } from './bien';
 import type { CreationBienResultat, ListeBiens } from './bien.service';
 import { unBien } from './bien.test-helper';
@@ -25,7 +25,6 @@ function creerPage(
     lister?: (statut?: Statut) => Observable<ListeBiens>;
     creer?: (saisie: CreationBien) => Observable<CreationBienResultat>;
   },
-  exportService: { exporter?: (format: FormatExport) => Observable<ExportResultat> } = {},
   maximum: number | Signal<number> = MAXIMUM_DESKTOP,
 ) {
   // Un nombre suffit à la plupart des tests ; ceux qui font varier la
@@ -38,14 +37,12 @@ function creerPage(
         provide: BienService,
         useValue: { lister: () => of(chargee([])), ...service },
       },
-      {
-        provide: ExportService,
-        useValue: { exporter: () => of<ExportResultat>({ exporte: true }), ...exportService },
-      },
-      {
-        provide: LargeurEcran,
-        useValue: { maximumComparaison },
-      },
+      { provide: LargeurEcran, useValue: { maximumComparaison } },
+      // Le vrai service, et non un double : c'est lui qui porte la règle de
+      // la sélection, et le doubler reviendrait à réécrire le plafond dans le
+      // test. Un exemplaire neuf par page, de sorte qu'un test ne trouve pas
+      // la sélection d'un autre.
+      SelectionComparaison,
     ],
   });
 
@@ -367,119 +364,6 @@ describe('BiensPage', () => {
     });
   });
 
-  /**
-   * L'export du carnet, déclenché depuis cet écran (#14).
-   *
-   * Tout est saisi à la main (ADR-0001) : l'export sert à sortir ses données
-   * vers un tableur, et à ne pas se sentir prisonnier de l'outil (ADR-0007).
-   * L'écran n'en fabrique rien — c'est l'API qui rend le fichier — mais il
-   * doit dire ce qui se passe, et surtout quand cela échoue.
-   */
-  describe('export', () => {
-    it('demande le format choisi', () => {
-      const formats: FormatExport[] = [];
-      const page = creerPage(
-        {},
-        {
-          exporter: (format) => {
-            formats.push(format);
-            return of<ExportResultat>({ exporte: true });
-          },
-        },
-      );
-
-      page.exporter('csv');
-      page.exporter('json');
-
-      expect(formats).toEqual(['csv', 'json']);
-    });
-
-    /**
-     * Un export réussi ne laisse rien à l'écran : le fichier est chez
-     * l'acheteur, et son navigateur le lui a déjà annoncé. Un message de
-     * plus ferait du bruit pour une chose déjà dite.
-     */
-    it('ne dit rien d’un export réussi', () => {
-      const page = creerPage({}, { exporter: () => of<ExportResultat>({ exporte: true }) });
-
-      page.exporter('json');
-
-      expect(page.erreurExport()).toBeNull();
-      expect(page.export()).toBeNull();
-    });
-
-    /**
-     * Un échec, lui, se dit. Sans message, l'acheteur croirait tenir une
-     * copie de son carnet alors que rien n'a été produit — et ne s'en
-     * apercevrait que le jour où il en aurait besoin.
-     */
-    it('annonce un export qui n’a pas abouti', () => {
-      const page = creerPage(
-        {},
-        {
-          exporter: () => of<ExportResultat>({ exporte: false, erreur: "L'API est injoignable." }),
-        },
-      );
-
-      page.exporter('csv');
-
-      expect(page.erreurExport()).toBe("L'API est injoignable.");
-    });
-
-    /**
-     * Le format en cours pendant la demande : c'est ce qui désactive les
-     * boutons et dit lequel des deux travaille. Un carnet bien rempli met
-     * un instant à sortir, et deux clics impatients lanceraient deux
-     * téléchargements.
-     */
-    it('retient le format en cours pendant la demande', () => {
-      const reponses = new Subject<ExportResultat>();
-      const page = creerPage({}, { exporter: () => reponses });
-
-      page.exporter('csv');
-      expect(page.export()).toBe('csv');
-
-      reponses.next({ exporte: true });
-      expect(page.export()).toBeNull();
-    });
-
-    it('ignore un second clic tant que le premier n’a pas rendu', () => {
-      let appels = 0;
-      const reponses = new Subject<ExportResultat>();
-      const page = creerPage(
-        {},
-        {
-          exporter: () => {
-            appels += 1;
-            return reponses;
-          },
-        },
-      );
-
-      page.exporter('csv');
-      page.exporter('json');
-
-      expect(appels).toBe(1);
-    });
-
-    /**
-     * Une erreur d'export précédente disparaît quand on réessaie : la
-     * laisser afficher pendant la nouvelle tentative ferait lire l'échec
-     * d'hier comme celui d'aujourd'hui.
-     */
-    it('efface l’erreur précédente à la nouvelle tentative', () => {
-      const reponses = new Subject<ExportResultat>();
-      const page = creerPage({}, { exporter: () => reponses });
-
-      page.exporter('csv');
-      reponses.next({ exporte: false, erreur: 'Raté.' });
-      expect(page.erreurExport()).toBe('Raté.');
-
-      page.exporter('csv');
-      expect(page.erreurExport()).toBeNull();
-    });
-  });
-
   describe('la sélection pour la comparaison', () => {
     /** Trois Biens listés, de quoi éprouver le plafond du téléphone. */
     const trois = [
@@ -489,7 +373,7 @@ describe('BiensPage', () => {
     ];
 
     function pageAvec(biens: Bien[], maximum = MAXIMUM_DESKTOP) {
-      return creerPage({ lister: () => of(chargee(biens)) }, {}, maximum);
+      return creerPage({ lister: () => of(chargee(biens)) }, maximum);
     }
 
     it('ne retient aucun Bien à l’ouverture', () => {
@@ -644,7 +528,7 @@ describe('BiensPage', () => {
       // Un Bien retenu occupe une place, visible ou non : sans quoi jouer
       // sur les filtres ferait dépasser le maximum (#93).
       const liste = new Subject<ListeBiens>();
-      const page = creerPage({ lister: () => liste }, {}, MAXIMUM_MOBILE);
+      const page = creerPage({ lister: () => liste }, MAXIMUM_MOBILE);
 
       liste.next(chargee(trois));
       page.basculerComparaison(1);
@@ -698,7 +582,7 @@ describe('BiensPage', () => {
       // retenir des colonnes invisibles les ferait resurgir à
       // l'élargissement. Comportement inchangé par #93.
       const maximum = signal(MAXIMUM_DESKTOP);
-      const page = creerPage({ lister: () => of(chargee(trois)) }, {}, maximum);
+      const page = creerPage({ lister: () => of(chargee(trois)) }, maximum);
 
       page.basculerComparaison(1);
       page.basculerComparaison(2);
@@ -722,7 +606,7 @@ describe('BiensPage', () => {
       // sortie — le gabarit sort donc ce bloc du test sur la longueur de la
       // liste, qui l'emporterait exactement quand il sert (#93).
       const liste = new Subject<ListeBiens>();
-      const page = creerPage({ lister: () => liste }, {}, MAXIMUM_MOBILE);
+      const page = creerPage({ lister: () => liste }, MAXIMUM_MOBILE);
 
       liste.next(chargee(trois));
       page.basculerComparaison(1);
@@ -760,18 +644,31 @@ describe('BiensPage', () => {
       expect(page.selection()).toEqual([1]);
     });
 
-    it('repart d’une comparaison vide à chaque ouverture de la page', () => {
-      // C'est ce qui règle le sort des Biens supprimés sans que la liste ait
-      // à trancher : la suppression se joue sur la fiche (#9), qui est une
-      // autre route. La page est reconstruite au retour, et rien n'y
-      // survit — ni le choix, ni les Biens oubliés.
-      const page = pageAvec(trois);
+    it('retrouve la sélection en revenant sur la page', () => {
+      // La sélection a quitté la page pour `SelectionComparaison` (#124) :
+      // elle survit donc au changement d'écran, ce qui est tout l'objet du
+      // déplacement — aller regarder le face-à-face ou l'export et revenir ne
+      // défait pas ce qu'on avait coché.
+      //
+      // C'est un renversement par rapport à ce que faisait la page tant que
+      // la sélection était l'un de ses signaux, et cela déplace le sort des
+      // Biens supprimés : la reconstruction de la page ne les évacue plus.
+      // C'est l'écran de comparaison qui les constate, sur la liste entière
+      // qu'il charge — `comparaison-page.spec` le tient.
+      const injector = Injector.create({
+        providers: [
+          { provide: BienService, useValue: { lister: () => of(chargee(trois)) } },
+          { provide: LargeurEcran, useValue: { maximumComparaison: () => MAXIMUM_DESKTOP } },
+          SelectionComparaison,
+        ],
+      });
+
+      const page = runInInjectionContext(injector, () => new BiensPage());
       page.basculerComparaison(1);
 
-      const rouverte = pageAvec(trois);
+      const rouverte = runInInjectionContext(injector, () => new BiensPage());
 
-      expect(rouverte.selection()).toEqual([]);
-      expect(rouverte.retenusMasques()).toBe(0);
+      expect(rouverte.selection()).toEqual([1]);
     });
 
     it('ne compte aucun Bien masqué tant que la liste charge', () => {

@@ -1,0 +1,159 @@
+@use '../carnet';
+
+// Les deux dispositions de la maquette : un pied fixe sur mobile, une barre
+// dans le flux sur desktop (#124).
+//
+// **Le mobile est écrit en premier**, et le desktop le reprend sous la
+// requête média. Ce n'est pas l'ordre habituel du carnet, mais c'est celui
+// qui limite les dégâts : une requête média que le navigateur n'applique pas
+// laisse alors un menu fixe en bas, qui marche ; l'inverse laisserait un
+// menu positionné pour le flux au milieu d'un écran étroit.
+//
+// Le seuil est celui de `SEUIL_ECRAN_LARGE` et de `biens-page.scss` — 64rem.
+// Il est écrit ici une troisième fois, ce que le commentaire de
+// `largeur-ecran.ts` assume déjà : Sass ne traverse pas l'encapsulation de
+// vue, et une variable CSS ne se lit pas dans une requête média.
+
+.navigation {
+  background: var(--fond);
+  border-top: 1px solid var(--separateur);
+  bottom: 0;
+  left: 0;
+  position: fixed;
+  right: 0;
+  // Au-dessus du contenu qui défile dessous, et c'est tout ce qu'il lui faut :
+  // le carnet ne superpose rien d'autre.
+  z-index: 10;
+
+  // La barre d'accueil des téléphones récents mange le bas de l'écran. Sans
+  // cette marge, la dernière entrée se retrouve dessous, et le pied de
+  // navigation devient intouchable précisément sur les appareils où il est
+  // la seule navigation.
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.navigation__liste {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    // Les trois entrées se partagent la largeur à parts égales : une cible
+    // tactile ne se vise pas, elle se trouve, et trois zones de même taille
+    // s'atteignent au pouce sans regarder.
+    flex: 1;
+  }
+}
+
+.navigation__entree {
+  align-items: center;
+  color: var(--neutre-700);
+  display: flex;
+  font-family: var(--fonte-titre);
+  font-size: 14px;
+  font-weight: 600;
+  gap: var(--espace-1);
+  justify-content: center;
+  // 44px de haut : le minimum d'une cible tactile, et ce qui fait que le
+  // pied ne mange pas plus de hauteur qu'il n'en faut — la liste est ce qui
+  // compte sur un écran étroit, et le menu ne doit pas lui prendre sa place.
+  min-height: 44px;
+  padding: var(--espace-2) var(--espace-1);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--texte);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+}
+
+// L'écran courant. La couleur ne suffit pas et n'est pas seule : le lien
+// porte `aria-current`, que le gabarit pose (ADR-0005). Le filet est ce qui
+// le distingue à l'œil — sur un pied de navigation, il se lit comme l'onglet
+// ouvert.
+.navigation__entree--courante {
+  box-shadow: inset 0 2px 0 var(--accent);
+  color: var(--texte);
+}
+
+// « + Repérer un Bien » : une action et non un écran, et elle se distingue
+// des trois entrées qui la précèdent. Le doré est ce qui la marque — c'est le
+// geste qui alimente le carnet, et le seul de la navigation qui écrive.
+//
+// Elle ne porte jamais `aria-current` : elle ne mène pas à un écran qu'on
+// puisse être en train de regarder, mais à un endroit d'un écran.
+.navigation__entree--action {
+  color: var(--accent-800);
+}
+
+// Le compte des Biens retenus : le « (2) » de la maquette, en pastille.
+//
+// Doré, parce que c'est ce qui décide — le face-à-face est l'objet du
+// produit, et la sélection est ce qui l'alimente. C'est le seul chiffre de
+// la navigation, et il n'a pas à se confondre avec le libellé qu'il suit.
+.navigation__compte {
+  @include carnet.chiffres;
+
+  background: var(--accent);
+  border-radius: 999px;
+  color: var(--neutre-100);
+  font-size: 11px;
+  line-height: 1;
+  min-width: 18px;
+  padding: 3px 5px;
+  text-align: center;
+}
+
+// Ce qui se lit sans se voir : le mot qui dit de quoi le compte est le
+// compte, que la parenthèse ne dit pas à un lecteur d'écran (ADR-0005).
+.navigation__lecture {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+// Sur écran large, le menu rejoint le flux, sous la marque : il n'y a plus
+// de pouce à ménager, et une barre fixe en bas d'un grand écran est loin de
+// tout — le regard est en haut, la souris aussi.
+@media (min-width: 64rem) {
+  .navigation {
+    border-top: none;
+    bottom: auto;
+    padding-bottom: 0;
+    position: static;
+  }
+
+  .navigation__liste {
+    // Les entrées reprennent leur largeur propre et se rangent à gauche : à
+    // trois sur un écran large, les étirer les éloignerait les unes des
+    // autres sans rien gagner.
+    gap: var(--espace-2);
+    margin: 0 auto;
+    max-width: 40rem;
+    padding: 0 var(--espace-4);
+
+    li {
+      flex: none;
+    }
+  }
+
+  .navigation__entree {
+    border-radius: var(--rayon);
+    min-height: 0;
+    padding: var(--espace-2) var(--espace-3);
+  }
+
+  // Le filet passe sous l'entrée : au fil du texte, c'est là qu'on lit un
+  // onglet courant, quand en pied de navigation c'est au-dessus.
+  .navigation__entree--courante {
+    box-shadow: inset 0 -2px 0 var(--accent);
+  }
+}

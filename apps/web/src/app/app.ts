@@ -2,12 +2,13 @@ import { Component, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterOutlet } from '@angular/router';
 import { HealthService } from './health/health.service';
+import { Navigation } from './biens/navigation';
 import { AuthService } from './auth/auth.service';
 import { ROUTE_CONNEXION } from './auth/auth.routes';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [Navigation, RouterOutlet],
   styleUrl: './app.scss',
   templateUrl: './app.html',
 })

@@ -23,3 +23,66 @@
 @mixin chiffres {
   font-variant-numeric: tabular-nums;
 }
+
+// L'en-tête d'un écran du carnet : l'intitulé, le titre, et le compte qui
+// l'accompagne. Trois écrans le portent depuis que la comparaison et l'export
+// ont le leur (#124) — le carnet, le face-à-face, l'export — et l'encapsulation
+// de vue veut qu'il soit écrit dans chacune des trois feuilles. Le mixin est
+// ce qui évite que trois copies divergent, comme `intitule` l'évite déjà pour
+// le petit texte capitalisé.
+@mixin entete {
+  .carnet__entete {
+    margin-bottom: var(--espace-6);
+  }
+
+  .carnet__intitule {
+    @include intitule;
+
+    color: var(--accent-700);
+    margin: 0;
+  }
+
+  // Le compte s'aligne sur la ligne de base du titre, pas sur son bas : deux
+  // tailles de texte très différentes ne se posent pas l'une à côté de l'autre
+  // autrement sans que la petite ait l'air de flotter.
+  .carnet__titre {
+    align-items: baseline;
+    display: flex;
+    gap: var(--espace-3);
+    justify-content: space-between;
+
+    h1 {
+      margin: 4px 0 0;
+    }
+  }
+
+  .carnet__compte {
+    @include chiffres;
+
+    color: var(--neutre-700);
+    flex: none;
+    font-size: 12px;
+  }
+}
+
+// Ce qu'un écran dit quand il n'a rien à montrer, et ce qu'il dit quand l'API
+// n'a pas répondu. Les deux se ressemblent assez pour se recopier de feuille
+// en feuille, et assez peu pour qu'une copie retouchée passe inaperçue : le
+// silence de l'API doit se distinguer d'un carnet vide sur tous les écrans,
+// et c'est exactement ce que la couleur porte ici.
+@mixin etats-vides {
+  .liste--vide {
+    color: var(--neutre-700);
+    font-size: 14px;
+  }
+
+  .liste--erreur {
+    border: 1px solid var(--separateur);
+    border-left: 3px solid var(--erreur);
+    border-radius: var(--rayon);
+    color: var(--erreur);
+    font-size: 14px;
+    margin: 0;
+    padding: var(--espace-3) var(--espace-4);
+  }
+}
