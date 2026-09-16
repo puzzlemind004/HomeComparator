@@ -1,6 +1,4 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { Subject, switchMap } from 'rxjs';
 import { RouterLink } from '@angular/router';
 import { BienService, type ListeBiens } from './bien.service';
 import { STATUTS, libelleStatut, type Statut } from '../criteres/statut';
@@ -8,17 +6,42 @@ import { CartesBiens } from './cartes-biens';
 import { TableauBiens } from './tableau-biens';
 import { SelectionComparaison } from './selection.service';
 import { comparaisonPossible } from '../criteres/selection-comparaison';
-import { ROUTE_COMPARAISON } from './carnet.routes';
+import { ROUTE_COMPARAISON, ROUTE_REPERER } from './carnet.routes';
 import type { Bien } from './bien';
 
 /**
- * L'écran de repérage : saisir un Libellé, et retrouver le Bien dans la
- * liste. Le geste doit tenir en quelques secondes (ADR-0008), donc le
- * formulaire ne demande rien d'autre — l'URL de l'Annonce reste facultative.
+ * Un filtre tel que l'en-tête le propose : le Statut sur lequel il porte —
+ * `null` pour « Tous » —, son libellé, et combien de Biens il montrerait.
+ *
+ * Le compte est ce que la maquette met dans la pastille, et ce n'est pas un
+ * ornement : « À contacter 2 » dit qu'il reste deux coups de téléphone à
+ * passer sans qu'on ait à ouvrir le filtre pour le découvrir.
+ */
+export interface FiltreStatut {
+  statut: Statut | null;
+  libelle: string;
+  compte: number;
+}
+
+/**
+ * Le carnet : la liste des Biens, et rien d'autre.
+ *
+ * **Le formulaire de repérage n'y est plus** — il a son écran (`reperer-page`),
+ * ce que la maquette demande. La liste est ce qu'on vient voir en ouvrant
+ * l'application, et deux champs plus un bouton la repoussaient sous la ligne
+ * de flottaison à chaque ouverture. Le geste garde son importance : le « + »
+ * de l'en-tête y mène, et la navigation aussi.
+ *
+ * **La liste entière est chargée, puis filtrée en mémoire.** C'est ce qui
+ * permet aux pastilles de porter leur compte — « À contacter 2 » — sans un
+ * appel par Statut : un compte par pastille sur six pastilles ferait six
+ * requêtes à chaque ouverture, là où le carnet d'un acheteur tient en
+ * quelques dizaines de Biens. Le filtre en SQL (ADR-0004) reste ce que
+ * l'API sait faire, et `BienService.lister` le garde pour qui en aura besoin.
  */
 @Component({
   selector: 'app-biens-page',
-  imports: [CartesBiens, FormsModule, RouterLink, TableauBiens],
+  imports: [CartesBiens, RouterLink, TableauBiens],
   styleUrl: './biens-page.scss',
   templateUrl: './biens-page.html',
 })
@@ -27,21 +50,11 @@ export class BiensPage {
   private readonly selectionComparaison = inject(SelectionComparaison);
 
   /**
-   * L'état lu par le gabarit. Il est public plutôt que `protected` pour
-   * rester lisible par les tests, qui l'interrogent là où ils devraient
-   * sinon inspecter le DOM rendu.
-   */
-  readonly libelle = signal('');
-  readonly urlAnnonce = signal('');
-
-  /**
    * La liste, ou l'aveu qu'on n'a pas pu la charger. `null` tant que l'API
    * n'a pas répondu : les trois états sont distincts à l'écran, une liste
    * vide ne devant jamais être confondue avec un chargement raté.
    */
   readonly liste = signal<ListeBiens | null>(null);
-  readonly erreurs = signal<string[]>([]);
-  readonly enregistrement = signal(false);
 
   /** Les six Statuts, tels que le filtre les propose. */
   readonly statuts = STATUTS;
@@ -54,17 +67,6 @@ export class BiensPage {
    * c'est précisément ce qu'un carnet ne doit pas faire (#7).
    */
   readonly filtre = signal<Statut | null>(null);
-
-  /**
-   * Ce que l'écran a à dire sur le dernier Bien créé, quand la liste ne
-   * suffit pas à le montrer.
-   *
-   * Un Bien créé est « À contacter » (#7). Si la liste est filtrée sur un
-   * autre Statut, il n'y a pas sa place — et sans un mot, l'enregistrement
-   * réussi serait indiscernable d'un échec : le formulaire se vide, la
-   * liste ne bouge pas. L'acheteur ressaisirait, et créerait un doublon.
-   */
-  readonly message = signal<string | null>(null);
 
   /**
    * Les Biens retenus pour le face-à-face (#12).
@@ -97,6 +99,16 @@ export class BiensPage {
   readonly routeComparaison = ROUTE_COMPARAISON;
 
   /**
+   * L'écran de repérage, que le « + » de l'en-tête vise.
+   *
+   * Un bouton-icône dans l'en-tête plutôt qu'une entrée de menu : la
+   * création est séparée de la liste depuis la refonte, et le geste qui
+   * alimente le carnet doit rester à portée de pouce là où l'on regarde
+   * la liste.
+   */
+  readonly routeReperer = ROUTE_REPERER;
+
+  /**
    * Vrai dès que deux Biens **comparables** sont retenus : le face-à-face a
    * alors de quoi s'afficher, et la page invite à y aller.
    *
@@ -108,13 +120,98 @@ export class BiensPage {
   readonly comparaisonAffichee = computed(() => comparaisonPossible(this.biensCompares()));
 
   /**
+   * Les Biens que l'écran montre : ceux du Statut filtré, ou tous.
+   *
+   * Le filtre s'applique ici plutôt qu'à l'API, qui rend la liste entière
+   * une fois pour toutes : c'est ce qui permet aux pastilles de porter leur
+   * compte sans une requête chacune, et ce qui rend le filtrage instantané.
+   *
+   * L'ordre de l'API est conservé — `filter` ne réordonne pas : la liste est
+   * rendue triée, et c'est ce tri-là que les cartes et le tableau reprennent.
+   */
+  readonly biensAffiches = computed<Bien[]>(() => {
+    const liste = this.liste();
+
+    if (!liste?.chargee) {
+      return [];
+    }
+
+    const filtre = this.filtre();
+
+    return filtre === null ? liste.biens : liste.biens.filter((bien) => bien.statut === filtre);
+  });
+
+  /**
+   * Les pastilles de l'en-tête : « Tous 10 », « À contacter 2 », et les
+   * quatre autres — chacune avec ce qu'elle montrerait.
+   *
+   * **Le compte est ce que la maquette demande**, et il vaut mieux qu'un
+   * ornement : il dit où en est la recherche sans qu'on ait à essayer les
+   * filtres un par un. « À contacter 2 » est le nombre de coups de
+   * téléphone qui restent.
+   *
+   * Les six Statuts sont toujours proposés, y compris ceux que personne ne
+   * porte : une pastille à zéro dit « aucun Bien écarté », ce qui est une
+   * réponse. La faire disparaître ferait bouger la barre à chaque
+   * changement de Statut, et l'acheteur chercherait un filtre qui était là
+   * la veille.
+   *
+   * Vide tant que la liste n'a pas été chargée : des pastilles toutes à zéro
+   * pendant le chargement se liraient comme un carnet vide.
+   */
+  readonly filtres = computed<FiltreStatut[]>(() => {
+    const liste = this.liste();
+
+    if (!liste?.chargee) {
+      return [];
+    }
+
+    const biens = liste.biens;
+
+    return [
+      { statut: null, libelle: 'Tous', compte: biens.length },
+      ...STATUTS.map(({ valeur, libelle }) => ({
+        statut: valeur,
+        libelle,
+        compte: biens.filter((bien) => bien.statut === valeur).length,
+      })),
+    ];
+  });
+
+  /**
+   * Ce que porte le carnet, en une ligne : « 10 Biens · 3 à visiter ».
+   *
+   * C'est la phrase de la maquette, et les deux membres ne disent pas la
+   * même chose que les pastilles : le premier donne la taille du carnet, le
+   * second ce qui demande une action prochaine. Les pastilles, elles,
+   * servent à filtrer.
+   *
+   * Le second membre disparaît quand aucun Bien n'est à visiter : « 10 Biens
+   * · 0 à visiter » annoncerait un vide, là où le silence est la bonne
+   * réponse. Chaîne vide tant que la liste n'a pas été chargée, ce que le
+   * gabarit traite en n'affichant rien.
+   */
+  readonly resume = computed(() => {
+    const liste = this.liste();
+
+    if (!liste?.chargee || liste.biens.length === 0) {
+      return '';
+    }
+
+    const total = liste.biens.length;
+    const aVisiter = liste.biens.filter((bien) => bien.statut === 'aVisiter').length;
+    const biens = `${total} Bien${total > 1 ? 's' : ''}`;
+
+    return aVisiter ? `${biens} · ${aVisiter} à visiter` : biens;
+  });
+
+  /**
    * Les Biens à comparer, dans l'ordre de la sélection et non dans celui de
    * la liste : c'est l'ordre que l'acheteur a demandé, et le seul qui ne
    * fasse pas bouger les colonnes déjà posées quand il en ajoute une.
    */
   readonly biensCompares = computed<Bien[]>(() => {
-    const liste = this.liste();
-    const biens = liste?.chargee ? liste.biens : [];
+    const biens = this.biensAffiches();
 
     // Un Bien retenu mais que la liste courante ne rend pas n'a pas de
     // colonne : l'écran n'a pas ses valeurs, et une colonne vide ne
@@ -158,23 +255,17 @@ export class BiensPage {
    */
   readonly libelleStatut = libelleStatut;
 
-  /**
-   * Les chargements demandés, un par changement de filtre.
-   *
-   * Ils passent par un sujet plutôt que par un `subscribe` direct pour que
-   * `switchMap` abandonne la requête précédente : deux clics rapprochés
-   * lancent deux appels, et rien ne garantit qu'ils reviennent dans
-   * l'ordre. Sans cela, la réponse la plus lente écrase la plus récente, et
-   * l'écran montre les Biens d'un Statut sous la pastille d'un autre.
-   */
-  private readonly chargements = new Subject<Statut | null>();
-
   constructor() {
-    this.chargements
-      .pipe(switchMap((statut) => this.bienService.lister(statut ?? undefined)))
-      .subscribe((liste) => this.liste.set(liste));
-
-    this.rafraichir();
+    /**
+     * Un seul chargement, sans filtre : la liste entière sert à la fois ce
+     * que l'écran montre et ce que les pastilles comptent.
+     *
+     * C'est ce qui a remplacé le rechargement par Statut. Le filtre part
+     * désormais en mémoire, et il n'y a plus de course entre deux réponses
+     * à départager — le problème que `switchMap` résolvait ici n'existe
+     * plus faute d'une seconde requête.
+     */
+    this.bienService.lister().subscribe((liste) => this.liste.set(liste));
   }
 
   /**
@@ -210,70 +301,14 @@ export class BiensPage {
   }
 
   /**
-   * Le changement de filtre, qui relance le chargement.
+   * Le changement de filtre.
    *
-   * La liste est rechargée plutôt que filtrée en mémoire : le filtre est en
-   * SQL (ADR-0004), et l'écran ne détient de toute façon que ce que le
-   * filtre précédent lui a rendu.
+   * Il ne recharge plus rien : la liste entière est déjà là, et c'est elle
+   * qui alimente les comptes des pastilles. Filtrer en mémoire est ce qui
+   * rend le geste instantané — six pastilles qu'on essaie l'une après
+   * l'autre ne valent pas six allers-retours à l'API.
    */
   filtrer(statut: Statut | null): void {
     this.filtre.set(statut);
-    this.liste.set(null);
-    this.message.set(null);
-    this.rafraichir();
-  }
-
-  creer(): void {
-    if (this.enregistrement()) {
-      return;
-    }
-
-    this.enregistrement.set(true);
-    this.erreurs.set([]);
-    this.message.set(null);
-
-    this.bienService
-      .creer({ libelle: this.libelle(), urlAnnonce: this.urlAnnonce() })
-      .subscribe((resultat) => {
-        this.enregistrement.set(false);
-
-        if (!resultat.cree) {
-          this.erreurs.set(resultat.erreurs);
-          return;
-        }
-
-        /**
-         * Le Bien créé rejoint la liste sans nouvel aller-retour : il
-         * apparaît immédiatement, ce qui est tout l'objet de l'écran.
-         *
-         * Sauf si la liste est filtrée sur un autre Statut que le sien : un
-         * Bien créé est « À contacter » (#7), et l'ajouter à une liste
-         * « Visité » y ferait figurer un Bien que le filtre exclut. L'écran
-         * le dit alors, plutôt que de ne rien faire — un enregistrement
-         * réussi et un échec se ressembleraient sinon trait pour trait, et
-         * l'acheteur ressaisirait un Bien déjà en base.
-         */
-        const filtre = this.filtre();
-        const aSaPlace = filtre === null || filtre === resultat.bien.statut;
-
-        if (aSaPlace) {
-          this.liste.update((liste) =>
-            liste?.chargee ? { chargee: true, biens: [resultat.bien, ...liste.biens] } : liste,
-          );
-        } else {
-          this.message.set(
-            `« ${resultat.bien.libelle} » est enregistré, à l'étape « ${libelleStatut(
-              resultat.bien.statut,
-            )} ». Le filtre courant ne le montre pas.`,
-          );
-        }
-
-        this.libelle.set('');
-        this.urlAnnonce.set('');
-      });
-  }
-
-  private rafraichir(): void {
-    this.chargements.next(this.filtre());
   }
 }

@@ -8,6 +8,7 @@ import { LargeurEcran } from '../criteres/largeur-ecran';
 import { MAXIMUM_DESKTOP } from '../criteres/selection-comparaison';
 import {
   ROUTE_BIENS,
+  ROUTE_REPERER,
   ROUTE_COMPARAISON,
   ROUTE_EXPORT,
   routeCommenterBien,
@@ -89,15 +90,17 @@ describe('Navigation', () => {
   });
 
   it('propose de repérer un Bien partout sauf sur une fiche', () => {
-    // L'action permanente de la maquette : depuis la comparaison ou l'export,
-    // elle ramène au formulaire de tête du carnet (#124).
+    // L'action permanente de la maquette : depuis n'importe quel écran, elle
+    // mène au repérage (#124). Celui-ci a son écran depuis la refonte — la
+    // maquette sépare la création de la liste —, là où elle menait au
+    // formulaire posé en tête du carnet.
     const { navigation, aller } = creerNavigation();
 
-    expect(navigation.action().route).toBe(ROUTE_BIENS);
+    expect(navigation.action().route).toBe(ROUTE_REPERER);
     expect(navigation.action().libelle).toBe('Repérer');
 
     aller(ROUTE_COMPARAISON);
-    expect(navigation.action().route).toBe(ROUTE_BIENS);
+    expect(navigation.action().route).toBe(ROUTE_REPERER);
   });
 
   it('propose de commenter dès qu’on regarde une fiche', () => {
@@ -140,8 +143,8 @@ describe('Navigation', () => {
     });
 
     it('ignore ce que l’adresse porte après le chemin', () => {
-      // Le fragment de « Repérer » et les paramètres d'un tri ne changent pas
-      // l'écran qu'on regarde.
+      // Un fragment et les paramètres d'un tri ne changent pas l'écran qu'on
+      // regarde.
       expect(bienDeLAdresse('/biens/3#photos')).toBe(3);
       expect(bienDeLAdresse('/biens/3?onglet=criteres')).toBe(3);
     });

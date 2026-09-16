@@ -56,12 +56,23 @@
     }
   }
 
+  // Le compte qui accompagne le titre.
+  //
+  // Deux emplois, et la balise les distingue : en `span` dans la ligne du
+  // titre — le face-à-face —, il s'aligne sur la ligne de base à côté de
+  // lui ; en `p` sous le titre — le carnet, dont l'en-tête porte aussi un
+  // bouton —, il prend sa propre ligne. À trois sur une ligne, le titre
+  // cédait sa place, et c'est lui qu'on vient lire.
   .carnet__compte {
     @include chiffres;
 
     color: var(--neutre-700);
     flex: none;
     font-size: 12px;
+  }
+
+  p.carnet__compte {
+    margin: var(--espace-1) 0 0;
   }
 }
 

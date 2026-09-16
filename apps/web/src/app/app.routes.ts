@@ -6,7 +6,8 @@ import { ComparaisonPage } from './biens/comparaison-page';
 import { ExportPage } from './biens/export-page';
 import { FicheBienPage } from './biens/fiche-bien-page';
 import { CommenterPage } from './biens/commenter-page';
-import { ROUTE_COMPARAISON, ROUTE_EXPORT } from './biens/carnet.routes';
+import { RepererPage } from './biens/reperer-page';
+import { ROUTE_COMPARAISON, ROUTE_EXPORT, ROUTE_REPERER } from './biens/carnet.routes';
 
 /**
  * Le carnet exige la session, la connexion l'exclut (#4).
@@ -32,6 +33,17 @@ export const routes: Routes = [
     component: BiensPage,
     canActivate: [authGuard],
     title: 'Mes Biens — HomeComparator',
+  },
+  {
+    /**
+     * Le repérage est un écran et non plus un formulaire en tête de liste :
+     * la maquette sépare la création de la consultation, et la liste est ce
+     * qu'on vient voir en ouvrant le carnet.
+     */
+    path: ROUTE_REPERER.slice(1),
+    component: RepererPage,
+    canActivate: [authGuard],
+    title: 'Repérer un Bien — HomeComparator',
   },
   {
     // Le face-à-face est un écran et non plus une section du carnet (#124) :

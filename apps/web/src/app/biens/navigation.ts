@@ -6,6 +6,7 @@ import {
   ROUTE_BIENS,
   ROUTE_COMPARAISON,
   ROUTE_EXPORT,
+  ROUTE_REPERER,
   routeCommenterBien,
 } from './carnet.routes';
 
@@ -131,13 +132,8 @@ export class Navigation {
     const bien = this.bienCourant();
 
     return bien === null
-      ? { route: ROUTE_BIENS, libelle: 'Repérer', complement: 'un Bien', fragment: 'reperer' }
-      : {
-          route: routeCommenterBien(bien),
-          libelle: 'Commenter',
-          complement: 'ce Bien',
-          fragment: undefined,
-        };
+      ? { route: ROUTE_REPERER, libelle: 'Repérer', complement: 'un Bien' }
+      : { route: routeCommenterBien(bien), libelle: 'Commenter', complement: 'ce Bien' };
   });
 
   constructor() {

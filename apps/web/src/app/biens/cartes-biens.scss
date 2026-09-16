@@ -110,6 +110,12 @@
   // La pastille ne se replie ni ne se comprime : c'est le Libellé qui cède
   // la place, lui seul étant de longueur libre.
   justify-self: end;
+
+  // Elle se cale sur le haut de la première ligne du Libellé et garde la
+  // hauteur de son texte. Sans cela, la cellule de grille l'étire sur toute
+  // la hauteur d'un Libellé qui se replie en deux lignes, et son cadre —
+  // celui d'« Offre faite » — se lit alors comme un bouton.
+  align-self: start;
 }
 
 // Où en est le Bien dans le temps (#120) : « visite le 21/09 », « offre à

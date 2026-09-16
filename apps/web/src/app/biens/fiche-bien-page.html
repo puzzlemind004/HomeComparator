@@ -1,51 +1,122 @@
 @if (fiche(); as etat) {
   @switch (etat.etat) {
     @case ('chargee') {
-      <section class="fiche">
-        <a class="retour" routerLink="/">← Mes Biens</a>
+      <section class="fiche" [class.fiche--edition]="edition()">
+        <!--
+          La photo en bandeau ouvre la fiche, comme sur la maquette : c'est
+          elle qui fait reconnaître le Bien en rouvrant le carnet un mois
+          plus tard, quand « le T3 rue Victor Hugo » n'évoque plus rien.
+
+          Le retour et le bouton d'édition sont posés dessus. Sans photo, ils
+          gardent leur place dans un en-tête nu — la fiche ne doit pas changer
+          de disposition selon qu'un Bien est illustré ou non.
+        -->
+        <div class="hero" [class.hero--nue]="!photoRepresentative()">
+          @if (photoRepresentative(); as photo) {
+            <!--
+              La version consultable et non la vignette : elle occupe toute la
+              largeur de l'écran, et une vignette étirée s'y verrait.
+
+              Sans texte de remplacement : le titre juste dessous nomme le
+              Bien, et décrire la photo le ferait annoncer deux fois
+              (ADR-0005).
+            -->
+            <img class="hero__photo" [src]="photo.url" alt="" />
+          }
+
+          <div class="hero__actions">
+            <a class="hero__bouton" routerLink="/">
+              <span aria-hidden="true">←</span>
+              <span class="visuellement-cache">Retour à Mes Biens</span>
+            </a>
+
+            <!--
+              Le bouton qui passe en édition, et qui en revient.
+
+              La fiche affiche d'abord : on l'ouvre bien plus souvent pour
+              relire ce qu'on a noté que pour le changer, et seize champs de
+              formulaire donnaient à une consultation l'allure d'une saisie à
+              finir. `aria-pressed` dit l'état, que le crayon seul ne dit pas
+              (ADR-0005).
+            -->
+            <button
+              type="button"
+              class="hero__bouton"
+              [attr.aria-pressed]="edition()"
+              (click)="basculerEdition()"
+            >
+              <span aria-hidden="true">{{ edition() ? '✓' : '✎' }}</span>
+              <span class="visuellement-cache">
+                {{ edition() ? 'Terminer la modification' : 'Modifier ce Bien' }}
+              </span>
+            </button>
+          </div>
+
+          @if (photoRepresentative()) {
+            <span class="hero__compte">{{ libelle() }}</span>
+          }
+        </div>
 
         <header class="entete">
+          <p class="entete__etape">{{ etape() }}</p>
           <h2>{{ libelle() }}</h2>
 
-          @if (urlAnnonce(); as url) {
-            <a class="entete__annonce" [href]="url" target="_blank" rel="noopener noreferrer">
-              Voir l'Annonce
-            </a>
+          @if (situationChiffree(); as chiffres) {
+            <p class="entete__chiffres">{{ chiffres }}</p>
           }
         </header>
 
-        <p class="manquants">
-          @if (nombreManquants()) {
-            <span class="manquants__nombre">{{ nombreManquants() }}</span>
-            Critère{{ nombreManquants() > 1 ? 's' : '' }} à demander à l'agence
-          } @else {
-            Tous les Critères sont renseignés.
-          }
+        <!--
+          Les deux gestes de la maquette : l'assistant, et l'Annonce.
 
+          L'assistant est le bouton plein parce que c'est ce qu'on vient faire
+          sur une fiche incomplète — et il disparaît quand il n'y a plus rien à
+          demander, où il ne mènerait qu'à « Plus rien à demander ».
+        -->
+        <div class="entete__gestes">
           @if (!assistant() && nombreManquants()) {
-            <button type="button" class="assistant__lancer" (click)="lancerAssistant()">
+            <button type="button" class="geste geste--principal" (click)="lancerAssistant()">
               Lancer l'assistant
             </button>
           }
-        </p>
+
+          @if (urlAnnonce(); as url) {
+            <a class="geste" [href]="url" target="_blank" rel="noopener noreferrer">
+              Annonce <span aria-hidden="true">↗</span>
+            </a>
+          }
+        </div>
 
         <!--
-          Où en est la saisie, dite par l'autre bout : le compte au-dessus
-          décroît à mesure qu'on remplit, la jauge avance. C'est elle qui
-          montre qu'un carnet progresse.
+          Ce qui reste à demander à l'agence, dans l'encart doré de la
+          maquette : le compte, le rapport, et la jauge.
 
-          Elle est décorative — le compte juste au-dessus et le rapport à
-          droite disent la même chose en toutes lettres, et un `progressbar`
-          ARIA se ferait annoncer une troisième fois (ADR-0005).
+          C'est la raison d'être de l'écran, et cela se lit avant les valeurs
+          déjà connues. L'encart disparaît une fois tout renseigné — il n'a
+          alors plus rien à demander, et un bandeau « 16 / 16 » occuperait la
+          place de ce qu'on vient lire.
+
+          La jauge est décorative : le rapport à côté dit la même chose en
+          toutes lettres, et un `progressbar` ARIA se ferait annoncer une
+          seconde fois (ADR-0005).
         -->
-        <div class="completude">
-          <div class="completude__jauge" aria-hidden="true">
-            <span [style.width.%]="completude().part * 100"></span>
+        @if (nombreManquants()) {
+          <div class="manquants">
+            <div class="manquants__ligne">
+              <span>
+                {{ nombreManquants() }} Critère{{ nombreManquants() > 1 ? 's' : '' }} à demander à
+                l'agence
+              </span>
+              <span class="manquants__rapport">
+                {{ completude().renseignes }} / {{ completude().total }}
+              </span>
+            </div>
+
+            <div class="manquants__jauge" aria-hidden="true">
+              <span [style.width.%]="completude().part * 100"></span>
+            </div>
           </div>
-          <span class="completude__compte">
-            {{ completude().renseignes }} / {{ completude().total }}
-          </span>
-        </div>
+        }
 
         @if (erreurs().length) {
           <ul class="erreurs" role="alert">
@@ -115,27 +186,6 @@
                 </form>
               }
 
-              <!--
-                Ce qui vient après, annoncé sous les réponses (#121).
-
-                Cela sert à anticiper : lire « surface habitable » pendant
-                qu'on répond au prix fait chercher le chiffre sur l'annonce
-                avant que la question n'arrive.
-
-                Rien sur la dernière question : `questionsSuivantes` rend
-                alors une liste vide, et la phrase disparaît avec elle. Une
-                promesse de « puis… » suivie de rien serait pire que le
-                silence.
-
-                Masquée au lecteur d'écran, et c'est délibéré : ce qui doit
-                être lu à chaque réponse, c'est la question posée, pas ce qui
-                vient après. Annoncée, cette phrase se répéterait à chaque
-                tour et retarderait la seule chose qu'on attend (ADR-0005).
-              -->
-              @if (annonceDeLaSuite(); as annonce) {
-                <p class="assistant__suite" aria-hidden="true">{{ annonce }}</p>
-              }
-
               <div class="assistant__actions">
                 <button type="button" class="assistant__passer" (click)="passerQuestion()">
                   Passer
@@ -157,6 +207,13 @@
           Le suivi : où en est le Bien, et les champs que cette étape rend
           pertinents (#7, ADR-0002). En haut de la fiche parce que c'est la
           première chose qu'on vient y voir ou y changer.
+
+          En consultation, l'étape et ses dates se lisent en lignes ; en
+          édition, le sélecteur et les champs reviennent. Le Statut est le
+          seul réglage qui reste à portée hors édition : le changer est le
+          geste le plus fréquent de la fiche — on rentre de visite, on passe
+          « À visiter » à « Visité » — et l'enfouir sous un mode aurait coûté
+          deux gestes pour un.
         -->
         <section class="bloc suivi">
           <h3>Suivi</h3>
@@ -199,62 +256,81 @@
             elle réapparaît telle quelle en avançant de nouveau.
           -->
           @for (ligne of champsStatut(); track ligne.champ.id) {
-            <div class="critere">
-              <label class="critere__libelle" [for]="ligne.champ.id">
-                {{ ligne.champ.libelle }}
-              </label>
+            @if (edition()) {
+              <div class="critere">
+                <label class="critere__libelle" [for]="ligne.champ.id">
+                  {{ ligne.champ.libelle }}
+                </label>
 
-              <span class="critere__saisie">
-                <input
-                  [id]="ligne.champ.id"
-                  [name]="ligne.champ.id"
-                  [type]="ligne.champ.type === 'date' ? 'date' : 'number'"
-                  [ngModel]="ligne.valeur ?? ''"
-                  (blur)="enregistrer(ligne.champ.id, $any($event.target).value)"
-                  autocomplete="off"
-                />
-                @if (ligne.champ.unite; as unite) {
-                  <span class="critere__unite">{{ unite }}</span>
-                }
-              </span>
-            </div>
+                <span class="critere__saisie">
+                  <input
+                    [id]="ligne.champ.id"
+                    [name]="ligne.champ.id"
+                    [type]="ligne.champ.type === 'date' ? 'date' : 'number'"
+                    [ngModel]="ligne.valeur ?? ''"
+                    (blur)="enregistrer(ligne.champ.id, $any($event.target).value)"
+                    autocomplete="off"
+                  />
+                  @if (ligne.champ.unite; as unite) {
+                    <span class="critere__unite">{{ unite }}</span>
+                  }
+                </span>
+              </div>
+            } @else if (ligne.texte) {
+              <!--
+                En consultation, un champ de Statut vide ne s'affiche pas :
+                une date de visite non fixée attend le rendez-vous, pas un
+                coup de téléphone — ce n'est pas de l'ordre de ce qui manque
+                (#7), et une ligne « — » le ferait lire comme tel.
+              -->
+              <div class="ligne">
+                <span class="ligne__nom">{{ ligne.champ.libelle }}</span>
+                <span class="ligne__valeur">{{ ligne.texte }}</span>
+              </div>
+            }
           }
         </section>
 
         <!--
           Le Libellé et l'URL de l'Annonce se modifient comme les Critères,
           dans leur propre bloc parce qu'ils ne sont pas comparables (#6).
+
+          Le bloc entier ne paraît qu'en édition : le Libellé titre déjà la
+          fiche, et l'Annonce a son bouton en tête. Les répéter en
+          consultation aurait dit deux fois la même chose.
         -->
-        <section class="bloc">
-          <h3>Identification</h3>
+        @if (edition()) {
+          <section class="bloc">
+            <h3>Identification</h3>
 
-          <label class="critere">
-            <span class="critere__libelle">Libellé</span>
-            <input
-              name="libelle"
-              [ngModel]="libelle()"
-              (blur)="enregistrer('libelle', $any($event.target).value)"
-              autocomplete="off"
-            />
-          </label>
+            <label class="critere">
+              <span class="critere__libelle">Libellé</span>
+              <input
+                name="libelle"
+                [ngModel]="libelle()"
+                (blur)="enregistrer('libelle', $any($event.target).value)"
+                autocomplete="off"
+              />
+            </label>
 
-          <label class="critere">
-            <span class="critere__libelle">
-              URL de l'Annonce
-              @if (!urlAnnonce()) {
-                <em class="critere__manquant">non renseignée</em>
-              }
-            </span>
-            <input
-              name="urlAnnonce"
-              type="url"
-              [ngModel]="urlAnnonce() ?? ''"
-              (blur)="enregistrer('urlAnnonce', $any($event.target).value)"
-              placeholder="https://…"
-              autocomplete="off"
-            />
-          </label>
-        </section>
+            <label class="critere">
+              <span class="critere__libelle">
+                URL de l'Annonce
+                @if (!urlAnnonce()) {
+                  <em class="critere__manquant">non renseignée</em>
+                }
+              </span>
+              <input
+                name="urlAnnonce"
+                type="url"
+                [ngModel]="urlAnnonce() ?? ''"
+                (blur)="enregistrer('urlAnnonce', $any($event.target).value)"
+                placeholder="https://…"
+                autocomplete="off"
+              />
+            </label>
+          </section>
+        }
 
         <!--
           Les photos, avant les Notes et avant les Critères (#13).
@@ -269,80 +345,127 @@
         <!--
           Les Notes : le texte libre du Bien, pour tout ce qui compte mais ne
           se compare pas en colonne (#8).
+
+          En consultation elles se lisent comme un paragraphe — c'est un
+          texte, et un `textarea` grisé en aurait fait un champ à remplir. Les
+          sauts de ligne y sont significatifs : c'est en lignes qu'on liste
+          des travaux à prévoir, et `white-space` les rend tels quels.
         -->
         <section class="bloc notes">
-          <h3>
-            <label for="notes">Notes</label>
-          </h3>
+          @if (edition()) {
+            <h3>
+              <label for="notes">Notes</label>
+            </h3>
 
-          <!--
-            Un `textarea` sur toute la largeur, hors de la grille en deux
-            colonnes des Critères : ce qui s'écrit ici fait des phrases, et un
-            champ étroit se remplirait deux mots par ligne sur mobile.
+            <!--
+              Un `textarea` sur toute la largeur, hors de la grille en deux
+              colonnes des Critères : ce qui s'écrit ici fait des phrases, et
+              un champ étroit se remplirait deux mots par ligne sur mobile.
 
-            Enregistré au `blur` comme les Critères de texte, et non à chaque
-            frappe : une requête par caractère saisi n'a pas de sens sur un
-            texte long, et c'est en quittant le champ qu'on a fini d'écrire.
-          -->
-          <textarea
-            id="notes"
-            name="notes"
-            class="notes__saisie"
-            rows="6"
-            [ngModel]="notes() ?? ''"
-            (blur)="enregistrer('notes', $any($event.target).value)"
-            placeholder="Impressions de visite, défauts constatés, travaux à prévoir, voisinage…"
-          ></textarea>
+              Enregistré au `blur` comme les Critères de texte, et non à
+              chaque frappe : une requête par caractère saisi n'a pas de sens
+              sur un texte long, et c'est en quittant le champ qu'on a fini
+              d'écrire.
+            -->
+            <textarea
+              id="notes"
+              name="notes"
+              class="notes__saisie"
+              rows="6"
+              [ngModel]="notes() ?? ''"
+              (blur)="enregistrer('notes', $any($event.target).value)"
+              placeholder="Impressions de visite, défauts constatés, travaux à prévoir, voisinage…"
+            ></textarea>
+          } @else if (notes(); as notes) {
+            <h3>Notes de visite</h3>
+            <p class="notes__texte">{{ notes }}</p>
+          }
         </section>
 
+        <!--
+          Les Critères, groupe par groupe.
+
+          En consultation, chaque groupe est une liste de définitions —
+          l'intitulé à gauche, la valeur à droite, un filet entre les lignes
+          — comme la maquette les pose. Ce qui manque s'y écrit « à
+          demander » en doré : c'est une tâche pour l'acheteur, pas une
+          erreur (#6).
+
+          En édition, les mêmes lignes redeviennent des champs. Le bloc se
+          construit dans les deux cas depuis la définition centralisée et
+          n'énumère aucun Critère à la main (ADR-0004).
+        -->
         @for (bloc of groupes(); track bloc.groupe) {
           <section class="bloc">
             <h3>{{ bloc.libelle }}</h3>
 
             @for (ligne of bloc.criteres; track ligne.critere.id) {
-              <div class="critere" [class.critere--manquant]="!ligne.renseigne">
-                <!--
-                  L'étiquette est associée par `for` plutôt qu'en enveloppant
-                  le champ : celui-ci est une liste ou une saisie selon le
-                  type du Critère, et l'association explicite vaut pour les
-                  deux formes.
-                -->
-                <label class="critere__libelle" [for]="ligne.critere.id">
-                  {{ ligne.critere.libelle }}
-                  @if (!ligne.renseigne) {
-                    <em class="critere__manquant">non renseigné</em>
-                  }
-                </label>
-
-                @if (ligne.critere.valeurs; as valeurs) {
-                  <select
-                    [id]="ligne.critere.id"
-                    [name]="ligne.critere.id"
-                    [ngModel]="ligne.valeur ?? ''"
-                    (ngModelChange)="enregistrer(ligne.critere.id, $event === '' ? null : $event)"
-                  >
-                    <option value="">—</option>
-                    @for (admise of valeurs; track admise.valeur) {
-                      <option [value]="admise.valeur">{{ admise.libelle }}</option>
+              @if (edition()) {
+                <div class="critere" [class.critere--manquant]="!ligne.renseigne">
+                  <!--
+                    L'étiquette est associée par `for` plutôt qu'en
+                    enveloppant le champ : celui-ci est une liste ou une
+                    saisie selon le type du Critère, et l'association
+                    explicite vaut pour les deux formes.
+                  -->
+                  <label class="critere__libelle" [for]="ligne.critere.id">
+                    {{ ligne.critere.libelle }}
+                    @if (!ligne.renseigne) {
+                      <em class="critere__manquant">non renseigné</em>
                     }
-                  </select>
-                } @else {
-                  <span class="critere__saisie">
-                    <input
+                  </label>
+
+                  @if (ligne.critere.valeurs; as valeurs) {
+                    <select
                       [id]="ligne.critere.id"
                       [name]="ligne.critere.id"
-                      [type]="ligne.critere.type === 'texte' ? 'text' : 'number'"
-                      [step]="ligne.critere.type === 'decimal' ? '0.1' : '1'"
                       [ngModel]="ligne.valeur ?? ''"
-                      (blur)="enregistrer(ligne.critere.id, $any($event.target).value)"
-                      autocomplete="off"
-                    />
-                    @if (ligne.critere.unite; as unite) {
-                      <span class="critere__unite">{{ unite }}</span>
-                    }
-                  </span>
-                }
-              </div>
+                      (ngModelChange)="enregistrer(ligne.critere.id, $event === '' ? null : $event)"
+                    >
+                      <option value="">—</option>
+                      @for (admise of valeurs; track admise.valeur) {
+                        <option [value]="admise.valeur">{{ admise.libelle }}</option>
+                      }
+                    </select>
+                  } @else {
+                    <span class="critere__saisie">
+                      <input
+                        [id]="ligne.critere.id"
+                        [name]="ligne.critere.id"
+                        [type]="ligne.critere.type === 'texte' ? 'text' : 'number'"
+                        [step]="ligne.critere.type === 'decimal' ? '0.1' : '1'"
+                        [ngModel]="ligne.valeur ?? ''"
+                        (blur)="enregistrer(ligne.critere.id, $any($event.target).value)"
+                        autocomplete="off"
+                      />
+                      @if (ligne.critere.unite; as unite) {
+                        <span class="critere__unite">{{ unite }}</span>
+                      }
+                    </span>
+                  }
+                </div>
+              } @else {
+                <div class="ligne">
+                  <span class="ligne__nom">{{ ligne.critere.libelle }}</span>
+
+                  @if (ligne.renseigne) {
+                    <span class="ligne__valeur">{{ ligne.texte }}</span>
+                  } @else {
+                    <!--
+                      « à demander » plutôt qu'un tiret : c'est une tâche pour
+                      l'acheteur, pas une case vide. Un bouton, parce qu'il
+                      mène quelque part — il ouvre l'édition, là où la valeur
+                      se saisit. Le mot est écrit et non masqué : il se lit à
+                      l'œil comme au lecteur d'écran, là où le tiret devait
+                      être doublé d'un texte caché.
+                    -->
+                    <button type="button" class="ligne__manquant" (click)="basculerEdition()">
+                      à demander
+                      <span class="visuellement-cache">— {{ ligne.critere.libelle }}</span>
+                    </button>
+                  }
+                </div>
+              }
             }
           </section>
         }
@@ -369,6 +492,17 @@
           les deux autres étant les deux appuis, et l'écart entre les
           endroits où ils tombent.
         -->
+        <!--
+          La suppression ne paraît qu'en édition.
+
+          Ce n'est pas un quatrième garde-fou, c'est le même raisonnement que
+          les trois autres (#9) : le geste se cherche, il ne se croise pas. La
+          fiche s'ouvre en consultation, et on y fait défiler des valeurs au
+          pouce — c'est exactement là qu'un bouton de suppression n'a rien à
+          faire. Les deux appuis et leur écart restent inchangés une fois
+          l'édition ouverte.
+        -->
+        @if (edition()) {
         <section class="bloc suppression" aria-label="Suppression du Bien">
           <h3>Supprimer ce Bien</h3>
 
@@ -447,6 +581,7 @@
             }
           }
         </section>
+        }
       </section>
     }
 

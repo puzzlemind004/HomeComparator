@@ -14,6 +14,17 @@
 /** La liste des Biens, écran d'accueil du carnet. */
 export const ROUTE_BIENS = '/';
 
+/**
+ * L'écran où se repère un Bien, séparé de la liste.
+ *
+ * La maquette sépare la création de la consultation : la liste est ce qu'on
+ * vient voir, et un formulaire posé en tête la repoussait sous la ligne de
+ * flottaison à chaque ouverture du carnet. Le geste garde son importance —
+ * c'est lui qui alimente le carnet — mais il se demande, par le bouton « + »
+ * de l'en-tête, plutôt que de s'imposer.
+ */
+export const ROUTE_REPERER = '/reperer';
+
 /** Le face-à-face, désormais un écran et non plus une section (#124). */
 export const ROUTE_COMPARAISON = '/comparer';
 

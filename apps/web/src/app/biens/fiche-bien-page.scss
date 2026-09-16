@@ -1,78 +1,296 @@
 @use '../carnet';
 
-.retour {
-  color: var(--accent);
-  display: inline-block;
-  font-size: 0.875rem;
-  margin-bottom: 1rem;
+// La fiche d'un Bien, refondue : elle **affiche** d'abord, et se modifie sur
+// demande.
+//
+// C'est le changement de fond de la refonte sur cet écran. La fiche
+// s'ouvrait en formulaire — seize champs de saisie —, alors qu'on l'ouvre
+// bien plus souvent pour relire ce qu'on a noté que pour le changer. Une
+// consultation avait l'allure d'une saisie à finir, et ce qui était déjà
+// renseigné se lisait moins bien que ce qui manquait.
+//
+// Le bouton-crayon de l'en-tête bascule les deux modes. Rien n'est validé au
+// passage : chaque champ s'enregistre au `blur`, un à un, donc il n'y a
+// jamais de brouillon en attente.
+
+// La photo en bandeau qui ouvre la fiche.
+//
+// Elle sort de la colonne de texte pour toucher les bords de l'écran, comme
+// sur la maquette : c'est une image de reconnaissance, et une photo de
+// logement encadrée de blanc ne remplit pas cet office. Les marges négatives
+// reprennent le rembourrage de la coque.
+.hero {
+  margin: calc(var(--espace-6) * -1) calc(var(--espace-4) * -1) var(--espace-4);
+  position: relative;
 }
 
-.entete {
-  align-items: baseline;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  justify-content: space-between;
+.hero__photo {
+  aspect-ratio: 16 / 10;
+  display: block;
+  object-fit: cover;
+  width: 100%;
+}
 
-  h2 {
-    margin: 0;
+// Sans photo, l'en-tête garde sa hauteur : la fiche ne doit pas changer de
+// disposition selon qu'un Bien est illustré ou non — les boutons se
+// trouveraient un coup ici, un coup ailleurs.
+.hero--nue {
+  min-height: 52px;
+}
+
+// Le retour et le crayon, posés sur la photo.
+.hero__actions {
+  display: flex;
+  justify-content: space-between;
+  left: var(--espace-3);
+  position: absolute;
+  right: var(--espace-3);
+  top: var(--espace-3);
+}
+
+// Les deux boutons ronds de la maquette. Le fond translucide les détache
+// d'une photo claire comme d'une photo sombre, sans avoir à connaître
+// l'image.
+.hero__bouton {
+  align-items: center;
+  backdrop-filter: blur(4px);
+  background: color-mix(in srgb, var(--fond) 85%, transparent);
+  border: 1px solid var(--separateur);
+  border-radius: 999px;
+  color: var(--texte);
+  cursor: pointer;
+  display: grid;
+  font-family: var(--fonte-titre);
+  font-size: 17px;
+  height: 40px;
+  place-items: center;
+  text-decoration: none;
+  width: 40px;
+
+  &:hover {
+    background: var(--fond);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 }
 
-.entete__annonce {
-  color: var(--accent);
-  font-size: 0.875rem;
-}
-
-/**
- * Ce qui reste à demander à l'agence, en tête de fiche : c'est la raison
- * d'être de l'écran, et cela doit se lire avant les valeurs déjà connues.
- */
-.manquants {
-  align-items: center;
-  color: var(--neutre-700);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin: 0.5rem 0 1.5rem;
-}
-
-.manquants__nombre {
-  background: var(--accent-100);
-  border-radius: 999px;
-  color: var(--accent-800);
-  font-weight: 600;
-  padding: 0.125rem 0.625rem;
-}
-// La jauge de complétude, sous le compte des Critères manquants.
-//
-// Elle dit la même chose que lui par l'autre bout : le compte décroît à
-// mesure qu'on remplit, la jauge avance. C'est elle qui montre qu'un carnet
-// progresse, ce qu'un nombre qui diminue ne dit pas.
-.completude {
-  align-items: center;
-  display: flex;
-  gap: var(--espace-3);
-  margin: 0 0 var(--espace-6);
-}
-
-.completude__jauge {
-  background: var(--accent-200);
-  flex: 1;
-  height: 2px;
-}
-
-.completude__jauge span {
+// Le bouton d'édition une fois enfoncé : il est doré, parce qu'il dit que la
+// fiche est ouverte à l'écriture. `aria-pressed` porte l'état pour qui
+// n'aura pas la couleur (ADR-0005).
+.hero__bouton[aria-pressed="true"] {
   background: var(--accent);
-  display: block;
-  height: 2px;
+  border-color: var(--accent);
+  color: var(--neutre-100);
+
+  &:hover {
+    background: var(--accent);
+  }
 }
 
-.completude__compte {
-  color: var(--neutre-700);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
+// Le Libellé rappelé sur la photo, en bas à droite comme la maquette pose son
+// compte de photos. Il tient lieu de légende à une image qui n'en a pas.
+.hero__compte {
+  background: color-mix(in srgb, var(--fond) 88%, transparent);
+  border-radius: calc(var(--rayon) * 0.75);
+  bottom: var(--espace-3);
+  color: var(--neutre-800);
+  font-size: 11px;
+  max-width: calc(100% - var(--espace-6));
+  overflow: hidden;
+  padding: 3px 10px;
+  position: absolute;
+  right: var(--espace-3);
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+// L'en-tête de la fiche : l'étape, le Libellé, et les chiffres qui situent.
+.entete {
+  margin-bottom: var(--espace-4);
+
+  h2 {
+    font-size: 30px;
+    font-weight: 400;
+    line-height: 1.1;
+    margin: 6px 0 0;
+  }
+}
+
+.entete__etape {
+  @include carnet.intitule;
+
+  color: var(--accent-700);
+  margin: 0;
+}
+
+// « Nantes — Hauts-Pavés · 249 000 € · 3 268 €/m² » : ce qui permet de
+// reconnaître un Bien sans lire le reste, comme sur la Carte.
+.entete__chiffres {
+  @include carnet.chiffres;
+
+  color: var(--neutre-700);
+  font-size: 13px;
+  margin: 6px 0 0;
+}
+
+// Les deux gestes de la maquette : l'assistant, et l'Annonce.
+.entete__gestes {
+  display: flex;
+  gap: var(--espace-2);
+  margin-bottom: var(--espace-4);
+}
+
+.geste {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon);
+  color: var(--texte);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  font-family: var(--fonte-titre);
+  font-size: 14px;
+  font-weight: 600;
+  gap: 6px;
+  justify-content: center;
+  // 46px comme la maquette : ces deux boutons se visent au pouce, debout.
+  min-height: 46px;
+  padding: 0 var(--espace-4);
+  text-decoration: none;
+
+  &:hover {
+    background: color-mix(in srgb, var(--texte) 7%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+// L'assistant est le geste de la fiche incomplète : il prend la largeur et
+// le doré, l'Annonce reste à sa taille.
+.geste--principal {
+  border-color: var(--accent);
+  color: var(--accent);
+  flex: 1;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+}
+
+// Ce qui reste à demander à l'agence, dans l'encart doré de la maquette.
+//
+// C'est la raison d'être de l'écran, et cela se lit avant les valeurs déjà
+// connues. L'encart disparaît une fois tout renseigné : il n'a alors plus
+// rien à demander.
+.manquants {
+  background: var(--accent-100);
+  border: 1px solid var(--accent-300);
+  border-radius: var(--rayon);
+  margin: 0 0 var(--espace-6);
+  padding: var(--espace-3) var(--espace-4);
+}
+
+.manquants__ligne {
+  color: var(--accent-800);
+  display: flex;
+  font-size: 13px;
+  gap: var(--espace-3);
+  justify-content: space-between;
+}
+
+.manquants__rapport {
+  @include carnet.chiffres;
+
+  flex: none;
+}
+
+.manquants__jauge {
+  background: var(--accent-200);
+  height: 2px;
+  margin-top: var(--espace-2);
+
+  span {
+    background: var(--accent);
+    display: block;
+    height: 2px;
+  }
+}
+
+// Une ligne de consultation : l'intitulé à gauche, la valeur à droite, un
+// filet entre les deux lignes.
+//
+// C'est la liste de définitions de la maquette, et c'est ce qui distingue
+// une fiche qu'on lit d'un formulaire qu'on remplit. Les valeurs s'alignent
+// à droite en chasse tabulaire : une colonne de prix se compare d'un coup
+// d'œil, ce qu'une colonne ferrée à gauche ne permet pas.
+.ligne {
+  align-items: baseline;
+  border-bottom: 1px solid var(--separateur);
+  display: flex;
+  gap: var(--espace-4);
+  justify-content: space-between;
+  padding: 11px 0;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.ligne__nom {
+  color: var(--neutre-800);
+  font-size: 14px;
+}
+
+.ligne__valeur {
+  @include carnet.chiffres;
+
+  font-size: 16px;
+  // Une valeur de texte — une ville — est de longueur libre et doit céder
+  // plutôt qu'élargir la ligne.
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+// Ce qu'il reste à demander, sur une ligne de consultation.
+//
+// Un bouton parce qu'il mène quelque part : il ouvre l'édition, là où la
+// valeur se saisit. Le souligné pointillé doré plutôt qu'un fond — la
+// maquette l'écrit comme une note au crayon dans la marge, et c'est bien ce
+// que c'est : une tâche, pas une erreur.
+.ligne__manquant {
+  background: none;
+  border: 0;
+  border-bottom: 1px dashed var(--accent-400);
+  color: var(--accent-700);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  padding: 0;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+// Les Notes en consultation : un texte, et non un champ grisé.
+//
+// Les sauts de ligne sont significatifs — c'est en lignes qu'on liste des
+// travaux à prévoir —, et `pre-wrap` les rend tels quels sans empêcher le
+// repli des lignes longues.
+.notes__texte {
+  color: var(--neutre-800);
+  font-size: 14px;
+  margin: 0;
+  text-align: justify;
+  white-space: pre-wrap;
 }
 
 .assistant {
@@ -121,17 +339,6 @@
 .assistant__question {
   font-size: 1.125rem;
   font-weight: 600;
-  margin: 0;
-}
-
-// Ce qui vient après, sous les réponses (#121).
-//
-// En retrait : la question posée est ce qu'on lit, l'annonce est ce qu'on
-// aperçoit. Les mettre au même poids ferait hésiter sur celle à laquelle on
-// répond.
-.assistant__suite {
-  color: var(--neutre-700);
-  font-size: 0.875rem;
   margin: 0;
 }
 
