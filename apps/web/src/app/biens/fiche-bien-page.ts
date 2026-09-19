@@ -15,13 +15,16 @@ import {
   type Statut,
 } from '../criteres/statut';
 import { completude, estRenseigne, type Completude } from '../criteres/valeurs';
-import type { ValeurCritere } from '../criteres/comparaison';
+import { formaterValeur } from '../criteres/formatage';
+import { situation } from '../criteres/situation';
+import { libelleStatut } from '../criteres/statut';
+import { prixAuMetreCarre, type ValeurCritere } from '../criteres/comparaison';
+import { formaterDate, formaterMontant, formaterPrixAuMetreCarre } from '../criteres/formatage';
 import {
   demarrer,
   passer,
   progression,
   questionCourante,
-  questionsSuivantes,
   repondre,
   type Assistant,
 } from '../criteres/assistant';
@@ -32,6 +35,17 @@ export interface LigneCritere {
 
   /** La valeur brute, celle que le champ de saisie reçoit et renvoie. */
   valeur: ValeurCritere;
+
+  /**
+   * La valeur telle qu'elle s'écrit en consultation — « 249 000 € »,
+   * « 76,2 m² » —, ou la chaîne vide quand le Critère n'est pas renseigné.
+   *
+   * La fiche affiche avant de laisser modifier depuis la refonte : le mode
+   * lecture montre ce texte, le mode édition le champ de saisie. Elle passe
+   * par `formaterValeur` comme le tableau et les cartes, faute de quoi un
+   * même prix s'écrirait de trois façons sur trois écrans (ADR-0004).
+   */
+  texte: string;
 
   /**
    * Vrai dès qu'une valeur a été saisie, zéro compris. C'est la distinction
@@ -53,6 +67,16 @@ export interface LigneCritere {
 export interface LigneChampStatut {
   champ: ChampStatut;
   valeur: ValeurCritere;
+
+  /**
+   * La valeur telle qu'elle s'écrit en consultation — « 21/09/2026 »,
+   * « 258 000 € » —, ou la chaîne vide tant que rien n'est saisi.
+   *
+   * Le mode lecture de la fiche l'affiche ; le mode édition montre le champ.
+   * Une date rendue brute par l'API — « 2026-09-21 » — ne se lit pas dans un
+   * carnet, et c'est `formaterChampStatut` qui la met en français.
+   */
+  texte: string;
 }
 
 /** Les Critères d'un groupe, prêts à s'afficher en bloc. */
@@ -137,6 +161,77 @@ export class FicheBienPage {
   readonly erreurSuppression = signal<string[]>([]);
 
   /**
+   * Vrai quand la fiche est en mode édition, faux quand elle affiche.
+   *
+   * **La fiche affiche d'abord**, ce que la maquette demande : on l'ouvre
+   * bien plus souvent pour relire ce qu'on a noté que pour le changer, et
+   * seize champs de formulaire donnaient à une consultation l'allure d'une
+   * saisie à finir. Le bouton-crayon de l'en-tête bascule.
+   *
+   * L'édition reste à un geste, et rien n'y est obligatoire (ADR-0008) : ce
+   * qui change est la mise en avant, pas la permission. Chaque champ
+   * s'enregistre toujours au `blur`, un à un, de sorte que quitter le mode
+   * édition n'a rien à valider — il n'y a jamais de brouillon en attente.
+   */
+  readonly edition = signal(false);
+
+  /**
+   * La photo qui ouvre la fiche, ou `null` si le Bien n'en porte aucune.
+   *
+   * C'est la représentative — la première ajoutée —, affichée en bandeau
+   * comme sur la maquette. Elle est ce qui fait reconnaître le Bien en
+   * ouvrant sa fiche un mois plus tard, là où le Libellé seul ne suffit
+   * plus. La galerie plus bas montre les autres.
+   */
+  readonly photoRepresentative = computed(() => this.bien()?.photoRepresentative ?? null);
+
+  /**
+   * Ce qui situe le Bien sous son titre : « À visiter · visite le 21/09 ».
+   *
+   * Le Statut dit l'étape, la situation dit quand — la même phrase que
+   * portent les cartes (#120), reprise ici pour que les deux écrans
+   * s'accordent. Le Statut seul quand il n'y a rien à ajouter.
+   */
+  readonly etape = computed(() => {
+    const bien = this.bien();
+
+    if (!bien) {
+      return '';
+    }
+
+    const quand = situation(bien.statut, bien.champsStatut);
+    const etape = libelleStatut(bien.statut);
+
+    return quand ? `${etape} · ${quand}` : etape;
+  });
+
+  /**
+   * Les chiffres qui situent le Bien, sous le titre : « Nantes — Hauts-Pavés
+   * · 249 000 € · 3 268 €/m² ».
+   *
+   * Ce sont ceux de la maquette, et ce sont les mêmes que porte la Carte —
+   * ce qui permet de reconnaître un Bien sans lire le reste. Les membres
+   * absents sont omis plutôt qu'écrits « — » : c'est une ligne de
+   * présentation, et ce qui manque se dit plus bas, là où on peut le
+   * renseigner.
+   */
+  readonly situationChiffree = computed(() => {
+    const criteres = this.bien()?.criteres ?? {};
+    const ville = criteres['villeQuartier'];
+    const prix = typeof criteres['prixDemande'] === 'number' ? criteres['prixDemande'] : null;
+    const surface =
+      typeof criteres['surfaceHabitable'] === 'number' ? criteres['surfaceHabitable'] : null;
+
+    return [
+      typeof ville === 'string' && ville.trim() !== '' ? ville : '',
+      formaterMontant(prix),
+      formaterPrixAuMetreCarre(prixAuMetreCarre(prix, surface)),
+    ]
+      .filter((membre) => membre !== '')
+      .join(' · ');
+  });
+
+    /**
    * L'assistant en cours, ou `null` quand il ne l'est pas — c'est-à-dire à
    * l'ouverture de la fiche. Il n'est jamais imposé (ADR-0008).
    */
@@ -196,10 +291,11 @@ export class FicheBienPage {
   readonly champsStatut = computed<LigneChampStatut[]>(() => {
     const valeurs = this.bien()?.champsStatut ?? {};
 
-    return champsPertinents(this.statut()).map((champ) => ({
-      champ,
-      valeur: valeurs[champ.id] ?? null,
-    }));
+    return champsPertinents(this.statut()).map((champ) => {
+      const valeur = valeurs[champ.id] ?? null;
+
+      return { champ, valeur, texte: formaterChampStatut(champ, valeur) };
+    });
   });
 
   /**
@@ -248,50 +344,6 @@ export class FicheBienPage {
   });
 
   /**
-   * Les questions qui suivent celle posée, annoncées sous les réponses
-   * (#121).
-   *
-   * Elles servent à anticiper : lire « surface habitable » pendant qu'on
-   * répond au prix fait chercher le chiffre sur l'annonce avant que la
-   * question n'arrive. C'est pourquoi ce sont les libellés qui s'affichent
-   * et non un décompte — « encore deux » ne prépare à rien.
-   *
-   * Vide hors assistant comme sur la dernière question : l'écran n'a alors
-   * rien à promettre.
-   */
-  readonly questionsSuivantes = computed<readonly Critere[]>(() => {
-    const assistant = this.assistant();
-
-    return assistant ? questionsSuivantes(assistant) : [];
-  });
-
-  /**
-   * Ce qui vient après, en une phrase : « Question suivante : taxe foncière,
-   * puis charges de copropriété. » (#121)
-   *
-   * Chaîne vide sur la dernière question comme hors assistant, ce que le
-   * gabarit traite en n'affichant rien : « Question suivante : » sans suite
-   * serait une promesse non tenue, et c'est exactement ce que la dernière
-   * question ne doit pas faire.
-   *
-   * La phrase est calculée ici et non assemblée dans le gabarit : une
-   * virgule, un « puis » et un point s'écrivent mal en interpolations, et
-   * surtout ne se vérifient pas — c'est la phrase entière qui se lit, pas
-   * ses morceaux.
-   */
-  readonly annonceDeLaSuite = computed(() => {
-    const suivantes = this.questionsSuivantes();
-
-    if (suivantes.length === 0) {
-      return '';
-    }
-
-    const [premiere, ...ensuite] = suivantes.map(({ libelle }) => enTeteDePhrase(libelle));
-
-    return `Question suivante : ${[premiere, ...ensuite].join(', puis ')}.`;
-  });
-
-  /**
    * Où en est la saisie pendant l'assistant, pour la jauge et le compte que
    * son écran affiche (#121).
    *
@@ -336,6 +388,18 @@ export class FicheBienPage {
    */
   changerStatut(statut: string): void {
     this.envoyer({ statut });
+  }
+
+  /**
+   * Le passage en édition et le retour à l'affichage, que le bouton de
+   * l'en-tête commande.
+   *
+   * Rien n'est validé ni annulé au passage : chaque champ s'est enregistré
+   * au `blur`, un à un. C'est ce qui permet au bouton de n'être qu'une
+   * bascule d'affichage — et à une visite interrompue de ne rien perdre.
+   */
+  basculerEdition(): void {
+    this.edition.update((edition) => !edition);
   }
 
   /** L'assistant, lancé sur les Critères manquants du Bien affiché. */
@@ -519,31 +583,36 @@ function ligne(critere: Critere, valeur: ValeurCritere | undefined): LigneCriter
   return {
     critere,
     valeur: valeurConnue,
+    texte: formaterValeur(critere, valeurConnue),
     renseigne: estRenseigne(valeurConnue),
   };
 }
 
 /**
- * Un libellé de Critère tel qu'il s'écrit au milieu d'une phrase plutôt
- * qu'en tête d'étiquette : « Taxe foncière » devient « taxe foncière ».
+ * La valeur d'un champ lié au Statut, telle qu'elle s'écrit en consultation.
  *
- * Seule la première lettre s'abaisse, et seulement si le mot qu'elle ouvre
- * n'est pas déjà tout en capitales. Deux libellés d'aujourd'hui l'exigent :
- * « DPE », un sigle qu'un abaissement rendrait illisible, et « Type de
- * Bien », dont la capitale est celle du glossaire — le Bien est l'objet
- * qu'on compare, et il la porte partout.
+ * Elle ne passe pas par `formaterValeur` : celle-ci écrit des Critères, et un
+ * champ de Statut n'en est pas un (ADR-0002) — il n'a ni `valeurs` admises ni
+ * `sensComparaison`. Les deux formes d'aujourd'hui sont la date de visite et
+ * le montant d'une offre, et la première est ce qui justifie cette fonction :
+ * l'API la rend « 2026-09-21 », ce qui ne se lit pas dans un carnet.
  *
- * Abaisser toute la chaîne aurait donné « dpe » et « type de bien », soit une
- * faute et un terme du glossaire perdu.
+ * Les `Intl` viennent de `formatage.ts` comme partout ailleurs : une date
+ * écrite ici de son propre côté aurait divergé de celle des Commentaires au
+ * premier réglage changé.
  */
-function enTeteDePhrase(libelle: string): string {
-  const [premierMot] = libelle.split(' ');
-
-  if (premierMot === premierMot.toLocaleUpperCase('fr-FR')) {
-    return libelle;
+function formaterChampStatut(champ: ChampStatut, valeur: ValeurCritere): string {
+  if (!estRenseigne(valeur)) {
+    return '';
   }
 
-  return libelle.charAt(0).toLocaleLowerCase('fr-FR') + libelle.slice(1);
+  if (champ.type === 'date') {
+    return formaterDate(new Date(String(valeur)));
+  }
+
+  // Le seul champ entier d'aujourd'hui est un montant — celui de la dernière
+  // offre —, et c'est son unité qui le dit.
+  return champ.unite === '€' ? formaterMontant(Number(valeur)) : String(valeur);
 }
 
 /** Le nombre de Critères d'un bloc restés sans valeur. */

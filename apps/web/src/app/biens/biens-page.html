@@ -12,107 +12,79 @@
     <div class="carnet__titre">
       <h1>Mes Biens</h1>
 
-      @if (liste(); as liste) {
-        @if (liste.chargee && liste.biens.length) {
-          <span class="carnet__compte">
-            {{ liste.biens.length }} Bien{{ liste.biens.length > 1 ? 's' : '' }}
-          </span>
-        }
-      }
+      <!--
+        Le « + » de l'en-tête : le repérage a son écran depuis la refonte, et
+        c'est ici qu'on le demande.
+
+        Un bouton-icône plutôt qu'une entrée de menu, parce que c'est le geste
+        qui alimente le carnet : il doit se trouver là où l'on regarde la
+        liste, sans avoir à ouvrir quoi que ce soit. Le signe est masqué au
+        lecteur d'écran, à qui l'intitulé du lien dit déjà de quoi il s'agit
+        (ADR-0005).
+      -->
+      <a class="carnet__reperer" [routerLink]="routeReperer">
+        <span class="carnet__plus" aria-hidden="true">+</span>
+        <span class="carnet__lecture">Repérer un Bien</span>
+      </a>
     </div>
+
+    <!--
+      Ce que porte le carnet, en une ligne : « 10 Biens · 3 à visiter ».
+
+      Le second membre n'est pas un doublon des pastilles : il dit ce qui
+      demande une action prochaine — la visite qui se prépare —, là où les
+      pastilles servent à filtrer. Il ne paraît qu'à partir d'un Bien à
+      visiter, faute de quoi il n'annoncerait rien.
+    -->
+    @if (resume(); as resume) {
+      <p class="carnet__compte">{{ resume }}</p>
+    }
   </header>
 
   <!--
-    Le formulaire reste en tête du carnet, et non derrière le bouton de la
-    maquette : ADR-0008 tient le repérage pour le cas dominant — « une annonce
-    vue le soir, à enregistrer en quelques secondes » —, et un formulaire à
-    déplier ajouterait un clic là où le geste doit être le plus court.
+    Le filtre par Statut, en pastilles comptées — « Tous 10 », « À contacter 2 ».
 
-    L'identifiant est ce que vise « + Repérer un Bien » depuis la navigation :
-    il est porté par le titre et non par le formulaire, pour que le lecteur
-    d'écran qui suit le lien entende de quoi il s'agit avant le premier champ.
-  -->
-  <h2 id="reperer">Repérer un Bien</h2>
+    Le compte est ce que la maquette met dans la pastille, et il dit où en est
+    la recherche sans qu'on essaie les filtres un par un : « À contacter 2 »
+    est le nombre de coups de téléphone qui restent. Il se lit de la liste
+    entière, chargée une fois, et non d'un appel par Statut.
 
-  <form class="saisie" (ngSubmit)="creer()">
-    <label class="champ">
-      <span>Libellé</span>
-      <input
-        name="libelle"
-        [ngModel]="libelle()"
-        (ngModelChange)="libelle.set($event)"
-        placeholder="le T3 avec la terrasse"
-        autocomplete="off"
-      />
-    </label>
+    « Tous » d'abord et sélectionné par défaut : ouvrir le carnet montre tout,
+    sorties comprises, et un filtre par défaut cacherait des Biens sans le
+    dire (#7).
 
-    <label class="champ">
-      <span>URL de l'Annonce <em>(facultative)</em></span>
-      <input
-        name="urlAnnonce"
-        type="url"
-        [ngModel]="urlAnnonce()"
-        (ngModelChange)="urlAnnonce.set($event)"
-        placeholder="https://…"
-        autocomplete="off"
-      />
-    </label>
-
-    <button type="submit" [disabled]="enregistrement()">Ajouter</button>
-  </form>
-
-  @if (erreurs().length) {
-    <ul class="erreurs" role="alert">
-      @for (erreur of erreurs(); track erreur) {
-        <li>{{ erreur }}</li>
-      }
-    </ul>
-  }
-
-  <!--
-    Le Bien créé n'a pas sa place dans la liste filtrée : sans ce message,
-    l'enregistrement réussi ressemblerait trait pour trait à un échec (#7).
-  -->
-  @if (message(); as message) {
-    <p class="message" role="status">{{ message }}</p>
-  }
-
-  <!--
-    Le filtre par Statut. « Tous » d'abord et sélectionné par défaut :
-    ouvrir le carnet montre tout, sorties comprises, et un filtre par défaut
-    cacherait des Biens sans le dire (#7).
-  -->
-  <!--
     Un groupe de radios plutôt que des bascules : le filtre est un choix
     exclusif, et `aria-pressed` sur sept boutons annoncerait sept réglages
     indépendants — dont plusieurs pourraient être actifs à la fois, ce que
     l'écran ne permet pas (ADR-0005).
   -->
-  <div class="filtres" role="radiogroup" aria-label="Filtrer par Statut">
-    <button
-      type="button"
-      class="filtre"
-      role="radio"
-      [class.filtre--actif]="filtre() === null"
-      [attr.aria-checked]="filtre() === null"
-      (click)="filtrer(null)"
-    >
-      Tous
-    </button>
-
-    @for (option of statuts; track option.valeur) {
-      <button
-        type="button"
-        class="filtre"
-        role="radio"
-        [class.filtre--actif]="filtre() === option.valeur"
-        [attr.aria-checked]="filtre() === option.valeur"
-        (click)="filtrer(option.valeur)"
-      >
-        {{ option.libelle }}
-      </button>
-    }
-  </div>
+  @if (filtres().length) {
+    <div class="filtres" role="radiogroup" aria-label="Filtrer par Statut">
+      @for (option of filtres(); track option.libelle) {
+        <button
+          type="button"
+          class="filtre"
+          role="radio"
+          [class.filtre--actif]="filtre() === option.statut"
+          [attr.aria-checked]="filtre() === option.statut"
+          (click)="filtrer(option.statut)"
+        >
+          {{ option.libelle }}
+          <!--
+            Le compte est dans le bouton et non à côté : détaché, il
+            s'annoncerait comme un nombre nu, sans dire de quoi il est le
+            compte. Le mot qui le nomme est masqué à l'œil — la pastille se
+            lit « À contacter 2 » d'un coup d'œil — et lu par le lecteur
+            d'écran (ADR-0005).
+          -->
+          <span class="filtre__compte" aria-hidden="true">{{ option.compte }}</span>
+          <span class="carnet__lecture">
+            — {{ option.compte }} Bien{{ option.compte > 1 ? 's' : '' }}
+          </span>
+        </button>
+      }
+    </div>
+  }
 
   @if (liste(); as liste) {
     @if (liste.chargee) {
@@ -133,7 +105,7 @@
         à cocher : sur un carnet vide et sans sélection, il n'a rien à dire
         et « Aucun Bien » suffit.
       -->
-      @if (selection().length || liste.biens.length) {
+      @if (selection().length || biensAffiches().length) {
         <div class="comparaison-etat">
           <!--
             La région vivante ne porte que le texte, et surtout pas le bouton
@@ -187,7 +159,7 @@
         </div>
       }
 
-      @if (liste.biens.length) {
+      @if (biensAffiches().length) {
         <!--
           Le tableau sur desktop, les cartes sur écran étroit : les deux
           présentations montrent les mêmes Biens, et c'est la feuille de
@@ -204,14 +176,14 @@
         -->
         <app-tableau-biens
           class="vue-desktop"
-          [biensAAfficher]="liste.biens"
+          [biensAAfficher]="biensAffiches()"
           [selectionCourante]="selection()"
           [maximumSelection]="maximumSelection()"
           (selectionBasculee)="basculerComparaison($event)"
         />
         <app-cartes-biens
           class="vue-mobile"
-          [biensAAfficher]="liste.biens"
+          [biensAAfficher]="biensAffiches()"
           [selectionCourante]="selection()"
           [maximumSelection]="maximumSelection()"
           (selectionBasculee)="basculerComparaison($event)"

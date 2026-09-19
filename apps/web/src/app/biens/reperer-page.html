@@ -1,0 +1,68 @@
+<!--
+  L'écran de repérage, séparé de la liste comme la maquette le demande.
+
+  Il n'a qu'une chose à faire, et il ne montre que cela : le Libellé, l'URL
+  de l'Annonce, un bouton. Rien d'autre ne le partage — c'est ce qui permet
+  au geste de rester court malgré l'écran de plus.
+-->
+<section class="reperer">
+  <a class="retour" [routerLink]="routeBiens">← Mes Biens</a>
+
+  <header class="carnet__entete">
+    <p class="carnet__intitule">Carnet de recherche</p>
+    <div class="carnet__titre">
+      <h1>Repérer un Bien</h1>
+    </div>
+  </header>
+
+  <!--
+    Ce que le Libellé sert à faire, dit avant le champ : « le T3 avec la
+    terrasse » retrouve un Bien là où une adresse ne rappelle rien. C'est la
+    seule chose que l'écran a à expliquer, et la place ne manque pas ici —
+    elle manquait en tête de liste.
+  -->
+  <p class="reperer__propos">
+    Le Libellé est ce sous quoi vous reconnaîtrez ce Bien dans le carnet : « celui avec la cuisine
+    refaite » sert mieux la mémoire qu'une adresse. Le reste se renseigne depuis la fiche.
+  </p>
+
+  <form class="saisie" (ngSubmit)="creer()">
+    <label class="champ">
+      <span>Libellé</span>
+      <input
+        name="libelle"
+        [ngModel]="libelle()"
+        (ngModelChange)="libelle.set($event)"
+        placeholder="le T3 avec la terrasse"
+        autocomplete="off"
+      />
+    </label>
+
+    <label class="champ">
+      <span>URL de l'Annonce <em>(facultative)</em></span>
+      <input
+        name="urlAnnonce"
+        type="url"
+        [ngModel]="urlAnnonce()"
+        (ngModelChange)="urlAnnonce.set($event)"
+        placeholder="https://…"
+        autocomplete="off"
+      />
+    </label>
+
+    @if (erreurs().length) {
+      <ul class="erreurs" role="alert">
+        @for (erreur of erreurs(); track erreur) {
+          <li>{{ erreur }}</li>
+        }
+      </ul>
+    }
+
+    <div class="reperer__actions">
+      <button type="submit" class="reperer__valider" [disabled]="enregistrement()">
+        {{ enregistrement() ? 'Enregistrement…' : 'Repérer ce Bien' }}
+      </button>
+      <a class="reperer__renoncer" [routerLink]="routeBiens">Annuler</a>
+    </div>
+  </form>
+</section>

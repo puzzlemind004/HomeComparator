@@ -6,7 +6,14 @@ import { ComparaisonPage } from './biens/comparaison-page';
 import { ExportPage } from './biens/export-page';
 import { FicheBienPage } from './biens/fiche-bien-page';
 import { CommenterPage } from './biens/commenter-page';
-import { ROUTE_COMPARAISON, ROUTE_EXPORT } from './biens/carnet.routes';
+import { RepererPage } from './biens/reperer-page';
+import { TableauDeBordPage } from './biens/tableau-de-bord-page';
+import {
+  ROUTE_COMPARAISON,
+  ROUTE_EXPORT,
+  ROUTE_REPERER,
+  ROUTE_TABLEAU_DE_BORD,
+} from './biens/carnet.routes';
 
 /**
  * Le carnet exige la session, la connexion l'exclut (#4).
@@ -34,6 +41,17 @@ export const routes: Routes = [
     title: 'Mes Biens — HomeComparator',
   },
   {
+    /**
+     * Le repérage est un écran et non plus un formulaire en tête de liste :
+     * la maquette sépare la création de la consultation, et la liste est ce
+     * qu'on vient voir en ouvrant le carnet.
+     */
+    path: ROUTE_REPERER.slice(1),
+    component: RepererPage,
+    canActivate: [authGuard],
+    title: 'Repérer un Bien — HomeComparator',
+  },
+  {
     // Le face-à-face est un écran et non plus une section du carnet (#124) :
     // c'est l'objet du produit, et il s'atteint sans avoir rien coché.
     path: ROUTE_COMPARAISON.slice(1),
@@ -48,6 +66,16 @@ export const routes: Routes = [
     component: ExportPage,
     canActivate: [authGuard],
     title: 'Exporter — HomeComparator',
+  },
+  {
+    /**
+     * Le tableau de bord : le carnet classé selon les poids de l'acheteur
+     * (#126). Il s'atteint sans rien avoir coché, comme le face-à-face.
+     */
+    path: ROUTE_TABLEAU_DE_BORD.slice(1),
+    component: TableauDeBordPage,
+    canActivate: [authGuard],
+    title: 'Analyser — HomeComparator',
   },
   {
     path: 'biens/:id',

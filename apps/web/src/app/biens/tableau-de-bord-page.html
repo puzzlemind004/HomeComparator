@@ -1,0 +1,270 @@
+<section class="tableau-de-bord">
+  <header class="carnet__entete">
+    <p class="carnet__intitule">Carnet de recherche</p>
+    <div class="carnet__titre">
+      <h1>Analyser</h1>
+
+      @if (classementAffiche()) {
+        <span class="carnet__compte">
+          {{ barres().length }} Bien{{ barres().length > 1 ? 's' : '' }} classé{{
+            barres().length > 1 ? 's' : ''
+          }}
+        </span>
+      }
+    </div>
+  </header>
+
+  @if (liste()) {
+    @if (chargee()) {
+      @if (biens().length === 0) {
+        <!-- Un carnet vide n'est pas une erreur : il dit ce qu'il attend. -->
+        <div class="tableau-de-bord__vide">
+          <p role="status">
+            Le carnet est vide : il n'y a rien à classer. Repérez quelques Biens, et leurs
+            Critères se compareront ici.
+          </p>
+
+          <a class="tableau-de-bord__lien" [routerLink]="routeBiens">Aller au carnet</a>
+        </div>
+      } @else {
+        @if (classementAffiche()) {
+          <!--
+            Le diagramme d'abord : c'est la lecture principale de l'écran, et
+            ce qu'on vient voir. Les curseurs qui le commandent viennent
+            après, parce qu'on ajuste en regardant le résultat bouger.
+          -->
+          <app-diagramme-scores [barres]="barres()" />
+
+          @if (aucunPoidsPose()) {
+            <p class="tableau-de-bord__avertissement" role="status">
+              Aucun poids n'a encore été posé : tous les Critères comptent pareil. Ajustez les
+              curseurs ci-dessous pour que le classement reflète vos priorités.
+            </p>
+          }
+
+          <!-- Le classement en toutes lettres, sous le diagramme : les
+               hauteurs se comparent, les chiffres se lisent. -->
+          <ol class="classement">
+            @for (ligne of lignes(); track ligne.porteurId) {
+              @if (ligne.score !== null) {
+                <li class="classement__ligne" [class.classement__ligne--premier]="ligne.rang === 1">
+                  <span class="classement__rang">{{ ligne.rang }}</span>
+
+                  <span class="classement__bien">
+                    <a class="classement__libelle" [routerLink]="['/biens', ligne.porteurId]">
+                      {{ ligne.libelle }}
+                    </a>
+
+                    @if (ligne.manquants > 0) {
+                      <span class="classement__manquants">
+                        {{ ligne.manquants }} Critère{{ ligne.manquants > 1 ? 's' : '' }} non
+                        renseigné{{ ligne.manquants > 1 ? 's' : '' }}
+                      </span>
+                    }
+                  </span>
+
+                  <span class="classement__score">{{ ligne.score }}</span>
+                </li>
+              }
+            }
+          </ol>
+
+          @if (sansScore().length) {
+            <!-- Un Bien sans score n'est pas dernier, il est à part : le
+                 poser à zéro ferait passer une saisie en retard pour un
+                 défaut. -->
+            <p class="tableau-de-bord__sans-score">
+              Non classé{{ sansScore().length > 1 ? 's' : '' }}, faute de Critère pondéré
+              renseigné :
+              @for (ligne of sansScore(); track ligne.porteurId) {
+                <a [routerLink]="['/biens', ligne.porteurId]">{{ ligne.libelle }}</a
+                >{{ $last ? '' : ', ' }}
+              }
+            </p>
+          }
+        } @else {
+          <div class="tableau-de-bord__vide">
+            <p role="status">
+              Aucun Bien ne peut être classé : les Critères pondérés ne sont renseignés nulle
+              part, ou tous les poids sont à zéro. Remplissez quelques Critères, ou remontez un
+              curseur.
+            </p>
+          </div>
+        }
+
+        <!-- Les poids : ce qui commande tout ce qui précède. -->
+        <section class="poids">
+          <div class="poids__entete">
+            <h2>Ce qui compte pour moi</h2>
+
+            <button type="button" class="poids__reinitialiser" (click)="reinitialiser()">
+              Tout remettre à {{ poidsParDefaut }}
+            </button>
+          </div>
+
+          <p class="poids__explication">
+            Chaque Critère pèse de 0 à {{ poidsMaximum }}. À 0, il ne compte pas. Les Critères
+            qui ne se classent pas — l'adresse, le type de chauffage — n'ont pas de curseur : rien
+            ne dit qu'une valeur y vaut mieux qu'une autre.
+          </p>
+
+          <ul class="poids__liste">
+            @for (notable of notables(); track notable.id) {
+              <li class="poids__critere" [class.poids__critere--ignore]="poidsDe(notable.id) === 0">
+                <label class="poids__libelle" [attr.for]="'poids-' + notable.id">
+                  {{ notable.libelle }}
+                </label>
+
+                <input
+                  class="poids__curseur"
+                  type="range"
+                  [id]="'poids-' + notable.id"
+                  min="0"
+                  [max]="poidsMaximum"
+                  step="1"
+                  [value]="poidsDe(notable.id)"
+                  (input)="poser(notable.id, $any($event.target).value)"
+                  [attr.aria-valuetext]="
+                    poidsDe(notable.id) === 0
+                      ? 'ignoré'
+                      : poidsDe(notable.id) + ' sur ' + poidsMaximum
+                  "
+                />
+
+                <span class="poids__valeur" aria-hidden="true">
+                  {{ poidsDe(notable.id) === 0 ? '—' : poidsDe(notable.id) }}
+                </span>
+              </li>
+            }
+          </ul>
+        </section>
+
+        <!-- Les thèmes : ce qui fait entrer les Commentaires dans le score. -->
+        <section class="themes">
+          <h2>Thèmes de visite</h2>
+
+          <p class="themes__explication">
+            Une Appréciation porte sur ce qu'un Commentaire décrit — une pièce, un détail — et ne
+            se compare donc pas telle quelle d'un Bien à l'autre. Un thème lève l'obstacle : les
+            étoiles rattachées à « Luminosité » se comparent entre elles, et deviennent un Critère
+            pondérable comme les autres.
+          </p>
+
+          <div class="themes__ajout">
+            <label class="themes__label" for="nouveau-theme">Nouveau thème</label>
+
+            <div class="themes__saisie">
+              <input
+                id="nouveau-theme"
+                type="text"
+                placeholder="Luminosité, Voisinage, Cuisine…"
+                [value]="nouveauTheme()"
+                (input)="nouveauTheme.set($any($event.target).value)"
+                (keydown.enter)="creerTheme()"
+              />
+
+              <button type="button" [disabled]="!nouveauTheme().trim()" (click)="creerTheme()">
+                Créer
+              </button>
+            </div>
+          </div>
+
+          @if (themes().length) {
+            <ul class="themes__liste">
+              @for (theme of themes(); track theme.id) {
+                <li class="themes__theme">
+                  <span>{{ theme.libelle }}</span>
+
+                  <button
+                    type="button"
+                    class="themes__supprimer"
+                    (click)="supprimerTheme(theme.id)"
+                    [attr.aria-label]="'Supprimer le thème ' + theme.libelle"
+                  >
+                    ×
+                  </button>
+                </li>
+              }
+            </ul>
+
+            <!-- Le rattachement, Bien par Bien : on ouvre celui qu'on vient
+                 de visiter, et on pose ses Commentaires sous leurs thèmes. -->
+            <div class="rattachement">
+              <h3>Rattacher les Commentaires</h3>
+
+              <ul class="rattachement__biens">
+                @for (bien of biens(); track bien.id) {
+                  @if (commentairesNotesDe(bien.id).length) {
+                    <li class="rattachement__bien">
+                      <button
+                        type="button"
+                        class="rattachement__depli"
+                        (click)="basculerDepli(bien.id)"
+                        [attr.aria-expanded]="bienDeplie() === bien.id"
+                      >
+                        <span>{{ bien.libelle }}</span>
+                        <span class="rattachement__compte">
+                          {{ commentairesNotesDe(bien.id).length }} Commentaire{{
+                            commentairesNotesDe(bien.id).length > 1 ? 's' : ''
+                          }}
+                          noté{{ commentairesNotesDe(bien.id).length > 1 ? 's' : '' }}
+                        </span>
+                      </button>
+
+                      @if (bienDeplie() === bien.id) {
+                        <ul class="rattachement__commentaires">
+                          @for (commentaire of commentairesNotesDe(bien.id); track commentaire.id) {
+                            <li class="rattachement__commentaire">
+                              <p class="rattachement__texte">
+                                <span class="rattachement__etoiles" aria-hidden="true">
+                                  {{ '★'.repeat(commentaire.note ?? 0) }}
+                                </span>
+                                <span class="rattachement__lu">
+                                  {{ commentaire.note }} étoile{{
+                                    (commentaire.note ?? 0) > 1 ? 's' : ''
+                                  }}
+                                </span>
+                                {{ commentaire.texte || 'Sans texte' }}
+                              </p>
+
+                              <div class="rattachement__themes">
+                                @for (theme of themes(); track theme.id) {
+                                  <button
+                                    type="button"
+                                    class="rattachement__etiquette"
+                                    [class.rattachement__etiquette--posee]="
+                                      estRattache(commentaire.id, theme.id)
+                                    "
+                                    [attr.aria-pressed]="estRattache(commentaire.id, theme.id)"
+                                    (click)="basculerRattachement(commentaire.id, bien.id, theme.id)"
+                                  >
+                                    {{ theme.libelle }}
+                                  </button>
+                                }
+                              </div>
+                            </li>
+                          }
+                        </ul>
+                      }
+                    </li>
+                  }
+                }
+              </ul>
+            </div>
+          } @else {
+            <p class="themes__aucun">
+              Aucun thème pour l'instant. Créez-en un pour faire compter vos Commentaires de
+              visite.
+            </p>
+          }
+        </section>
+      }
+    } @else {
+      <p class="liste--erreur" role="alert">
+        L'API est injoignable : les Biens à classer n'ont pas pu être chargés.
+      </p>
+    }
+  } @else {
+    <p class="liste--vide">Chargement du carnet…</p>
+  }
+</section>

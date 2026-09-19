@@ -1,0 +1,127 @@
+@use '../carnet';
+
+// L'écran de repérage (maquette « Carnet — refonte »).
+//
+// L'en-tête vient de `_carnet.scss` comme sur les autres écrans : c'est le
+// même intitulé au-dessus du même titre, et trois copies dans trois feuilles
+// sont trois occasions de diverger.
+@include carnet.entete;
+
+.reperer {
+  // Un formulaire de deux champs ne gagne rien à traverser un écran large :
+  // au-delà, l'œil doit revenir de loin d'une ligne à l'autre.
+  max-width: 34rem;
+}
+
+.retour {
+  color: var(--accent);
+  display: inline-block;
+  font-size: 0.875rem;
+  margin-bottom: var(--espace-4);
+}
+
+// Ce que le Libellé sert à faire. En retrait du titre et au-dessus des
+// champs : c'est une note, pas une consigne — rien n'est obligatoire ici que
+// le Libellé lui-même.
+.reperer__propos {
+  color: var(--neutre-700);
+  font-size: 14px;
+  margin: 0 0 var(--espace-6);
+  text-align: justify;
+}
+
+.saisie {
+  display: grid;
+  gap: var(--espace-4);
+}
+
+.champ {
+  display: grid;
+  gap: var(--espace-1);
+
+  span {
+    color: var(--neutre-800);
+    font-size: 12px;
+  }
+
+  em {
+    color: var(--neutre-700);
+    font-style: normal;
+  }
+
+  input {
+    background: transparent;
+    border: 1px solid var(--separateur);
+    border-radius: var(--rayon);
+    caret-color: var(--accent);
+    font: inherit;
+    font-size: 14px;
+    // 46px comme la maquette : l'annonce se saisit le soir sur un téléphone,
+    // et un champ plus court se vise mal au pouce.
+    min-height: 46px;
+    padding: var(--espace-2) var(--espace-3);
+
+    &:hover {
+      border-color: color-mix(in srgb, var(--texte) 45%, transparent);
+    }
+
+    &:focus-visible {
+      border-color: var(--accent);
+      outline-offset: 0;
+    }
+  }
+}
+
+.erreurs {
+  border: 1px solid var(--separateur);
+  border-left: 3px solid var(--erreur);
+  border-radius: var(--rayon);
+  color: var(--erreur);
+  font-size: 14px;
+  list-style: none;
+  margin: 0;
+  padding: var(--espace-3) var(--espace-4);
+
+  li + li {
+    margin-top: var(--espace-1);
+  }
+}
+
+// Le bouton qui enregistre, et le lien qui renonce. Le premier est plein
+// cadre sur mobile : c'est le geste de l'écran, et il se vise sans regarder.
+.reperer__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-4);
+  margin-top: var(--espace-2);
+}
+
+.reperer__valider {
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: var(--rayon);
+  color: var(--accent);
+  cursor: pointer;
+  font-family: var(--fonte-titre);
+  font-size: 15px;
+  font-weight: 600;
+  min-height: 50px;
+  padding: var(--espace-2) var(--espace-6);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  &:disabled {
+    cursor: progress;
+    opacity: 0.45;
+  }
+}
+
+// Renoncer est un lien et non un second bouton : deux boutons côte à côte se
+// pèsent du regard, et celui-ci ne vaut pas qu'on s'y arrête.
+.reperer__renoncer {
+  color: var(--neutre-700);
+  font-size: 14px;
+}

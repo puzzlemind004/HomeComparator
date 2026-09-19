@@ -4,8 +4,8 @@ import { of, Subject, type Observable } from 'rxjs';
 import { BiensPage } from './biens-page';
 import { BienService } from './bien.service';
 import { SelectionComparaison } from './selection.service';
-import type { Bien, CreationBien } from './bien';
-import type { CreationBienResultat, ListeBiens } from './bien.service';
+import type { Bien } from './bien';
+import type { ListeBiens } from './bien.service';
 import { unBien } from './bien.test-helper';
 import type { Statut } from '../criteres/statut';
 import { LargeurEcran } from '../criteres/largeur-ecran';
@@ -20,18 +20,15 @@ import { MAXIMUM_DESKTOP, MAXIMUM_MOBILE } from '../criteres/selection-comparais
  * portent pas sur la sélection prennent le plafond du bureau, qui est le cas
  * le plus permissif et ne borne donc rien par surprise.
  */
-function creerPage(
-  service: {
-    lister?: (statut?: Statut) => Observable<ListeBiens>;
-    creer?: (saisie: CreationBien) => Observable<CreationBienResultat>;
-  },
+function injecteur(
+  service: { lister?: (statut?: Statut) => Observable<ListeBiens> },
   maximum: number | Signal<number> = MAXIMUM_DESKTOP,
 ) {
   // Un nombre suffit à la plupart des tests ; ceux qui font varier la
   // largeur en cours de route passent un signal, que la page relit.
   const maximumComparaison = typeof maximum === 'number' ? () => maximum : maximum;
 
-  const injector = Injector.create({
+  return Injector.create({
     providers: [
       {
         provide: BienService,
@@ -45,6 +42,13 @@ function creerPage(
       SelectionComparaison,
     ],
   });
+}
+
+function creerPage(
+  service: { lister?: (statut?: Statut) => Observable<ListeBiens> },
+  maximum: number | Signal<number> = MAXIMUM_DESKTOP,
+) {
+  const injector = injecteur(service, maximum);
 
   return runInInjectionContext(injector, () => new BiensPage());
 }
@@ -55,8 +59,8 @@ function chargee(biens: Bien[]): ListeBiens {
   return { chargee: true, biens };
 }
 
-/** Les Biens affichés, ou `null` si la liste n'a pas pu être chargée. */
-function biensAffiches(liste: ListeBiens | null) {
+/** Les Biens que l'API a rendus, ou `null` si la liste n'a pas pu être chargée. */
+function biensCharges(liste: ListeBiens | null) {
   return liste?.chargee ? liste.biens : null;
 }
 
@@ -64,7 +68,7 @@ describe('BiensPage', () => {
   it('affiche les Biens déjà enregistrés dès son ouverture', () => {
     const page = creerPage({ lister: () => of(chargee([bien])) });
 
-    expect(biensAffiches(page.liste())).toEqual([bien]);
+    expect(biensCharges(page.liste())).toEqual([bien]);
   });
 
   it('signale une API injoignable au lieu de la faire passer pour un carnet vide', () => {
@@ -73,99 +77,26 @@ describe('BiensPage', () => {
     const page = creerPage({ lister: () => of({ chargee: false } as ListeBiens) });
 
     expect(page.liste()).toEqual({ chargee: false });
-    expect(biensAffiches(page.liste())).toBeNull();
-  });
-
-  it('ajoute le Bien créé en tête de liste sans recharger', () => {
-    // Le Bien doit apparaître immédiatement : c'est tout l'objet de l'écran.
-    const dejaLa: Bien = unBien({ id: 2, libelle: 'celui avec la cuisine refaite' });
-    const page = creerPage({
-      lister: () => of(chargee([dejaLa])),
-      creer: () => of({ cree: true, bien }),
-    });
-
-    page.libelle.set('le T3 avec la terrasse');
-    page.creer();
-
-    expect(biensAffiches(page.liste())).toEqual([bien, dejaLa]);
-  });
-
-  it('vide le formulaire après une création réussie', () => {
-    const page = creerPage({ creer: () => of({ cree: true, bien }) });
-
-    page.libelle.set('le T3 avec la terrasse');
-    page.urlAnnonce.set('https://exemple.test/annonce/1');
-    page.creer();
-
-    expect(page.libelle()).toBe('');
-    expect(page.urlAnnonce()).toBe('');
-  });
-
-  it('transmet la saisie au service', () => {
-    const saisies: CreationBien[] = [];
-    const page = creerPage({
-      creer: (saisie) => {
-        saisies.push(saisie);
-        return of({ cree: true, bien });
-      },
-    });
-
-    page.libelle.set('le T3 avec la terrasse');
-    page.urlAnnonce.set('https://exemple.test/annonce/1');
-    page.creer();
-
-    expect(saisies).toEqual([
-      { libelle: 'le T3 avec la terrasse', urlAnnonce: 'https://exemple.test/annonce/1' },
-    ]);
-  });
-
-  it('affiche les messages de refus sans toucher à la liste ni au formulaire', () => {
-    const page = creerPage({
-      creer: () => of({ cree: false, erreurs: ['Le Libellé est obligatoire'] }),
-    });
-
-    page.libelle.set('  ');
-    page.creer();
-
-    expect(page.erreurs()).toEqual(['Le Libellé est obligatoire']);
-    expect(biensAffiches(page.liste())).toEqual([]);
-    // La saisie est conservée : l'acheteur doit pouvoir la corriger.
-    expect(page.libelle()).toBe('  ');
-  });
-
-  it('efface les messages du refus précédent à la tentative suivante', () => {
-    const resultats = new Subject<CreationBienResultat>();
-    const page = creerPage({ creer: () => resultats });
-
-    page.creer();
-    resultats.next({ cree: false, erreurs: ['Le Libellé est obligatoire'] });
-    expect(page.erreurs()).toEqual(['Le Libellé est obligatoire']);
-
-    page.creer();
-    expect(page.erreurs()).toEqual([]);
-  });
-
-  it('ignore une seconde soumission tant que la première est en cours', () => {
-    // Sans ce garde-fou, un double clic créerait deux fois le même Bien.
-    let appels = 0;
-    const page = creerPage({
-      creer: () => {
-        appels += 1;
-        return new Subject<CreationBienResultat>();
-      },
-    });
-
-    page.creer();
-    page.creer();
-
-    expect(appels).toBe(1);
-    expect(page.enregistrement()).toBe(true);
+    expect(biensCharges(page.liste())).toBeNull();
   });
 
   describe('le filtre par Statut', () => {
     it('ne filtre rien à l’ouverture', () => {
       // Ouvrir le carnet montre tous les Biens, sorties comprises : un
       // filtre par défaut cacherait des Biens sans le dire (#7).
+      const page = creerPage({ lister: () => of(chargee([bien])) });
+
+      expect(page.filtre()).toBeNull();
+      expect(page.biensAffiches()).toEqual([bien]);
+    });
+
+    it('ne charge la liste qu’une fois, sans filtre', () => {
+      /**
+       * Le filtre part en mémoire depuis la refonte : c'est ce qui permet
+       * aux pastilles de porter leur compte — « À contacter 2 » — sans un
+       * appel par Statut. Six pastilles feraient six requêtes à chaque
+       * ouverture, là où le carnet tient en quelques dizaines de Biens.
+       */
       const demandes: (Statut | undefined)[] = [];
       const page = creerPage({
         lister: (statut) => {
@@ -174,193 +105,158 @@ describe('BiensPage', () => {
         },
       });
 
-      expect(page.filtre()).toBeNull();
+      page.filtrer('visite');
+      page.filtrer('ecarte');
+      page.filtrer(null);
+
       expect(demandes).toEqual([undefined]);
     });
 
-    it('demande à l’API les Biens du Statut choisi', () => {
-      // Le filtre est en SQL (ADR-0004) : la liste n'a pas à voyager en
-      // entier pour qu'on en regarde le quart.
-      const demandes: (Statut | undefined)[] = [];
-      const page = creerPage({
-        lister: (statut) => {
-          demandes.push(statut);
-          return of(chargee([]));
-        },
-      });
+    it('ne montre que les Biens du Statut choisi', () => {
+      const aVisiter: Bien = unBien({ id: 1, statut: 'aVisiter' });
+      const visite: Bien = unBien({ id: 2, statut: 'visite' });
+      const page = creerPage({ lister: () => of(chargee([aVisiter, visite])) });
 
       page.filtrer('visite');
 
       expect(page.filtre()).toBe('visite');
-      expect(demandes).toEqual([undefined, 'visite']);
+      expect(page.biensAffiches()).toEqual([visite]);
     });
 
     it('revient à la liste complète', () => {
-      const demandes: (Statut | undefined)[] = [];
-      const page = creerPage({
-        lister: (statut) => {
-          demandes.push(statut);
-          return of(chargee([]));
-        },
-      });
+      const aVisiter: Bien = unBien({ id: 1, statut: 'aVisiter' });
+      const visite: Bien = unBien({ id: 2, statut: 'visite' });
+      const page = creerPage({ lister: () => of(chargee([aVisiter, visite])) });
 
       page.filtrer('ecarte');
       page.filtrer(null);
 
       expect(page.filtre()).toBeNull();
-      expect(demandes).toEqual([undefined, 'ecarte', undefined]);
+      expect(page.biensAffiches()).toEqual([aVisiter, visite]);
     });
 
-    it('remet la liste à l’état de chargement pendant le changement', () => {
+    it('garde l’ordre rendu par l’API', () => {
+      // La liste est rendue triée, et c'est ce tri-là que les cartes et le
+      // tableau reprennent : filtrer ne doit pas réordonner.
+      const premier: Bien = unBien({ id: 1, statut: 'visite' });
+      const second: Bien = unBien({ id: 2, statut: 'visite' });
+      const page = creerPage({ lister: () => of(chargee([premier, second])) });
+
+      page.filtrer('visite');
+
+      expect(page.biensAffiches()).toEqual([premier, second]);
+    });
+
+    it('ne montre aucun Bien tant que la liste n’a pas été chargée', () => {
+      // Une API muette n'est pas un carnet vide : la page le dit ailleurs,
+      // et la liste affichée doit rester vide plutôt que de mentir.
+      const page = creerPage({ lister: () => of({ chargee: false } as ListeBiens) });
+
+      expect(page.biensAffiches()).toEqual([]);
+    });
+  });
+
+  describe('les comptes portés par les pastilles', () => {
+    it('compte les Biens de chaque Statut, et le total sous « Tous »', () => {
       /**
-       * Sans cela, les Biens du filtre précédent restent affichés jusqu'à la
-       * réponse : l'écran montrerait des Biens que le filtre courant exclut,
-       * ce qui se lit comme un filtre qui ne marche pas.
+       * Le compte est ce que la maquette met dans la pastille, et il vaut
+       * mieux qu'un ornement : « À contacter 2 » est le nombre de coups de
+       * téléphone qui restent, lisible sans essayer les filtres un par un.
        */
-      const reponse = new Subject<ListeBiens>();
       const page = creerPage({
-        lister: (statut) => (statut === undefined ? of(chargee([bien])) : reponse),
+        lister: () =>
+          of(
+            chargee([
+              unBien({ id: 1, statut: 'aContacter' }),
+              unBien({ id: 2, statut: 'aContacter' }),
+              unBien({ id: 3, statut: 'visite' }),
+            ]),
+          ),
       });
 
-      expect(biensAffiches(page.liste())).toEqual([bien]);
+      const comptes = Object.fromEntries(
+        page.filtres().map(({ libelle, compte }) => [libelle, compte]),
+      );
 
-      page.filtrer('visite');
-      expect(page.liste()).toBeNull();
-
-      reponse.next(chargee([]));
-      expect(biensAffiches(page.liste())).toEqual([]);
+      expect(comptes['Tous']).toBe(3);
+      expect(comptes['À contacter']).toBe(2);
+      expect(comptes['Visité']).toBe(1);
     });
 
-    it('ajoute le Bien créé quand la liste n’est pas filtrée', () => {
-      const cree: Bien = unBien({ id: 3, libelle: 'le T2 près du parc' });
-      const page = creerPage({
-        lister: () => of(chargee([])),
-        creer: () => of({ cree: true, bien: cree }),
-      });
-
-      page.creer();
-
-      expect(biensAffiches(page.liste())).toEqual([cree]);
-    });
-
-    it('n’ajoute pas le Bien créé à une liste filtrée sur un autre Statut', () => {
+    it('propose les six Statuts, y compris ceux que personne ne porte', () => {
       /**
-       * Un Bien créé est « À contacter » (#7) : l'ajouter à une liste
-       * « Visité » y ferait figurer un Bien que le filtre exclut, et le
-       * prochain chargement le ferait disparaître sans explication.
+       * Une pastille à zéro dit « aucun Bien écarté », ce qui est une
+       * réponse. La faire disparaître ferait bouger la barre à chaque
+       * changement de Statut, et l'acheteur chercherait un filtre qui était
+       * là la veille.
        */
-      const cree: Bien = unBien({ id: 3, statut: 'aContacter' });
       const page = creerPage({
-        lister: () => of(chargee([])),
-        creer: () => of({ cree: true, bien: cree }),
+        lister: () => of(chargee([unBien({ id: 1, statut: 'aContacter' })])),
+      });
+
+      // Les six Statuts, plus « Tous ».
+      expect(page.filtres()).toHaveLength(7);
+      expect(page.filtres().find(({ libelle }) => libelle === 'Écarté')?.compte).toBe(0);
+    });
+
+    it('ne propose aucune pastille tant que la liste n’a pas été chargée', () => {
+      // Des pastilles toutes à zéro pendant le chargement se liraient comme
+      // un carnet vide.
+      const page = creerPage({ lister: () => of({ chargee: false } as ListeBiens) });
+
+      expect(page.filtres()).toEqual([]);
+    });
+
+    it('ne compte pas ce que le filtre courant masque', () => {
+      // Les comptes portent sur le carnet entier et non sur ce qui est
+      // affiché : une pastille qui compterait la liste filtrée tomberait à
+      // zéro partout dès qu'un filtre est posé, et ne servirait plus à
+      // choisir où aller.
+      const page = creerPage({
+        lister: () =>
+          of(
+            chargee([
+              unBien({ id: 1, statut: 'aContacter' }),
+              unBien({ id: 2, statut: 'visite' }),
+            ]),
+          ),
       });
 
       page.filtrer('visite');
-      page.creer();
 
-      expect(biensAffiches(page.liste())).toEqual([]);
+      expect(page.filtres().find(({ libelle }) => libelle === 'À contacter')?.compte).toBe(1);
     });
+  });
 
-    it('dit que le Bien créé est enregistré même s’il sort du filtre', () => {
-      /**
-       * Le défaut que ce test tient : sans un mot, un enregistrement réussi
-       * et un échec se ressemblent trait pour trait — le formulaire se
-       * vide, la liste ne bouge pas. Le geste naturel est de ressaisir,
-       * donc de créer un doublon d'un Bien déjà en base.
-       *
-       * Vérifier que la liste reste vide ne suffisait pas : c'est le
-       * symptôme, pas la règle. Ce qui compte est ce que l'écran *dit*.
-       */
-      const cree: Bien = unBien({ id: 3, libelle: 'le studio du bas', statut: 'aContacter' });
+  describe('ce que le carnet porte, en une ligne', () => {
+    it('annonce le nombre de Biens et ceux qui sont à visiter', () => {
       const page = creerPage({
-        lister: () => of(chargee([])),
-        creer: () => of({ cree: true, bien: cree }),
+        lister: () =>
+          of(
+            chargee([
+              unBien({ id: 1, statut: 'aVisiter' }),
+              unBien({ id: 2, statut: 'aVisiter' }),
+              unBien({ id: 3, statut: 'visite' }),
+            ]),
+          ),
       });
 
-      page.filtrer('visite');
-      page.creer();
-
-      const message = page.message();
-      expect(message).toBeTruthy();
-      // Le Libellé, pour que l'acheteur reconnaisse le Bien qu'il vient de
-      // saisir, et l'étape où le retrouver.
-      expect(message).toContain('le studio du bas');
-      expect(message).toContain('À contacter');
+      expect(page.resume()).toBe('3 Biens · 2 à visiter');
     });
 
-    it('ne dit rien de particulier quand le Bien créé rejoint la liste', () => {
-      // Le Bien est là, sous les yeux : un message en plus serait du bruit.
-      const cree: Bien = unBien({ id: 3, statut: 'aContacter' });
+    it('tait les visites quand il n’y en a aucune', () => {
+      // « 10 Biens · 0 à visiter » annoncerait un vide, là où le silence est
+      // la bonne réponse.
       const page = creerPage({
-        lister: () => of(chargee([])),
-        creer: () => of({ cree: true, bien: cree }),
+        lister: () => of(chargee([unBien({ id: 1, statut: 'visite' })])),
       });
 
-      page.creer();
-
-      expect(page.message()).toBeNull();
+      expect(page.resume()).toBe('1 Bien');
     });
 
-    it('retire le message en changeant de filtre', () => {
-      // Le message parle du filtre courant : il n'a plus de sens sous un
-      // autre, et resterait à l'écran comme un reproche sans objet.
-      const cree: Bien = unBien({ id: 3, statut: 'aContacter' });
-      const page = creerPage({
-        lister: () => of(chargee([])),
-        creer: () => of({ cree: true, bien: cree }),
-      });
-
-      page.filtrer('visite');
-      page.creer();
-      expect(page.message()).toBeTruthy();
-
-      page.filtrer('aContacter');
-
-      expect(page.message()).toBeNull();
-    });
-
-    it('abandonne le chargement précédent quand le filtre change deux fois', () => {
-      /**
-       * Deux clics rapprochés lancent deux appels, et rien ne garantit
-       * qu'ils reviennent dans l'ordre. Sans abandon du premier, la réponse
-       * la plus lente écrase la plus récente : l'écran montre les Biens
-       * d'un Statut sous la pastille d'un autre.
-       */
-      const lent = new Subject<ListeBiens>();
-      const rapide = new Subject<ListeBiens>();
-      const ecarte: Bien = unBien({ id: 4, libelle: 'écarté', statut: 'ecarte' });
-      const page = creerPage({
-        lister: (statut) => {
-          if (statut === undefined) return of(chargee([]));
-          return statut === 'visite' ? lent : rapide;
-        },
-      });
-
-      page.filtrer('visite');
-      page.filtrer('ecarte');
-
-      // La seconde réponse arrive d'abord, et s'affiche.
-      rapide.next(chargee([ecarte]));
-      expect(biensAffiches(page.liste())).toEqual([ecarte]);
-
-      // La première arrive en retard : elle a été abandonnée, et ne doit
-      // pas remplacer ce que le filtre courant a rendu.
-      lent.next(chargee([unBien({ id: 5, libelle: 'visité', statut: 'visite' })]));
-
-      expect(biensAffiches(page.liste())).toEqual([ecarte]);
-    });
-
-    it('ajoute le Bien créé à une liste filtrée sur son propre Statut', () => {
-      const cree: Bien = unBien({ id: 3, statut: 'aContacter' });
-      const page = creerPage({
-        lister: () => of(chargee([])),
-        creer: () => of({ cree: true, bien: cree }),
-      });
-
-      page.filtrer('aContacter');
-      page.creer();
-
-      expect(biensAffiches(page.liste())).toEqual([cree]);
+    it('ne dit rien d’un carnet vide ou pas encore chargé', () => {
+      expect(creerPage({ lister: () => of(chargee([])) }).resume()).toBe('');
+      expect(creerPage({ lister: () => of({ chargee: false } as ListeBiens) }).resume()).toBe('');
     });
   });
 
@@ -655,13 +551,7 @@ describe('BiensPage', () => {
       // Biens supprimés : la reconstruction de la page ne les évacue plus.
       // C'est l'écran de comparaison qui les constate, sur la liste entière
       // qu'il charge — `comparaison-page.spec` le tient.
-      const injector = Injector.create({
-        providers: [
-          { provide: BienService, useValue: { lister: () => of(chargee(trois)) } },
-          { provide: LargeurEcran, useValue: { maximumComparaison: () => MAXIMUM_DESKTOP } },
-          SelectionComparaison,
-        ],
-      });
+      const injector = injecteur({ lister: () => of(chargee(trois)) });
 
       const page = runInInjectionContext(injector, () => new BiensPage());
       page.basculerComparaison(1);
@@ -672,18 +562,49 @@ describe('BiensPage', () => {
     });
 
     it('ne compte aucun Bien masqué tant que la liste charge', () => {
-      // Pendant le chargement, rien n'est masqué : tout est en route, et la
-      // page le dit déjà par ailleurs.
+      /**
+       * Pendant le chargement, rien n'est masqué : tout est en route, et la
+       * page le dit déjà par ailleurs. Le compte doit rester à zéro plutôt
+       * que de valoir la sélection entière — ce que donnerait une
+       * soustraction faite sur une liste encore vide.
+       *
+       * La sélection est rétablie d'une session précédente, puisqu'il n'y a
+       * encore aucun Bien à cocher : c'est très exactement le cas d'un
+       * carnet rouvert, et le seul où l'écart se mesure avant la réponse.
+       */
       const liste = new Subject<ListeBiens>();
-      const page = creerPage({ lister: () => liste });
+      const injector = injecteur({ lister: () => liste });
+      const selection = injector.get(SelectionComparaison);
+
+      selection.basculer(1);
+      selection.basculer(2);
+
+      const page = runInInjectionContext(injector, () => new BiensPage());
+
+      expect(page.retenusMasques()).toBe(0);
 
       liste.next(chargee(trois));
+
+      expect(page.retenusMasques()).toBe(0);
+      expect(page.selection()).toEqual([1, 2]);
+    });
+
+    it('compte les Biens retenus que le filtre courant masque', () => {
+      /**
+       * Un Bien retenu que le filtre ne montre pas garde sa place (#93).
+       * Sans ce compte, l'acheteur verrait sa comparaison maigrir en
+       * filtrant et croirait avoir perdu une sélection intacte.
+       */
+      const page = pageAvec(trois);
+
       page.basculerComparaison(1);
       page.basculerComparaison(2);
 
+      // Les trois Biens du jeu sont « À contacter » : le filtre « Visité »
+      // les masque tous, sans rien retirer à la sélection.
       page.filtrer('visite');
 
-      expect(page.retenusMasques()).toBe(0);
+      expect(page.retenusMasques()).toBe(2);
       expect(page.selection()).toEqual([1, 2]);
     });
 
@@ -695,7 +616,7 @@ describe('BiensPage', () => {
       page.viderComparaison();
 
       expect(page.selection()).toEqual([]);
-      expect(biensAffiches(page.liste())).toHaveLength(3);
+      expect(biensCharges(page.liste())).toHaveLength(3);
     });
   });
 });

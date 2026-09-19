@@ -1,0 +1,94 @@
+@if (rempli()) {
+  <figure class="diagramme">
+    <!--
+      Le dessin défile horizontalement quand les Biens sont nombreux plutôt
+      que de rétrécir ses bâtons jusqu'à l'illisible : sur un téléphone, huit
+      Biens ne tiennent pas côte à côte, et des bâtons de six pixels ne se
+      comparent plus (ADR-0006).
+    -->
+    <div class="diagramme__cadre">
+      <svg
+        class="diagramme__svg"
+        [attr.viewBox]="'0 0 ' + geometrie().largeur + ' ' + geometrie().hauteur"
+        [attr.width]="geometrie().largeur"
+        [attr.height]="geometrie().hauteur"
+        role="img"
+        [attr.aria-label]="description()"
+      >
+        <!-- Les graduations, sous les bâtons : elles situent sans masquer. -->
+        @for (ligne of lignes(); track ligne.valeur) {
+          <g class="diagramme__graduation">
+            <line
+              [attr.x1]="ligne.departX"
+              [attr.x2]="ligne.finX"
+              [attr.y1]="ligne.y"
+              [attr.y2]="ligne.y"
+            />
+            <text [attr.x]="ligne.departX - 4" [attr.y]="ligne.y + 4" text-anchor="end">
+              {{ ligne.valeur }}
+            </text>
+          </g>
+        }
+
+        @for (baton of batons(); track baton.bienId) {
+          <g class="diagramme__baton" [class.diagramme__baton--premier]="baton.premier">
+            <rect
+              [attr.x]="baton.x"
+              [attr.y]="baton.y"
+              [attr.width]="baton.largeur"
+              [attr.height]="baton.hauteur"
+              rx="3"
+            />
+
+            <!-- Le score se lit sur le bâton : l'œil compare les hauteurs, le
+                 chiffre tranche les écarts serrés. -->
+            <text
+              class="diagramme__valeur"
+              [attr.x]="baton.x + baton.largeur / 2"
+              [attr.y]="baton.y - 6"
+              text-anchor="middle"
+            >
+              {{ baton.score }}
+            </text>
+
+            <!-- Le Libellé sous l'abscisse, tronqué par la feuille de style :
+                 « celui avec la cuisine refaite » ne tient pas sous un bâton,
+                 et l'attribut `title` le rend en entier au survol. -->
+            <text
+              class="diagramme__libelle"
+              [attr.x]="baton.x + baton.largeur / 2"
+              [attr.y]="geometrie().marge.haut + geometrie().hauteurTracee + 18"
+              text-anchor="middle"
+            >
+              {{ baton.libelle.length > 12 ? baton.libelle.slice(0, 11) + '…' : baton.libelle }}
+              <title>{{ baton.libelle }}</title>
+            </text>
+
+            <text
+              class="diagramme__rang"
+              [attr.x]="baton.x + baton.largeur / 2"
+              [attr.y]="geometrie().marge.haut + geometrie().hauteurTracee + 34"
+              text-anchor="middle"
+            >
+              {{ baton.ordinal }}
+            </text>
+          </g>
+        }
+
+        <!-- L'axe des abscisses, posé en dernier pour couvrir le pied des
+             bâtons plutôt que de passer dessous. -->
+        <line
+          class="diagramme__axe"
+          [attr.x1]="geometrie().marge.gauche - 6"
+          [attr.x2]="geometrie().largeur - 16"
+          [attr.y1]="geometrie().marge.haut + geometrie().hauteurTracee"
+          [attr.y2]="geometrie().marge.haut + geometrie().hauteurTracee"
+        />
+      </svg>
+    </div>
+
+    <figcaption class="diagramme__legende">
+      Score sur 100, calculé sur les poids posés ci-dessous.
+    </figcaption>
+  </figure>
+}

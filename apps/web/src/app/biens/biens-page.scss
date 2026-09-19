@@ -6,94 +6,56 @@
 @include carnet.entete;
 @include carnet.etats-vides;
 
-.saisie {
-  display: grid;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.champ {
-  display: grid;
-  gap: 0.25rem;
-
-  span {
-    color: var(--neutre-800);
-    font-size: 12px;
-  }
-
-  em {
-    color: var(--neutre-700);
-    font-style: normal;
-    font-weight: 400;
-  }
-
-  input {
-    background: transparent;
-    border: 1px solid var(--separateur);
-    border-radius: var(--rayon);
-    caret-color: var(--accent);
-    font: inherit;
-    font-size: 14px;
-    padding: var(--espace-2) var(--espace-3);
-
-    &:hover {
-      border-color: color-mix(in srgb, var(--texte) 45%, transparent);
-    }
-
-    &:focus-visible {
-      border-color: var(--accent);
-      outline-offset: 0;
-    }
-  }
-}
-
-// Le bouton « Ajouter » du formulaire. Les boutons de filtre plus bas ont
-// leur propre allure : ce sont des bascules, pas des actions.
-.saisie button {
-  background: transparent;
+// Le « + » de l'en-tête, qui mène à l'écran de repérage.
+//
+// La création est séparée de la liste depuis la refonte : le formulaire ne
+// tient plus la tête du carnet, et ce bouton est ce qui garde le geste à
+// portée — un bouton-icône, là où l'on regarde la liste.
+//
+// Il est rond et cerné de doré comme la case de sélection des cartes : c'est
+// la même famille de gestes, ce qui s'ajoute au carnet.
+.carnet__reperer {
+  align-items: center;
   border: 1px solid var(--accent);
-  border-radius: var(--rayon);
+  border-radius: 999px;
   color: var(--accent);
-  cursor: pointer;
-  font-family: var(--fonte-titre);
-  font-size: 14px;
-  font-weight: 600;
-  justify-self: start;
-  padding: var(--espace-2) var(--espace-4);
+  display: grid;
+  flex: none;
+  // 44px : le minimum d'une cible tactile, et ce que le pouce trouve sans
+  // regarder.
+  height: 44px;
+  place-items: center;
+  text-decoration: none;
+  width: 44px;
 
-  &:hover:not(:disabled) {
+  &:hover {
     background: color-mix(in srgb, var(--accent) 12%, transparent);
   }
 
-  &:disabled {
-    cursor: progress;
-    opacity: 0.45;
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 }
 
-.erreurs {
-  border: 1px solid var(--separateur);
-  border-left: 3px solid var(--erreur);
-  border-radius: var(--rayon);
-  color: var(--erreur);
-  font-size: 14px;
-  list-style: none;
-  margin: 0 0 var(--espace-6);
-  padding: var(--espace-3) var(--espace-4);
-
-  li + li {
-    margin-top: 0.25rem;
-  }
+.carnet__plus {
+  font-family: var(--fonte-titre);
+  // Le signe est dessiné plus grand que le texte qui l'entoure : c'est une
+  // icône, et un « + » à la taille du corps se lirait comme une coquille.
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1;
 }
 
-.message {
-  background: var(--accent-100);
-  border: 1px solid var(--accent-300);
-  border-radius: var(--rayon);
-  color: var(--accent-800);
-  font-size: 14px;
-  margin: 0 0 var(--espace-6);
-  padding: var(--espace-3) var(--espace-4);
+// Ce qui se lit sans se voir : l'intitulé du bouton « + », et le mot qui dit
+// de quoi le compte d'une pastille est le compte (ADR-0005).
+.carnet__lecture {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 
 // Les filtres par Statut, en pastilles. Ils défilent de côté sur un écran
@@ -146,6 +108,18 @@
   background: transparent;
   border-color: var(--accent);
   color: var(--accent);
+}
+
+// Le compte porté par la pastille : « À contacter 2 ».
+//
+// En chasse tabulaire et légèrement effacé : c'est une précision sur le
+// libellé qu'il suit, et non une seconde étiquette. Le mettre au même poids
+// ferait lire deux choses là où il n'y en a qu'une.
+.filtre__compte {
+  @include carnet.chiffres;
+
+  margin-left: var(--espace-1);
+  opacity: 0.7;
 }
 
 // Le tableau sur desktop, les cartes sur écran étroit (ADR-0006). Les deux

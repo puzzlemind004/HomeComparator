@@ -14,11 +14,31 @@
 /** La liste des Biens, écran d'accueil du carnet. */
 export const ROUTE_BIENS = '/';
 
+/**
+ * L'écran où se repère un Bien, séparé de la liste.
+ *
+ * La maquette sépare la création de la consultation : la liste est ce qu'on
+ * vient voir, et un formulaire posé en tête la repoussait sous la ligne de
+ * flottaison à chaque ouverture du carnet. Le geste garde son importance —
+ * c'est lui qui alimente le carnet — mais il se demande, par le bouton « + »
+ * de l'en-tête, plutôt que de s'imposer.
+ */
+export const ROUTE_REPERER = '/reperer';
+
 /** Le face-à-face, désormais un écran et non plus une section (#124). */
 export const ROUTE_COMPARAISON = '/comparer';
 
 /** L'export du carnet, atteignable depuis n'importe quel écran (#14, #124). */
 export const ROUTE_EXPORT = '/exporter';
+
+/**
+ * Le tableau de bord : le carnet entier classé selon les poids posés (#126).
+ *
+ * Distinct du face-à-face, qui met deux à quatre Biens côte à côte : celui-ci
+ * classe le carnet entier, et répond à « lesquels méritent une seconde
+ * visite » là où l'autre répond à « lequel de ces deux-là ».
+ */
+export const ROUTE_TABLEAU_DE_BORD = '/analyser';
 
 /** La fiche d'un Bien (#8). */
 export function routeFicheBien(bienId: number): string {

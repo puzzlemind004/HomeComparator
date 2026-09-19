@@ -11,8 +11,6 @@ import {
 } from './bien.service';
 import type { ModificationBien } from './bien';
 import { unBien } from './bien.test-helper';
-import { CRITERES } from '../criteres/definition';
-import type { ValeursCriteres } from '../criteres/valeurs';
 
 /**
  * La fiche est construite sans TestBed : son service et sa route sont
@@ -55,20 +53,6 @@ function creerFiche(
   return runInInjectionContext(injector, () => new FicheBienPage());
 }
 
-/**
- * Les Critères d'un Bien tous renseignés sauf ceux nommés — la façon de
- * placer l'assistant à une ou deux questions de la fin sans écrire quatorze
- * valeurs à la main.
- *
- * Les Critères sortent de la définition et non d'une liste écrite ici : un
- * Critère ajouté ne doit pas faire mentir un test sur ce qu'il reste à poser
- * (ADR-0004).
- */
-function tousRenseignesSauf(manquants: readonly string[]): ValeursCriteres {
-  return Object.fromEntries(
-    CRITERES.map(({ id }) => [id, manquants.includes(id) ? null : 'une valeur']),
-  );
-}
 
 /** Le Bien affiché, ou `undefined` si la fiche n'a pas pu être chargée. */
 function bienAffiche(fiche: FicheBienPage) {
@@ -429,129 +413,6 @@ describe('l’assistant depuis la fiche', () => {
     fiche.repondreQuestion(250000);
 
     expect(fiche.questionCourante()?.id).toBe('taxeFonciere');
-  });
-
-  describe('ce qu’il annonce de la suite (#121)', () => {
-    it('annonce les deux questions qui suivent celle posée', () => {
-      // Sans elle, l'acheteur répond à l'aveugle : il ne sait pas s'il en a
-      // pour trente secondes ou cinq minutes.
-      const fiche = creerFiche({});
-
-      fiche.lancerAssistant();
-
-      expect(fiche.questionsSuivantes().map(({ libelle }) => libelle)).toEqual([
-        'Taxe foncière',
-        'Charges de copropriété',
-      ]);
-    });
-
-    it('n’annonce rien tant que l’assistant n’est pas lancé', () => {
-      expect(creerFiche({}).questionsSuivantes()).toEqual([]);
-    });
-
-    it('n’annonce rien après la dernière question', () => {
-      // La dernière ne promet rien après elle.
-      const fiche = creerFiche({
-        consulter: () =>
-          of<FicheBien>({
-            etat: 'chargee',
-            bien: unBien({ criteres: tousRenseignesSauf(['dpe']) }),
-          }),
-      });
-
-      fiche.lancerAssistant();
-
-      expect(fiche.questionCourante()?.id).toBe('dpe');
-      expect(fiche.questionsSuivantes()).toEqual([]);
-    });
-
-    it('en fait une phrase qui nomme les deux questions', () => {
-      // « Question suivante : taxe foncière, puis charges de copropriété. »
-      // Les libellés en minuscule : ils sont pris dans une phrase, et non en
-      // tête d'une étiquette de formulaire.
-      const fiche = creerFiche({});
-
-      fiche.lancerAssistant();
-
-      expect(fiche.annonceDeLaSuite()).toBe(
-        'Question suivante : taxe foncière, puis charges de copropriété.',
-      );
-    });
-
-    it('laisse un sigle en capitales au milieu de la phrase', () => {
-      // « puis dpe » se lit comme une faute. Un libellé déjà en capitales —
-      // DPE — n'est pas un mot de la phrase qu'on abaisse, c'est un sigle.
-      const fiche = creerFiche({
-        consulter: () =>
-          of<FicheBien>({
-            etat: 'chargee',
-            bien: unBien({ criteres: tousRenseignesSauf(['capaciteStationnement', 'dpe']) }),
-          }),
-      });
-
-      fiche.lancerAssistant();
-
-      expect(fiche.annonceDeLaSuite()).toBe('Question suivante : DPE.');
-    });
-
-    it('garde la capitale d’un terme du glossaire', () => {
-      // « Type de Bien » : le Bien est l'objet que l'on compare, et le
-      // glossaire lui met une capitale partout. L'abaisser ici en ferait un
-      // mot ordinaire.
-      const fiche = creerFiche({
-        consulter: () =>
-          of<FicheBien>({
-            etat: 'chargee',
-            bien: unBien({ criteres: tousRenseignesSauf(['nombrePieces', 'typeBien']) }),
-          }),
-      });
-
-      fiche.lancerAssistant();
-
-      expect(fiche.annonceDeLaSuite()).toBe('Question suivante : type de Bien.');
-    });
-
-    it('n’annonce qu’une question quand il n’en reste qu’une après celle posée', () => {
-      const fiche = creerFiche({
-        consulter: () =>
-          of<FicheBien>({
-            etat: 'chargee',
-            bien: unBien({ criteres: tousRenseignesSauf(['surfaceHabitable', 'dpe']) }),
-          }),
-      });
-
-      fiche.lancerAssistant();
-
-      expect(fiche.annonceDeLaSuite()).toBe('Question suivante : DPE.');
-    });
-
-    it('ne dit rien du tout sur la dernière question', () => {
-      // Pas de phrase vide ni de « Question suivante : » sans suite : la
-      // dernière ne promet rien après elle.
-      const fiche = creerFiche({
-        consulter: () =>
-          of<FicheBien>({
-            etat: 'chargee',
-            bien: unBien({ criteres: tousRenseignesSauf(['dpe']) }),
-          }),
-      });
-
-      fiche.lancerAssistant();
-
-      expect(fiche.annonceDeLaSuite()).toBe('');
-    });
-
-    it('avance d’un cran à chaque question traitée', () => {
-      const fiche = creerFiche({});
-
-      fiche.lancerAssistant();
-      fiche.passerQuestion();
-
-      expect(fiche.questionsSuivantes().map(({ id }) => id)).toEqual([
-        'chargesCopropriete',
-        'surfaceHabitable',
-      ]);
-    });
   });
 
   describe('où en est la saisie pendant l’assistant (#121)', () => {
@@ -1152,4 +1013,207 @@ describe('la suppression d’un Bien', () => {
     expect(fiche.erreurs()).toEqual(['Le Libellé est obligatoire']);
     expect(fiche.erreurSuppression()).toEqual(['injoignable']);
   });
+
+
 });
+
+  describe('consulter avant de modifier', () => {
+    it('s’ouvre en affichage et non en formulaire', () => {
+      /**
+       * Le changement de fond de la refonte sur cet écran : on ouvre une
+       * fiche bien plus souvent pour relire ce qu'on a noté que pour le
+       * changer, et seize champs de saisie donnaient à une consultation
+       * l'allure d'une saisie à finir.
+       */
+      expect(creerFiche({}).edition()).toBe(false);
+    });
+
+    it('passe en édition et en revient', () => {
+      const fiche = creerFiche({});
+
+      fiche.basculerEdition();
+      expect(fiche.edition()).toBe(true);
+
+      fiche.basculerEdition();
+      expect(fiche.edition()).toBe(false);
+    });
+
+    it('n’a rien à valider en quittant l’édition', () => {
+      /**
+       * Chaque champ s'enregistre au `blur`, un à un : il n'y a jamais de
+       * brouillon en attente, et le bouton n'est qu'une bascule d'affichage.
+       * C'est ce qui fait qu'une visite interrompue ne perd rien.
+       */
+      const modifications: ModificationBien[] = [];
+      const fiche = creerFiche({
+        modifier: (_id, modification) => {
+          modifications.push(modification);
+          return of<ModificationBienResultat>({ enregistre: true, bien: unBien() });
+        },
+      });
+
+      fiche.basculerEdition();
+      fiche.basculerEdition();
+
+      expect(modifications).toEqual([]);
+    });
+  });
+
+  describe('ce que la fiche affiche', () => {
+    it('écrit les valeurs comme le tableau et les cartes', () => {
+      /**
+       * `formaterValeur` et non un `Intl` monté ici : un même prix écrit de
+       * trois façons sur trois écrans se lirait comme trois données
+       * différentes (ADR-0004).
+       */
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({ criteres: { prixDemande: 249000, surfaceHabitable: 76.2 } }),
+          }),
+      });
+
+      const lignes = fiche.groupes().flatMap(({ criteres }) => criteres);
+      const prix = lignes.find(({ critere }) => critere.id === 'prixDemande');
+      const surface = lignes.find(({ critere }) => critere.id === 'surfaceHabitable');
+
+      expect(prix?.texte).toBe('249 000 €');
+      expect(surface?.texte).toBe('76,2 m²');
+    });
+
+    it('laisse vide le texte d’un Critère non renseigné', () => {
+      // C'est l'écran qui choisit comment marquer l'absence — « à demander »
+      // en doré —, et il doit pouvoir la distinguer d'un zéro autrement que
+      // par le texte (#6).
+      const fiche = creerFiche({});
+      const lignes = fiche.groupes().flatMap(({ criteres }) => criteres);
+      const prix = lignes.find(({ critere }) => critere.id === 'prixDemande');
+
+      expect(prix?.texte).toBe('');
+      expect(prix?.renseigne).toBe(false);
+    });
+
+    it('situe le Bien par son étape et par sa date', () => {
+      // Le Statut dit l'étape, la situation dit quand : « À visiter » ne
+      // distingue pas le Bien qu'on voit demain de celui dont le rendez-vous
+      // n'est pas pris (#120).
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({ statut: 'aVisiter', champsStatut: { dateVisite: '2026-09-21' } }),
+          }),
+      });
+
+      expect(fiche.etape()).toContain('À visiter');
+      expect(fiche.etape()).toContain('21/09');
+    });
+
+    it('se contente de l’étape quand il n’y a rien à ajouter', () => {
+      // Un Bien qu'on vient de repérer n'a ni visite ni offre.
+      expect(creerFiche({}).etape()).toBe('À contacter');
+    });
+
+    it('résume le Bien par sa ville, son prix et son prix au m²', () => {
+      // La ligne de la maquette, et les mêmes chiffres que porte la Carte :
+      // ce qui permet de reconnaître un Bien sans lire le reste.
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({
+              criteres: {
+                villeQuartier: 'Nantes — Hauts-Pavés',
+                prixDemande: 249000,
+                surfaceHabitable: 76.2,
+              },
+            }),
+          }),
+      });
+
+      expect(fiche.situationChiffree()).toBe('Nantes — Hauts-Pavés · 249 000 € · 3 268 €/m²');
+    });
+
+    it('omet les membres absents plutôt que de les marquer', () => {
+      /**
+       * C'est une ligne de présentation : ce qui manque se dit plus bas, là
+       * où on peut le renseigner. Des « — » intercalés la rendraient
+       * illisible sur un Bien qu'on vient de repérer.
+       */
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({ criteres: { prixDemande: 249000 } }),
+          }),
+      });
+
+      expect(fiche.situationChiffree()).toBe('249 000 €');
+    });
+
+    it('ne résume rien d’un Bien dont on ne sait encore rien', () => {
+      expect(creerFiche({}).situationChiffree()).toBe('');
+    });
+
+    it('écrit une date de visite en français', () => {
+      // L'API la rend « 2026-09-21 », ce qui ne se lit pas dans un carnet.
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({ statut: 'aVisiter', champsStatut: { dateVisite: '2026-09-21' } }),
+          }),
+      });
+
+      const visite = fiche.champsStatut().find(({ champ }) => champ.id === 'dateVisite');
+
+      expect(visite?.texte).toBe('21/09/2026');
+    });
+
+    it('écrit le montant d’une offre comme un prix', () => {
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({
+            etat: 'chargee',
+            bien: unBien({
+              statut: 'offreFaite',
+              champsStatut: { montantDerniereOffre: 258000 },
+            }),
+          }),
+      });
+
+      const offre = fiche.champsStatut().find(({ champ }) => champ.id === 'montantDerniereOffre');
+
+      expect(offre?.texte).toBe('258 000 €');
+    });
+
+    it('laisse vide un champ de Statut non saisi', () => {
+      // Une date de visite non fixée attend le rendez-vous, pas un coup de
+      // téléphone : la consultation n'affiche pas la ligne (#7).
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({ etat: 'chargee', bien: unBien({ statut: 'aVisiter' }) }),
+      });
+
+      const visite = fiche.champsStatut().find(({ champ }) => champ.id === 'dateVisite');
+
+      expect(visite?.texte).toBe('');
+    });
+
+    it('porte la photo représentative en tête', () => {
+      // C'est elle qui fait reconnaître le Bien en rouvrant sa fiche un mois
+      // plus tard, quand le Libellé seul ne suffit plus (#13).
+      const photo = { id: 4, url: '/api/biens/1/photos/4', urlVignette: '/api/biens/1/photos/4?t=v' };
+      const fiche = creerFiche({
+        consulter: () =>
+          of<FicheBien>({ etat: 'chargee', bien: unBien({ photoRepresentative: photo }) }),
+      });
+
+      expect(fiche.photoRepresentative()).toEqual(photo);
+    });
+
+    it('n’a pas de photo à montrer sur un Bien qui n’en porte aucune', () => {
+      expect(creerFiche({}).photoRepresentative()).toBeNull();
+    });
+  });
