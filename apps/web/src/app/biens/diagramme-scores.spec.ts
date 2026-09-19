@@ -17,8 +17,8 @@ function creerDiagramme(barres: readonly BarreScore[]) {
 }
 
 const classees: readonly BarreScore[] = [
-  { bienId: 1, libelle: 'le T3 avec la terrasse', score: 82, rang: 1 },
-  { bienId: 2, libelle: 'celui avec la cuisine refaite', score: 61, rang: 2 },
+  { bienId: 1, libelle: 'le T3 avec la terrasse', score: 82, rang: 1, manquants: 0 },
+  { bienId: 2, libelle: 'celui avec la cuisine refaite', score: 61, rang: 2, manquants: 0 },
 ];
 
 describe('DiagrammeScores', () => {
@@ -42,8 +42,8 @@ describe('DiagrammeScores', () => {
     // Tronquer l'ordonnée ferait paraître décisif un écart de deux points :
     // c'est la décision que l'écran doit éclairer, pas fausser.
     const serres: readonly BarreScore[] = [
-      { bienId: 1, libelle: 'A', score: 78, rang: 1 },
-      { bienId: 2, libelle: 'B', score: 76, rang: 2 },
+      { bienId: 1, libelle: 'A', score: 78, rang: 1, manquants: 0 },
+      { bienId: 2, libelle: 'B', score: 76, rang: 2, manquants: 0 },
     ];
 
     const [premier, second] = creerDiagramme(serres).batons();
@@ -58,7 +58,7 @@ describe('DiagrammeScores', () => {
     // comme un mauvais score.
     const diagramme = creerDiagramme([
       ...classees,
-      { bienId: 3, libelle: 'celui qu’on vient de repérer', score: null, rang: 3 },
+      { bienId: 3, libelle: 'celui qu’on vient de repérer', score: null, rang: 3, manquants: 0 },
     ]);
 
     expect(diagramme.batons().map((baton) => baton.bienId)).toEqual([1, 2]);
@@ -82,7 +82,7 @@ describe('DiagrammeScores', () => {
     // Une hauteur nulle ne dessinerait rien : la colonne doit rester sous
     // son libellé.
     const [baton] = creerDiagramme([
-      { bienId: 1, libelle: 'le dernier', score: 0, rang: 1 },
+      { bienId: 1, libelle: 'le dernier', score: 0, rang: 1, manquants: 0 },
     ]).batons();
 
     expect(baton.hauteur).toBeGreaterThan(0);
@@ -90,7 +90,7 @@ describe('DiagrammeScores', () => {
 
   it('ne dessine rien quand aucun Bien n’a de score', () => {
     const diagramme = creerDiagramme([
-      { bienId: 1, libelle: 'A', score: null, rang: 1 },
+      { bienId: 1, libelle: 'A', score: null, rang: 1, manquants: 0 },
     ]);
 
     expect(diagramme.rempli()).toBe(false);
@@ -104,12 +104,52 @@ describe('DiagrammeScores', () => {
     expect(diagramme.description()).toContain('82');
   });
 
+  it('nomme le second du classement, et non le dernier', () => {
+    // « mène devant X » en citant la queue du classement décrirait un écart
+    // qui n'est pas celui qu'on annonce, et une oreille n'a pas le dessin
+    // pour rattraper.
+    const trois: readonly BarreScore[] = [
+      { bienId: 1, libelle: 'le premier', score: 90, rang: 1, manquants: 0 },
+      { bienId: 2, libelle: 'le second', score: 80, rang: 2, manquants: 0 },
+      { bienId: 3, libelle: 'le dernier', score: 10, rang: 3, manquants: 0 },
+    ];
+
+    const description = creerDiagramme(trois).description();
+
+    expect(description).toContain('devant le second');
+    expect(description).toContain('Dernier : le dernier');
+  });
+
+  it('ne nomme pas deux fois le même Bien quand ils ne sont que deux', () => {
+    // À deux, le second est le dernier : le nommer deux fois ferait entendre
+    // trois Biens là où il y en a deux.
+    const description = creerDiagramme(classees).description();
+
+    expect(description).not.toContain('Dernier :');
+  });
+
+  it('dit que le meneur repose sur une saisie incomplète', () => {
+    // L'œil le voit dans la liste sous le diagramme ; l'oreille ne l'aurait
+    // pas sans cette phrase (#130).
+    const description = creerDiagramme([
+      { bienId: 1, libelle: 'le T3', score: 82, rang: 1, manquants: 3 },
+      { bienId: 2, libelle: 'l’autre', score: 61, rang: 2, manquants: 0 },
+    ]).description();
+
+    expect(description).toContain('saisie incomplète');
+    expect(description).toContain('3 Critères non renseignés');
+  });
+
+  it('ne parle pas de saisie incomplète quand le meneur a tout rempli', () => {
+    expect(creerDiagramme(classees).description()).not.toContain('incomplète');
+  });
+
   it('s’élargit avec le nombre de Biens', () => {
     // Deux Biens ne s'étalent pas sur la largeur de douze.
     const deux = creerDiagramme(classees).geometrie().largeur;
     const trois = creerDiagramme([
       ...classees,
-      { bienId: 3, libelle: 'C', score: 40, rang: 3 },
+      { bienId: 3, libelle: 'C', score: 40, rang: 3, manquants: 0 },
     ])
       .geometrie()
       .largeur;

@@ -15,6 +15,17 @@ export interface BarreScore {
 
   /** Le rang dans le classement, à partir de 1. */
   rang: number;
+
+  /**
+   * Combien de Critères pondérés ce Bien ne renseigne pas.
+   *
+   * Porté jusqu'ici parce que le diagramme est « la lecture principale de
+   * l'écran » : un score bâti sur la moitié des Critères ne se lit pas comme
+   * un score complet, et le bâton doit pouvoir le dire (#130). La liste sous
+   * le diagramme l'écrit en toutes lettres ; ici, c'est la description
+   * accessible qui le porte, faute de place sous un bâton.
+   */
+  manquants: number;
 }
 
 /**
@@ -163,9 +174,28 @@ export class DiagrammeScores {
       return `${tete.libelle} obtient ${tete.score} sur 100.`;
     }
 
-    return (
+    // Le **second**, et non le dernier : « mène devant X » en citant la queue
+    // du classement décrit un écart qui n'est pas celui qu'on annonce, et une
+    // oreille n'a pas le dessin pour rattraper. Le dernier se dit à part.
+    const second = batons[1];
+
+    const teteEtSecond =
       `${batons.length} Biens classés. ${tete.libelle} mène avec ${tete.score} sur 100, ` +
-      `devant ${dernier.libelle} à ${dernier.score}.`
-    );
+      `devant ${second.libelle} à ${second.score}.`;
+
+    // À deux, le second **est** le dernier : le nommer deux fois ferait
+    // entendre trois Biens là où il y en a deux.
+    const classement =
+      batons.length === 2
+        ? teteEtSecond
+        : `${teteEtSecond} Dernier : ${dernier.libelle} à ${dernier.score}.`;
+
+    // Un score bâti sur une saisie incomplète ne se lit pas comme un score
+    // complet : l'œil le voit dans la liste, l'oreille ne l'aurait pas (#130).
+    return tete.manquants > 0
+      ? `${classement} Le score de ${tete.libelle} repose sur une saisie ` +
+          `incomplète : ${tete.manquants} Critère${tete.manquants > 1 ? 's' : ''} ` +
+          `non renseigné${tete.manquants > 1 ? 's' : ''}.`
+      : classement;
   });
 }

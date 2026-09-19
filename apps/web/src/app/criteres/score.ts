@@ -31,6 +31,60 @@ export const POIDS_MAXIMUM: Poids = 5;
 export type PoidsPoses = Readonly<Record<string, Poids>>;
 
 /**
+ * La note d'un Critère que personne ne départage : le milieu de l'échelle.
+ *
+ * Elle ne sert qu'au cas où le Critère ne classe rien du tout — aucun Bien ne
+ * l'a renseigné, ou tous l'ont fait et aucun ne s'est tu, ce qui ne laisse
+ * personne à qui donner le plancher. Ni récompense ni punition : il n'y a
+ * rien à récompenser ni à punir.
+ *
+ * Un Critère **non renseigné** alors que d'autres ont répondu ne passe pas
+ * par ici : il prend le plancher (voir `notePlancher`), sans quoi taire une
+ * mauvaise valeur paierait encore.
+ */
+const NOTE_NEUTRE = 0.5;
+
+/**
+ * La note d'un Critère que ce Bien ne renseigne pas : celle du pire Bien qui
+ * l'a renseigné (#128).
+ *
+ * **Ni écarté du calcul, ni mis à zéro, ni mis au milieu** — les trois se
+ * trompent, et les deux premiers ont été essayés :
+ *
+ * - *Écarté du dénominateur* : l'absence devenait un avantage franc. Un Bien
+ *   à 300 000 € pour 120 m² obtenait 50 quand un Bien à 200 000 € sans
+ *   surface obtenait 100, sa moyenne n'étant plus faite que de son meilleur
+ *   Critère.
+ * - *À mi-échelle* : mieux, mais taire une mauvaise valeur payait encore —
+ *   le Bien le plus petit du carnet gagnait des points à cacher sa surface,
+ *   0,5 valant mieux que le 0 qu'il méritait.
+ * - *À zéro* : une saisie en retard prise pour un défaut, ce que le carnet ne
+ *   doit pas faire — il est fait pour être rempli au fil des visites.
+ *
+ * Le plancher est le seul point qui ne récompense jamais le silence : au
+ * mieux, ne pas répondre vaut autant que la pire réponse connue. Il ne punit
+ * pas pour autant — le Bien n'est pas mis sous le pire, il est mis à son
+ * niveau, et toute valeur réelle qu'il finira par porter ne pourra que le
+ * faire monter ou le laisser où il est.
+ *
+ * C'est une note et non un poids : le poids reste celui que l'acheteur a
+ * posé, et ignorer un Critère décisif pèse donc plus lourd qu'ignorer un
+ * Critère accessoire.
+ */
+function notePlancher(bornes: Echelle, porteurs: number): number {
+  // Personne n'a répondu : il n'y a rien à quoi se comparer, et le Critère
+  // ne départage personne. La note neutre ne récompense ni ne punit.
+  if (bornes.temoins === 0 || bornes.temoins === porteurs) {
+    return NOTE_NEUTRE;
+  }
+
+  // Au moins un Bien a répondu et au moins un s'est tu : ne pas répondre vaut
+  // la pire réponse connue — jamais mieux, sans quoi taire une mauvaise
+  // valeur paierait (#128).
+  return 0;
+}
+
+/**
  * Un Critère tel que le classement le pondère : sa définition, et la façon
  * d'en lire la valeur sur un Bien.
  *
@@ -96,15 +150,35 @@ export interface ScoreBien {
 }
 
 /**
+ * Vrai quand ce Bien porte une valeur sur ce Critère, quelle qu'elle vaille.
+ *
+ * Distinct d'« avoir une note » : une valeur peut être saisie sans être
+ * classable — seul Bien à la renseigner (#129), ou valeur hors définition.
+ * C'est la saisie que `manquants` compte, pas la classabilité.
+ */
+function estRenseignee(valeur: ValeurCritere): boolean {
+  return valeur !== null && valeur !== undefined && valeur !== '';
+}
+
+/**
  * Les bornes d'un Critère sur le carnet : ce qui sert d'échelle au min-max.
  *
- * `null` quand il n'y a rien à échelonner — aucune valeur classable, ou une
- * seule valeur distincte, cas où `maximum === minimum` et où la division
- * n'aurait pas de sens.
+ * `null` quand aucun Bien ne renseigne le Critère — il n'y a alors rien à
+ * échelonner du tout.
  */
 interface Echelle {
   minimum: number;
   maximum: number;
+
+  /**
+   * Combien de Biens renseignent ce Critère.
+   *
+   * Porté parce que `maximum === minimum` recouvre deux situations que rien
+   * d'autre ne distingue, et qui n'appellent pas la même note (#129) : cinq
+   * Biens au même prix — une égalité réelle —, et un seul Bien à l'avoir
+   * renseigné — un témoin unique, qui n'a battu personne.
+   */
+  temoins: number;
 }
 
 /**
@@ -120,6 +194,10 @@ interface Echelle {
  * Une seule valeur distincte ne fait pas une échelle : cinq Biens au même
  * prix ne se départagent pas par le prix, et la note s'en déduit à `1` pour
  * tous plutôt que par une division par zéro (voir `note`).
+ *
+ * Le nombre de témoins est compté ici plutôt que déduit des bornes : une
+ * étendue nulle ne dit pas si cinq Biens sont à égalité ou si un seul a
+ * répondu, et les deux ne valent pas la même note (#129).
  */
 function echelle(critere: Critere, valeurs: readonly ValeurCritere[]): Echelle | null {
   const rangs = valeurs
@@ -130,7 +208,11 @@ function echelle(critere: Critere, valeurs: readonly ValeurCritere[]): Echelle |
     return null;
   }
 
-  return { minimum: Math.min(...rangs), maximum: Math.max(...rangs) };
+  return {
+    minimum: Math.min(...rangs),
+    maximum: Math.max(...rangs),
+    temoins: rangs.length,
+  };
 }
 
 /**
@@ -141,11 +223,20 @@ function echelle(critere: Critere, valeurs: readonly ValeurCritere[]): Echelle |
  * vaut 1 ; sur une surface, c'est le maximum. Un Critère `aucun` n'arrive
  * jamais ici — il n'est pas pondérable, et `criteresNotables` l'écarte.
  *
- * Quand l'échelle est plate — tous les Biens à la même valeur — la note vaut
- * 1 partout : aucun ne se distingue, et les départager par ce Critère
- * reviendrait à inventer un écart. Les poser tous à 0 serait pire encore :
- * un carnet où tous les Biens ont le même DPE verrait ce Critère annuler
- * silencieusement le poids qu'on lui a donné.
+ * Quand l'échelle est plate, deux situations se ressemblent et ne valent pas
+ * la même note (#129) :
+ *
+ * - **Plusieurs Biens à la même valeur** — une égalité réelle. La note vaut
+ *   1 partout : aucun ne se distingue, et les départager reviendrait à
+ *   inventer un écart. Les poser tous à 0 serait pire : un carnet où tous
+ *   les Biens ont le même DPE verrait ce Critère annuler silencieusement le
+ *   poids qu'on lui a donné.
+ * - **Un seul Bien à l'avoir renseigné** — un témoin unique. Il prend 1, et
+ *   les silencieux le plancher : répondre vaut mieux que se taire, sans quoi
+ *   il suffirait d'être le dernier à répondre pour qu'un Critère cesse de
+ *   classer qui que ce soit, et cacher une mauvaise valeur paierait (#128,
+ *   #129). Sa valeur ne se mesure à rien de déclaré, mais elle se mesure au
+ *   silence des autres.
  */
 function note(critere: Critere, valeur: ValeurCritere, bornes: Echelle): number | null {
   const position = rang(critere, valeur);
@@ -157,8 +248,15 @@ function note(critere: Critere, valeur: ValeurCritere, bornes: Echelle): number 
   const etendue = bornes.maximum - bornes.minimum;
 
   if (etendue === 0) {
+    // Toutes les valeurs connues sont égales. Plusieurs témoins : égalité
+    // réelle, tous à 1. Un seul : sa valeur ne se mesure à rien de déclaré,
+    // mais elle se mesure au silence des autres — un Bien qui répond vaut
+    // mieux qu'un Bien qui se tait, sans quoi répondre serait toujours
+    // désavantageux (#128). Il prend donc 1, et les silencieux le plancher.
     return 1;
   }
+
+
 
   const normalisee = (position - bornes.minimum) / etendue;
 
@@ -168,16 +266,32 @@ function note(critere: Critere, valeur: ValeurCritere, bornes: Echelle): number 
 /**
  * Le score de chaque porteur, du meilleur au moins bon.
  *
- * **Un Critère non renseigné ne compte ni pour ni contre.** Il sort du
- * calcul du Bien, son poids avec lui : c'est une moyenne pondérée sur ce qui
- * est connu, et non sur tout ce qui aurait pu l'être. Lui donner 0 ferait
- * passer une saisie incomplète pour un défaut — un Bien visité hier, dont on
- * n'a rempli que le prix, tomberait au dernier rang sans qu'aucun de ses
- * mérites ait été jugé. C'est `manquants` qui porte cette information à
- * l'écran, plutôt que le score qui la porterait en mentant.
+ * **Un Critère non renseigné vaut la note neutre, et garde son poids** (#128).
+ *
+ * La première version le sortait du calcul, poids compris, en se réclamant
+ * d'un principe juste — « ni pour ni contre » — qu'elle appliquait mal. Sortir
+ * du dénominateur n'est pas neutre : c'est avantageux. Un Bien à 300 000 €
+ * pour 120 m² obtenait 50, quand un Bien à 200 000 € dont la surface manquait
+ * obtenait 100 et passait devant, sa moyenne n'étant plus faite que de son
+ * meilleur Critère. Un carnet en cours de recherche est majoritairement fait
+ * de Biens à moitié saisis : c'était le cas ordinaire, pas un cas limite.
+ *
+ * Lui donner 0 serait l'erreur inverse — une saisie en retard prise pour un
+ * défaut, un Bien visité hier relégué au dernier rang sans qu'aucun de ses
+ * mérites ait été jugé.
+ *
+ * Le **plancher** est la sortie de ce faux choix : le Critère reste au
+ * dénominateur — donc l'ignorance ne rapporte rien — et il y entre à la note
+ * du pire Bien qui a répondu — donc taire une mauvaise valeur ne rapporte
+ * rien non plus. Au mieux, ne pas répondre vaut autant que la pire réponse
+ * connue, jamais mieux. C'est `manquants` qui dit sur quoi le score repose.
  *
  * Les poids nuls sont écartés d'emblée : un Critère à 0 ne compte pas, et
  * ses valeurs manquantes n'ont donc pas à être signalées.
+ *
+ * Un Bien dont **aucun** Critère pondéré n'est renseigné n'a pas de score :
+ * une moyenne entièrement faite de planchers le dirait mauvais alors qu'on
+ * n'en sait rien, et `null` le met à part (voir `ScoreBien`).
  *
  * Le tri place les scores absents en fin, quel que soit leur rang : un Bien
  * sans score n'est pas dernier, il est à part, et l'écran le montre à la
@@ -206,6 +320,7 @@ export function scorer(
   const scores = porteurIds.map((porteurId): ScoreBien => {
     const contributions: Contribution[] = [];
     let manquants = 0;
+    let renseignes = 0;
     let total = 0;
     let sommePoids = 0;
 
@@ -215,8 +330,26 @@ export function scorer(
       const valeur = notable.valeurDe(porteurId);
       const notee = bornes === null ? null : note(notable.critere, valeur, bornes);
 
+      if (estRenseignee(valeur)) {
+        renseignes += 1;
+      }
+
       if (notee === null) {
-        manquants += 1;
+        // Le Critère n'a pas de note, mais son poids reste au dénominateur :
+        // c'est ce qui empêche l'ignorance de rapporter (#128). La note est
+        // celle du pire Bien qui a répondu, jamais mieux.
+        total += (bornes === null ? NOTE_NEUTRE : notePlancher(bornes, porteurIds.length)) * poidsCritere;
+        sommePoids += poidsCritere;
+
+        // `manquants` compte ce que **ce Bien** ne renseigne pas, et non ce
+        // que le carnet ne sait pas classer : un Critère que ce Bien porte
+        // mais qu'aucun autre ne renseigne n'a pas de note (#129) sans être
+        // manquant pour autant, et l'annoncer ainsi accuserait le seul Bien
+        // qui a pris la peine de le remplir.
+        if (!estRenseignee(valeur)) {
+          manquants += 1;
+        }
+
         continue;
       }
 
@@ -234,7 +367,12 @@ export function scorer(
 
     return {
       porteurId,
-      score: sommePoids === 0 ? null : Math.round((total / sommePoids) * 100),
+      // Aucun Critère pondéré renseigné : le Bien n'a pas de score. Une
+      // moyenne faite de seuls planchers le dirait mauvais alors qu'on n'en
+      // sait rien. C'est la **saisie** qui compte
+      // ici et non la classabilité : un Bien qui a tout rempli garde son
+      // score même si le carnet ne sait rien en classer (#129).
+      score: renseignes === 0 ? null : Math.round((total / sommePoids) * 100),
       // Du plus lourd au plus léger : ce qui a fait le score se lit en
       // premier. À poids égal, la meilleure note d'abord.
       contributions: [...contributions].sort(

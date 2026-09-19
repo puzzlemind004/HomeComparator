@@ -9,7 +9,6 @@ import { ROUTE_BIENS } from './carnet.routes';
 import type { Bien } from './bien';
 import type { Commentaire } from './commentaire';
 import { CRITERES_ORDONNES } from '../criteres/definition';
-import { formaterValeur } from '../criteres/formatage';
 import {
   POIDS_MAXIMUM,
   POIDS_PAR_DEFAUT,
@@ -157,14 +156,21 @@ export class TableauDeBordPage {
    * et non du Bien — le même Bien change de rang quand un poids bouge.
    */
   readonly lignes = computed(() => {
-    const biens = this.biens();
+    // Les Biens sont indexés une fois plutôt que cherchés à chaque ligne :
+    // `lignes` se recalcule à chaque mouvement de curseur, et deux `find`
+    // linéaires par Bien y feraient un travail quadratique pour rien.
+    const parId = new Map(this.biens().map((bien) => [bien.id, bien]));
 
-    return this.classement().map((score, index) => ({
-      ...score,
-      rang: index + 1,
-      bien: biens.find((bien) => bien.id === score.porteurId),
-      libelle: biens.find((bien) => bien.id === score.porteurId)?.libelle ?? '',
-    }));
+    return this.classement().map((score, index) => {
+      const bien = parId.get(score.porteurId);
+
+      return {
+        ...score,
+        rang: index + 1,
+        bien,
+        libelle: bien?.libelle ?? '',
+      };
+    });
   });
 
   /** Ce que le diagramme dessine : un bâton par Bien classé. */
@@ -174,6 +180,7 @@ export class TableauDeBordPage {
       libelle: ligne.libelle,
       score: ligne.score,
       rang: ligne.rang,
+      manquants: ligne.manquants,
     })),
   );
 
@@ -283,17 +290,5 @@ export class TableauDeBordPage {
    */
   commentairesNotesDe(bienId: number): readonly Commentaire[] {
     return this.commentairesDe(bienId).filter((commentaire) => commentaire.note !== null);
-  }
-
-  /** La valeur d'un Critère sur un Bien, telle que la fiche l'écrirait. */
-  valeurAffichee(critereId: string, valeur: unknown): string {
-    const critere = CRITERES_ORDONNES.find((connu) => connu.id === critereId);
-
-    if (!critere) {
-      // Un thème : une moyenne d'étoiles, arrondie au dixième.
-      return typeof valeur === 'number' ? `${valeur.toFixed(1)} ★` : '—';
-    }
-
-    return formaterValeur(critere, valeur as never);
   }
 }

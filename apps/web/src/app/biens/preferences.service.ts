@@ -1,5 +1,5 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { POIDS_MAXIMUM, type Poids, type PoidsPoses } from '../criteres/score';
+import { POIDS_MAXIMUM, POIDS_PAR_DEFAUT, type Poids, type PoidsPoses } from '../criteres/score';
 import {
   type Rattachement,
   type Theme,
@@ -54,9 +54,22 @@ export class Preferences {
    */
   readonly aucunPoidsPose = computed(() => Object.keys(this.poids()).length === 0);
 
-  /** Le poids d'un Critère, borné, quelle qu'ait été la valeur reçue. */
+  /**
+   * Le poids d'un Critère, borné, quelle qu'ait été la valeur reçue.
+   *
+   * `NaN` est ramené au défaut et non borné : `Math.min`/`Math.max` le
+   * laissent passer intact, et il se sérialiserait en `null` — un poids que
+   * la relecture suivante prendrait pour une absence. Inatteignable par le
+   * curseur, mais c'est le propre d'un garde que de tenir aussi pour ce qui
+   * n'arrive pas encore.
+   */
   poser(critereId: string, poids: Poids): void {
-    const borne = Math.max(0, Math.min(POIDS_MAXIMUM, Math.round(poids))) as Poids;
+    const demande = Number(poids);
+    const borne = (
+      Number.isFinite(demande)
+        ? Math.max(0, Math.min(POIDS_MAXIMUM, Math.round(demande)))
+        : POIDS_PAR_DEFAUT
+    ) as Poids;
 
     this.poidsEcrits.update((poids) => ({ ...poids, [critereId]: borne }));
     ecrire(CLE_POIDS, this.poidsEcrits());
@@ -133,9 +146,15 @@ export class Preferences {
    * un choix ferait perdre la moitié de ce qui a été observé.
    */
   basculerRattachement(commentaireId: number, bienId: number, themeId: string): void {
+    // Le Bien entre dans la comparaison comme il entre dans l'écriture : un
+    // Commentaire appartient à un Bien et à un seul, mais lire sur deux clés
+    // quand on en écrit trois laisse la porte ouverte à un rattachement qu'on
+    // croit retirer sans y parvenir.
     const present = this.rattachements().some(
       (rattachement) =>
-        rattachement.commentaireId === commentaireId && rattachement.themeId === themeId,
+        rattachement.commentaireId === commentaireId &&
+        rattachement.bienId === bienId &&
+        rattachement.themeId === themeId,
     );
 
     this.rattachementsEcrits.update((rattachements) =>
@@ -144,6 +163,7 @@ export class Preferences {
             (rattachement) =>
               !(
                 rattachement.commentaireId === commentaireId &&
+                rattachement.bienId === bienId &&
                 rattachement.themeId === themeId
               ),
           )
