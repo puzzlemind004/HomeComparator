@@ -7,6 +7,7 @@ import {
   ROUTE_COMPARAISON,
   ROUTE_EXPORT,
   ROUTE_REPERER,
+  ROUTE_TABLEAU_DE_BORD,
   routeCommenterBien,
 } from './carnet.routes';
 
@@ -79,9 +80,13 @@ export class Navigation {
   private readonly router = inject(Router);
 
   /**
-   * Les trois écrans, dans l'ordre de la maquette : le carnet, le
-   * face-à-face, l'export. C'est l'ordre du parcours — on repère, on
-   * compare, on emporte.
+   * Les quatre écrans, dans l'ordre du parcours : le carnet, le face-à-face,
+   * le tableau de bord, l'export. On repère, on compare deux à deux, on
+   * classe l'ensemble, on emporte.
+   *
+   * « Analyser » se pose après « Comparer » parce qu'il en est la suite :
+   * le face-à-face départage deux Biens qu'on hésite à séparer, le tableau
+   * de bord dit lesquels méritent qu'on s'y arrête (#126).
    *
    * La liste est une donnée et non trois blocs de gabarit recopiés : les
    * entrées ne diffèrent que par leur libellé et leur adresse, et les
@@ -90,6 +95,7 @@ export class Navigation {
   readonly entrees: readonly EntreeNavigation[] = [
     { libelle: 'Carnet', route: ROUTE_BIENS, exact: true },
     { libelle: 'Comparer', route: ROUTE_COMPARAISON, exact: false },
+    { libelle: 'Analyser', route: ROUTE_TABLEAU_DE_BORD, exact: false },
     { libelle: 'Exporter', route: ROUTE_EXPORT, exact: false },
   ];
 

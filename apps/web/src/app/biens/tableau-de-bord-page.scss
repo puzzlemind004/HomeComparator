@@ -1,0 +1,438 @@
+@use '../carnet';
+
+// Le tableau de bord (#126). Le diagramme est dessiné par
+// `diagramme-scores` ; cette feuille tient ce qui l'entoure — le classement,
+// les curseurs de poids, et les thèmes.
+@include carnet.entete;
+@include carnet.etats-vides;
+
+.tableau-de-bord {
+  padding-bottom: var(--espace-8);
+}
+
+// Ce que l'écran dit quand il n'a rien à classer. Comme sur le face-à-face,
+// ce n'est pas une erreur et ne s'en donne pas l'air.
+.tableau-de-bord__vide {
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon-lg);
+  display: grid;
+  gap: var(--espace-4);
+  justify-items: start;
+  padding: var(--espace-6) var(--espace-4);
+
+  p {
+    color: var(--neutre-800);
+    margin: 0;
+  }
+}
+
+.tableau-de-bord__lien {
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon);
+  color: var(--neutre-900);
+  font-family: var(--fonte-titre);
+  font-size: 14px;
+  font-weight: 600;
+  padding: var(--espace-2) var(--espace-4);
+  text-decoration: none;
+
+  &:hover {
+    background: color-mix(in srgb, var(--texte) 7%, transparent);
+  }
+}
+
+// Le classement montré avant qu'aucun poids n'ait été posé est celui du
+// carnet, pas celui de l'acheteur : l'écran le dit plutôt que de le laisser
+// croire.
+.tableau-de-bord__avertissement {
+  background: var(--accent-100);
+  border-left: 3px solid var(--accent-300);
+  border-radius: var(--rayon);
+  color: var(--accent-800);
+  font-size: 13px;
+  margin: var(--espace-4) 0 0;
+  padding: var(--espace-3) var(--espace-4);
+}
+
+.tableau-de-bord__sans-score {
+  color: var(--neutre-700);
+  font-size: 13px;
+  margin: var(--espace-4) 0 0;
+
+  a {
+    color: var(--neutre-800);
+  }
+}
+
+// Le classement en toutes lettres : les hauteurs du diagramme se comparent,
+// ces chiffres-ci se lisent.
+.classement {
+  display: grid;
+  gap: var(--espace-1);
+  list-style: none;
+  margin: var(--espace-6) 0 0;
+  padding: 0;
+}
+
+.classement__ligne {
+  align-items: center;
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon);
+  display: grid;
+  gap: var(--espace-3);
+  grid-template-columns: auto 1fr auto;
+  padding: var(--espace-2) var(--espace-3);
+}
+
+.classement__ligne--premier {
+  background: var(--accent-100);
+  border-color: var(--accent-300);
+}
+
+.classement__rang {
+  @include carnet.chiffres;
+
+  color: var(--neutre-600);
+  font-family: var(--fonte-titre);
+  font-size: 14px;
+  min-width: 1.5em;
+  text-align: right;
+}
+
+.classement__bien {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.classement__libelle {
+  color: var(--texte);
+  font-family: var(--fonte-titre);
+  font-size: 15px;
+  overflow: hidden;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// Un score bâti sur peu de Critères ne vaut pas un score complet : l'écran
+// le dit sous le Libellé plutôt que de laisser les deux se ressembler.
+.classement__manquants {
+  color: var(--neutre-600);
+  font-size: 11px;
+}
+
+.classement__score {
+  @include carnet.chiffres;
+
+  font-family: var(--fonte-titre);
+  font-size: 19px;
+  font-weight: 600;
+}
+
+// Les curseurs : l'unique chose qu'on écrit sur cet écran.
+.poids,
+.themes {
+  border-top: 1px solid var(--separateur);
+  margin-top: var(--espace-8);
+  padding-top: var(--espace-6);
+
+  h2 {
+    font-family: var(--fonte-titre);
+    font-size: 19px;
+    margin: 0;
+  }
+}
+
+.poids__entete {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-3);
+  justify-content: space-between;
+}
+
+.poids__reinitialiser {
+  background: none;
+  border: none;
+  color: var(--neutre-700);
+  cursor: pointer;
+  font-family: var(--fonte-texte);
+  font-size: 13px;
+  padding: var(--espace-1);
+  text-decoration: underline;
+
+  &:hover {
+    color: var(--texte);
+  }
+}
+
+.poids__explication,
+.themes__explication {
+  color: var(--neutre-700);
+  font-size: 13px;
+  margin: var(--espace-2) 0 var(--espace-4);
+}
+
+.poids__liste {
+  display: grid;
+  gap: var(--espace-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.poids__critere {
+  align-items: center;
+  display: grid;
+  // Le libellé, le curseur, la valeur : trois colonnes dont seule celle du
+  // milieu s'étire.
+  gap: var(--espace-3);
+  grid-template-columns: minmax(8rem, 12rem) 1fr 2rem;
+}
+
+// Un Critère à zéro ne compte pas, et se retire visuellement sans disparaître
+// : il doit rester facile à remonter.
+.poids__critere--ignore {
+  .poids__libelle {
+    color: var(--neutre-600);
+    text-decoration: line-through;
+  }
+}
+
+.poids__libelle {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.poids__curseur {
+  accent-color: var(--accent);
+  cursor: pointer;
+  width: 100%;
+}
+
+.poids__valeur {
+  @include carnet.chiffres;
+
+  color: var(--neutre-700);
+  font-size: 13px;
+  text-align: right;
+}
+
+// Sur un téléphone, le libellé du Critère passe au-dessus de son curseur :
+// à trois colonnes, il ne resterait au curseur qu'une poignée de pixels, et
+// un curseur trop court ne se règle plus (ADR-0006).
+@media (max-width: 560px) {
+  .poids__critere {
+    grid-template-columns: 1fr 2rem;
+    grid-template-rows: auto auto;
+
+    .poids__libelle {
+      grid-column: 1 / -1;
+    }
+  }
+}
+
+// Les thèmes : ce qui fait entrer les Commentaires dans le score.
+.themes__label {
+  @include carnet.intitule;
+
+  display: block;
+  margin-bottom: var(--espace-1);
+}
+
+.themes__saisie {
+  display: flex;
+  gap: var(--espace-2);
+
+  input {
+    border: 1px solid var(--separateur);
+    border-radius: var(--rayon);
+    flex: 1;
+    font-family: var(--fonte-texte);
+    font-size: 14px;
+    min-width: 0;
+    padding: var(--espace-2);
+  }
+
+  button {
+    background: var(--texte);
+    border: none;
+    border-radius: var(--rayon);
+    color: var(--fond);
+    cursor: pointer;
+    font-family: var(--fonte-titre);
+    font-size: 14px;
+    font-weight: 600;
+    padding: var(--espace-2) var(--espace-4);
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+  }
+}
+
+.themes__liste {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-2);
+  list-style: none;
+  margin: var(--espace-4) 0 0;
+  padding: 0;
+}
+
+.themes__theme {
+  align-items: center;
+  background: var(--surface);
+  border-radius: var(--rayon);
+  display: flex;
+  font-size: 13px;
+  gap: var(--espace-2);
+  padding: var(--espace-1) var(--espace-2);
+}
+
+.themes__supprimer {
+  background: none;
+  border: none;
+  color: var(--neutre-600);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+
+  &:hover {
+    color: var(--erreur);
+  }
+}
+
+.themes__aucun {
+  color: var(--neutre-700);
+  font-size: 13px;
+  margin: var(--espace-4) 0 0;
+}
+
+.rattachement {
+  margin-top: var(--espace-6);
+
+  h3 {
+    font-family: var(--fonte-titre);
+    font-size: 16px;
+    margin: 0 0 var(--espace-3);
+  }
+}
+
+.rattachement__biens,
+.rattachement__commentaires {
+  display: grid;
+  gap: var(--espace-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rattachement__bien {
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon);
+  overflow: hidden;
+}
+
+.rattachement__depli {
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  font-family: var(--fonte-titre);
+  font-size: 14px;
+  gap: var(--espace-3);
+  justify-content: space-between;
+  padding: var(--espace-2) var(--espace-3);
+  text-align: left;
+  width: 100%;
+
+  &:hover {
+    background: color-mix(in srgb, var(--texte) 5%, transparent);
+  }
+}
+
+.rattachement__compte {
+  color: var(--neutre-600);
+  flex: none;
+  font-family: var(--fonte-texte);
+  font-size: 11px;
+}
+
+.rattachement__commentaires {
+  border-top: 1px solid var(--separateur);
+  padding: var(--espace-3);
+}
+
+.rattachement__commentaire {
+  display: grid;
+  gap: var(--espace-2);
+
+  & + & {
+    border-top: 1px solid var(--separateur);
+    margin-top: var(--espace-2);
+    padding-top: var(--espace-2);
+  }
+}
+
+.rattachement__texte {
+  color: var(--neutre-800);
+  font-size: 13px;
+  margin: 0;
+}
+
+.rattachement__etoiles {
+  color: var(--accent);
+  margin-right: var(--espace-1);
+}
+
+// Les étoiles se voient ; leur nombre s'entend. Le texte n'est là que pour
+// les lecteurs d'écran, à qui une suite de « ★ » ne dit rien.
+.rattachement__lu {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.rattachement__themes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-1);
+}
+
+// L'étiquette se pose et se retire d'un clic : c'est un état, et sa couleur
+// le dit sans qu'on ait à lire.
+.rattachement__etiquette {
+  background: none;
+  border: 1px solid var(--separateur);
+  border-radius: var(--rayon);
+  color: var(--neutre-700);
+  cursor: pointer;
+  font-family: var(--fonte-texte);
+  font-size: 12px;
+  padding: 2px var(--espace-2);
+
+  &:hover {
+    border-color: var(--accent-400);
+  }
+}
+
+.rattachement__etiquette--posee {
+  background: var(--accent-100);
+  border-color: var(--accent);
+  color: var(--accent-800);
+  font-weight: 600;
+}

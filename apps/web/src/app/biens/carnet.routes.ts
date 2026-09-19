@@ -31,6 +31,15 @@ export const ROUTE_COMPARAISON = '/comparer';
 /** L'export du carnet, atteignable depuis n'importe quel écran (#14, #124). */
 export const ROUTE_EXPORT = '/exporter';
 
+/**
+ * Le tableau de bord : le carnet entier classé selon les poids posés (#126).
+ *
+ * Distinct du face-à-face, qui met deux à quatre Biens côte à côte : celui-ci
+ * classe le carnet entier, et répond à « lesquels méritent une seconde
+ * visite » là où l'autre répond à « lequel de ces deux-là ».
+ */
+export const ROUTE_TABLEAU_DE_BORD = '/analyser';
+
 /** La fiche d'un Bien (#8). */
 export function routeFicheBien(bienId: number): string {
   return `/biens/${bienId}`;

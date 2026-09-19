@@ -11,6 +11,7 @@ import {
   ROUTE_REPERER,
   ROUTE_COMPARAISON,
   ROUTE_EXPORT,
+  ROUTE_TABLEAU_DE_BORD,
   routeCommenterBien,
 } from './carnet.routes';
 
@@ -41,7 +42,7 @@ function creerNavigation(maximum = MAXIMUM_DESKTOP, adresse = ROUTE_BIENS) {
 }
 
 describe('Navigation', () => {
-  it('mène aux trois écrans du carnet', () => {
+  it('mène aux quatre écrans du carnet', () => {
     // Les adresses viennent de `carnet.routes` et ne sont pas réécrites ici :
     // une entrée de menu qui les orthographierait autrement serait un lien
     // qui marche sous un onglet qui ne s'allume jamais (#124).
@@ -50,6 +51,7 @@ describe('Navigation', () => {
     expect(navigation.entrees.map((entree) => entree.route)).toEqual([
       ROUTE_BIENS,
       ROUTE_COMPARAISON,
+      ROUTE_TABLEAU_DE_BORD,
       ROUTE_EXPORT,
     ]);
   });

@@ -7,7 +7,13 @@ import { ExportPage } from './biens/export-page';
 import { FicheBienPage } from './biens/fiche-bien-page';
 import { CommenterPage } from './biens/commenter-page';
 import { RepererPage } from './biens/reperer-page';
-import { ROUTE_COMPARAISON, ROUTE_EXPORT, ROUTE_REPERER } from './biens/carnet.routes';
+import { TableauDeBordPage } from './biens/tableau-de-bord-page';
+import {
+  ROUTE_COMPARAISON,
+  ROUTE_EXPORT,
+  ROUTE_REPERER,
+  ROUTE_TABLEAU_DE_BORD,
+} from './biens/carnet.routes';
 
 /**
  * Le carnet exige la session, la connexion l'exclut (#4).
@@ -60,6 +66,16 @@ export const routes: Routes = [
     component: ExportPage,
     canActivate: [authGuard],
     title: 'Exporter — HomeComparator',
+  },
+  {
+    /**
+     * Le tableau de bord : le carnet classé selon les poids de l'acheteur
+     * (#126). Il s'atteint sans rien avoir coché, comme le face-à-face.
+     */
+    path: ROUTE_TABLEAU_DE_BORD.slice(1),
+    component: TableauDeBordPage,
+    canActivate: [authGuard],
+    title: 'Analyser — HomeComparator',
   },
   {
     path: 'biens/:id',

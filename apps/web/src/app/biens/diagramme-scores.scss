@@ -1,0 +1,117 @@
+@use '../carnet';
+
+// Le diagramme en bâtons du tableau de bord (#126) : les Biens en abscisse,
+// leur score en ordonnée.
+
+.diagramme {
+  margin: 0;
+}
+
+// Le dessin défile plutôt que de rétrécir : huit bâtons de six pixels ne se
+// comparent plus, et c'est la comparaison qui est tout l'objet du diagramme.
+.diagramme__cadre {
+  overflow-x: auto;
+  padding-bottom: var(--espace-2);
+}
+
+.diagramme__svg {
+  // Le SVG porte sa taille en attributs pour que le défilement sache quoi
+  // faire déborder ; la hauteur reste celle du dessin.
+  display: block;
+  height: auto;
+  max-width: 100%;
+  min-width: min-content;
+}
+
+// Les graduations se voient sans se lire : elles situent une hauteur, elles
+// ne sont pas de l'information.
+.diagramme__graduation {
+  line {
+    stroke: var(--separateur);
+    stroke-width: 1;
+  }
+
+  text {
+    @include carnet.chiffres;
+
+    fill: var(--neutre-600);
+    font-family: var(--fonte-texte);
+    font-size: 10px;
+  }
+}
+
+.diagramme__axe {
+  stroke: color-mix(in srgb, var(--texte) 38%, transparent);
+  stroke-width: 1;
+}
+
+.diagramme__baton {
+  rect {
+    fill: var(--neutre-400);
+    // Le bâton grandit depuis sa base quand le poids bouge : sans cette
+    // transition, le classement sauterait d'un état à l'autre et l'œil
+    // perdrait le Bien qu'il suivait.
+    transition:
+      y 180ms ease-out,
+      height 180ms ease-out,
+      fill 180ms ease-out;
+  }
+
+  .diagramme__valeur {
+    @include carnet.chiffres;
+
+    fill: var(--neutre-700);
+    font-family: var(--fonte-titre);
+    font-size: 13px;
+    font-weight: 600;
+    transition: y 180ms ease-out;
+  }
+
+  .diagramme__libelle {
+    fill: var(--neutre-800);
+    font-family: var(--fonte-texte);
+    font-size: 11px;
+  }
+
+  .diagramme__rang {
+    @include carnet.chiffres;
+
+    fill: var(--neutre-600);
+    font-family: var(--fonte-texte);
+    font-size: 10px;
+  }
+}
+
+// Le premier du classement est la réponse qu'on vient chercher : l'accent le
+// donne avant qu'on ait lu un seul chiffre.
+.diagramme__baton--premier {
+  rect {
+    fill: var(--accent);
+  }
+
+  .diagramme__valeur {
+    fill: var(--accent-800);
+  }
+
+  .diagramme__libelle {
+    fill: var(--texte);
+    font-weight: 600;
+  }
+}
+
+.diagramme__legende {
+  color: var(--neutre-700);
+  font-size: 12px;
+  margin-top: var(--espace-2);
+}
+
+// Le mouvement est un confort de lecture, pas une information : qui le
+// refuse garde un diagramme juste.
+@media (prefers-reduced-motion: reduce) {
+  .diagramme__baton {
+    rect,
+    .diagramme__valeur {
+      transition: none;
+    }
+  }
+}
